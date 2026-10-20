@@ -516,9 +516,9 @@ class Connector:
             # never hand a failed request to Gemini: it would claim a change that didn't happen
             log.info("  ! %s rule %s failed: %s - answering honestly", self.name, action, e)
             busy = getattr(e, "status", None) == 429 and self.has_line("service_busy")
-            reply = {"status": "answered", "speech": self.say("service_busy" if busy else "service_error")}
-            from veil import phases
             reads = rules.first_change(self.rules.get(action)).strip().upper().startswith("GET ")
+            reply = {"status": "answered", "speech": self.say("service_busy" if busy else self.error_line(not reads))}
+            from veil import phases
             if phases.on("dump9") and reads:      # at its limit or not answering: the next of the same nature may (router.py)
                 reply["node_down"] = "busy" if getattr(e, "status", None) == 429 else "not answering"
             return reply
@@ -546,7 +546,12 @@ class Connector:
         except Exception as e:
             # never hand a failed request to Gemini: it would claim a change that didn't happen
             log.info("  ! %s %s failed: %s - answering honestly", self.name, action, e)
-            return {"status": "answered", "speech": self.say("service_error")}
+            return {"status": "answered", "speech": self.say(self.error_line(self.changes(action)))}
+
+    def error_line(self, changes):
+        """The failed call's line: a question gets service_error_read when the app has one (a chore
+        list that can't be read wasn't "changed"), a change service_error."""
+        return "service_error" if changes or not self.has_line("service_error_read") else "service_error_read"
 
     # ---------- the generic app: what every app needs (Oct 18, the API rule) ----------
     # An app's subclass (connectors/<name>.py) overrides only the small hooks below where its API
@@ -726,7 +731,7 @@ class Connector:
     def _save_kept(self):
         import json
         try:
-            os.makedirs(os.path.dirname(self._kept_file()), exist_ok=True)
+            config.make_dirs(os.path.dirname(self._kept_file()))
             with open(self._kept_file(), "w") as f:
                 json.dump({k: [t, list(out)] for k, (t, out) in self._kept.items()}, f)
         except (OSError, TypeError) as e:

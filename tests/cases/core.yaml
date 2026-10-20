@@ -245,6 +245,24 @@ cases:
     path: '0'
     kind: polite
     speech_has: ening
+- name: hello alone gets a hello, not "Anytime" (Oct 20, the fresh install)
+  say: Hello
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: Hello
+- name: hi alone gets a hello too
+  say: Hi
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: Hello
+- name: bye alone gets a goodbye
+  say: Bye
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: oodbye
 - name: thank you alone is polite
   say: Thank you.
   expect:

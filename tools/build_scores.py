@@ -25,6 +25,8 @@ from collections import Counter, defaultdict
 import yaml
 
 SOURCES_FILE = "tools/sources.yaml"
+if not os.path.exists(SOURCES_FILE):      # a fresh clone before the first start: the starting copy
+    SOURCES_FILE = "defaults/tools/sources.yaml"
 TOPICS_DIR = "topics"
 SCORES_DIR = "scores"
 SETTINGS_FILE = "settings.yaml"
@@ -402,7 +404,7 @@ def fetch_spec(url):
         try:
             return json.loads(text)
         except ValueError:
-            doc = yaml.safe_load(text)          # OpenAPI allows YAML too (Day in History's)
+            doc = yaml.safe_load(text)          # OpenAPI allows YAML too
             if not isinstance(doc, dict):
                 raise ValueError("its spec isn't JSON or YAML that can be read")
             return doc

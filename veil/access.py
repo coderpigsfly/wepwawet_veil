@@ -7,7 +7,9 @@
 #   outbound_allowed: where the router may call out to (LiteLLM, the weather brain, Donetick,
 #                     Oread, Home Assistant). A call anywhere else is refused before it's made.
 # An empty list means the local network only (private, loopback and Tailscale addresses),
-# never an address on the internet, the same rule as Oread's listening ports.
+# never an address on the internet, the same rule as Oread's listening ports; the entry local
+# keeps that local network in a list that also names addresses. The going-out list may also name
+# a host (litcal.johnromanodorazio.com): calls to that name are permitted.
 #
 # Refused callers and refused calls out are remembered (the last 20 of each) for the
 # Security page, and logged at most once a minute per address. Permitted ones are remembered
@@ -20,6 +22,7 @@
 
 import ipaddress
 import logging
+import re
 import socket
 import time
 from collections import deque
@@ -35,15 +38,31 @@ LOCAL = [ipaddress.ip_network(n) for n in (
     "100.64.0.0/10", "::1/128", "fc00::/7", "fe80::/10")]
 
 LISTS = ("inbound_allowed", "admin_allowed", "outbound_allowed")
+# "local" in a list: the whole local network, as an empty list permits, beside the addresses after it
+# (so an app on the internet, like the Liturgical Calendar, is added without cutting off the house)
+LOCAL_WORD = "local"
+# a name in the going-out list (litcal.johnromanodorazio.com): calls to that name are permitted,
+# whatever addresses it has today (an app on the internet may move, or answer from many)
+NAME = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$", re.I)
 
 
-def parse(entries):
+def names(entries):
+    """The host names in a list (only the going-out list may have them)."""
+    return {str(e).strip().lower() for e in entries or [] if NAME.match(str(e).strip())}
+
+
+def parse(entries, names_ok=False):
     networks = []
     for entry in entries or []:
+        if names_ok and NAME.match(str(entry).strip()):
+            continue
+        if str(entry).strip().lower() == LOCAL_WORD:
+            networks.extend(LOCAL)
+            continue
         try:
             networks.append(ipaddress.ip_network(str(entry).strip(), strict=False))
         except ValueError as e:
-            raise VeilError(f"'{entry}' isn't an address or range (like 192.168.1.50 or 192.168.1.0/24)") from e
+            raise VeilError(f"'{entry}' isn't an address or range (like 192.168.1.50 or 192.168.1.0/24), or local") from e
     return networks
 
 
@@ -69,13 +88,14 @@ class Access:
     def load(self, security):
         security = security or {}
         self.entries = {k: [str(e) for e in (security.get(k) or [])] for k in LISTS}
-        self.networks = {k: parse(v) for k, v in self.entries.items()}
+        self.networks = {k: parse(v, names_ok=k == "outbound_allowed") for k, v in self.entries.items()}
+        self.names = names(self.entries["outbound_allowed"])
 
     def allowed(self, which, address, what=""):
         ip = _ip(address)
         if ip is None:
             return False
-        ok = any(ip in net for net in (self.networks[which] or LOCAL))
+        ok = any(ip in net for net in (self.networks[which] or ([] if self.names and which == "outbound_allowed" else LOCAL)))
         if ok:
             self._seen(which, str(ip), what)
         return ok
@@ -116,6 +136,9 @@ class Access:
     def check_outbound(self, url):
         """Raise VeilError if the router may not call this address."""
         host = urlparse(str(url)).hostname or ""
+        if host.lower() in self.names:
+            self._seen("outbound_allowed", host.lower(), str(url).split("?")[0])
+            return
         addrs = [host] if _ip(host) else self._resolve(host)
         if addrs and all(self.allowed("outbound_allowed", a, str(url).split("?")[0]) for a in addrs):
             return
@@ -138,7 +161,7 @@ class Access:
         return sorted(out, key=lambda x: x["last"], reverse=True)
 
     def view(self):
-        return {k: {"entries": self.entries[k], "local_network_only": not self.networks[k],
+        return {k: {"entries": self.entries[k], "local_network_only": not self.networks[k] and not (k == "outbound_allowed" and self.names),
                     "recently_refused": list(self.refused[k]),
                 "recently_allowed": sorted(({"address": a, **v} for a, v in self.seen[k].items()),
                                            key=lambda x: x["time"], reverse=True)} for k in LISTS}

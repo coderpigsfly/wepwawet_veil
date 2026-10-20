@@ -39,7 +39,7 @@ def load():
 
 
 def save(misses):
-    os.makedirs(os.path.dirname(MISSES_FILE), exist_ok=True)
+    config.make_dirs(os.path.dirname(MISSES_FILE))
     tmp = MISSES_FILE + ".tmp"
     with open(tmp, "w") as f:
         f.write(HEADER)

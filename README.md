@@ -71,6 +71,20 @@ at once.
 | **Optional** | An OpenAI-compatible model endpoint for what the house can't answer (LiteLLM in the tested setup) |
 | **Optional apps** | Oread (who spoke), Donetick (chores), the weather brain, and any app with an OpenAPI description |
 
+## Sample apps
+
+Every app ships switched off; switch them on from the Integrations page.
+
+| App | Answers | Needs |
+| --- | --- | --- |
+| [Liturgical Calendar API](https://litcal.johnromanodorazio.com) | "What feast is today?" | Nothing to install: it's on the internet. Permit it going out (Security page) |
+| [Wikipedia](https://en.wikipedia.org/wiki/Wikipedia:On_this_day), On this day | "What happened on this day?", "Who was born today?" | Nothing to install: it's on the internet. Permit it going out |
+| [The weather brain](https://github.com/coderpigsfly/weather_brain) | The weather, sunrise and sunset | Its own install |
+| [Donetick](https://github.com/donetick/donetick) | Chores: add, list, check off, move, nag | Its own install, and its API key |
+| [Oread](https://github.com/coderpigsfly/oread) | Who spoke | Its own install |
+
+The [user's guide](docs/users-guide.md#the-sample-apps) has the steps for each.
+
 ## Tested setup
 
 | Part | Version |
@@ -112,17 +126,16 @@ house-router.
 If you follow the example implementation, you get a smart home that can do chores (courtesy of
 [Donetick](https://github.com/donetick/donetick)), tell you the Roman Catholic feast day (courtesy of
 the [Liturgical Calendar API](https://litcal.johnromanodorazio.com)), this day in history (courtesy
-of [Day in History](https://api.dayinhistory.dev) and Wikipedia), and the weather (courtesy of the
-[weather brain](https://github.com/coderpigsfly/weather_brain)), and perform voice identification,
-device personality, language for each identified person, and second-layer speech-to-text and
+of Wikipedia's [On this day](https://en.wikipedia.org/wiki/Wikipedia:On_this_day)), and the weather
+(courtesy of the [weather brain](https://github.com/coderpigsfly/weather_brain)), and perform voice
+identification, device personality, language for each identified person, and second-layer speech-to-text and
 text-to-speech learning (courtesy of [Oread](https://github.com/coderpigsfly/oread)). The weather
 brain and Oread are the community versions.
 
-Donetick, the Liturgical Calendar, Day in History and Wikipedia are examples of integrations that
-aren't Wepwawet compliant, and are added in minutes. The weather brain and Oread are Wepwawet
-compliant, and are added at once. We have no affiliation with Donetick, the Liturgical Calendar,
-Day in History, Wikipedia or LiteLLM; this implementation is just an example, and all are fine
-pieces of work.
+Donetick, the Liturgical Calendar and Wikipedia are examples of integrations that aren't Wepwawet
+compliant, and are added in minutes. The weather brain and Oread are Wepwawet compliant, and are
+added at once. We have no affiliation with Donetick, the Liturgical Calendar, Wikipedia or LiteLLM;
+this implementation is just an example, and all are fine pieces of work.
 
 **Note:** this implementation of the Wepwawet standard for voice control is not the FinTech
 Robotics implementation or library; it is, however, the same standard that produces the priority

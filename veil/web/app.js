@@ -3836,10 +3836,12 @@ async function grantorsPart() {
 }
 
 // An address or a range (IPv4 or IPv6, with an optional /bits), or why not. The router checks again on Save.
-function addressError(w) {
+function addressError(w, namesOk) {
+  const name = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+  if (namesOk && name.test(w)) return null;
   const v4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}(\/([0-9]|[12]\d|3[0-2]))?$/;
   const v6 = /^[0-9a-fA-F:]+:[0-9a-fA-F:]*(\/\d{1,3})?$/;
-  return v4.test(w) || v6.test(w) ? null : `"${w.length > 40 ? w.slice(0, 40) + "…" : w}" isn't an address or range (like 192.168.1.50 or 192.168.1.0/24)`;
+  return v4.test(w) || v6.test(w) || w.toLowerCase() === "local" ? null : `"${w.length > 40 ? w.slice(0, 40) + "…" : w}" isn't an address or range (like 192.168.1.50 or 192.168.1.0/24), or local${namesOk ? ", or a name like litcal.johnromanodorazio.com" : ""}`;
 }
 
 async function addressesTab() {
@@ -3851,12 +3853,12 @@ async function addressesTab() {
     admin_allowed: ["These pages (port 8771)",
       "Who may open these pages: the computers and phones you manage the router from. Your own address must stay on it (Save refuses to lock you out)."],
     outbound_allowed: ["Going out: where the router may call",
-      "Everything the router calls: the way Off-Platform and every app and program on the Integrations page. A call anywhere else is refused before it's made."],
+      "Everything the router calls: the way Off-Platform and every app and program on the Integrations page. A call anywhere else is refused before it's made. An app on the internet can be permitted by its name (litcal.johnromanodorazio.com)."],
   };
   const sections = Object.entries(info).map(([k, [title, about]]) => {
     state[k] = d[k].entries.slice();
     const chipsWrap = h("div", {});
-    const drawChips = () => chipsWrap.replaceChildren(chipList(state[k], (v) => { state[k] = v; }, "192.168.1.50, or a range: 192.168.1.0/24", addressError));
+    const drawChips = () => chipsWrap.replaceChildren(chipList(state[k], (v) => { state[k] = v; }, k === "outbound_allowed" ? "192.168.1.50, a range: 192.168.1.0/24, or a name" : "192.168.1.50, or a range: 192.168.1.0/24", (w) => addressError(w, k === "outbound_allowed")));
     drawChips();
     const seen = d[k].recently_allowed || [];
     return h("section", { class: "card panel" }, h("h2", {}, title),
@@ -3871,13 +3873,19 @@ async function addressesTab() {
           state[k].includes(r.address) ? h("span", { class: "badge pill-ok" }, "on the list")
             : h("button", { type: "button", onclick: (e) => { if (!state[k].includes(r.address)) state[k].push(r.address); drawChips(); e.target.replaceWith(h("span", { class: "badge" }, "added: Save to use it")); } }, "Add"))))) : null,
       d[k].recently_refused.length ? h("details", {}, h("summary", {}, `Recently refused (${d[k].recently_refused.length})`),
-        h("ul", {}, d[k].recently_refused.map((r) => h("li", {}, `${when(r.time)} ${r.address} ${r.what}`)))) : null);
+        h("p", { class: "quiet small" }, "Add one you expect (an app on the internet you switched on), then Save. Added to an empty list, local comes first, so the local network stays permitted."),
+        h("ul", { class: "rows" }, [...new Set(d[k].recently_refused.map((r) => r.address))].map((a) => {
+          const r = d[k].recently_refused.find((x) => x.address === a);
+          return h("li", {}, h("span", {}, h("strong", {}, a), " ", h("span", { class: "quiet small" }, `${r.what || ""} · ${when(r.time)}`)),
+            state[k].includes(a) ? h("span", { class: "badge pill-ok" }, "on the list")
+              : h("button", { type: "button", onclick: (e) => { if (!state[k].length) state[k].push("local"); if (!state[k].includes(a)) state[k].push(a); drawChips(); e.target.replaceWith(h("span", { class: "badge" }, "added: Save to use it")); } }, "Add"));
+        }))) : null);
   });
   const box = errorBox();
   const note = h("span", {});
   const save = h("button", { class: "primary", type: "button" }, "Save (in use at once)");
   save.addEventListener("click", busy(save, box, async () => { await api("/api/access", { method: "PUT", body: state }); note.replaceChildren(okNote("Saved, and in use")); }));
-  return [h("p", { class: "quiet" }, "Three lists of permitted addresses, checked on every connection. Each one: a single address (192.168.1.50) or a range (192.168.1.0/24). Leave a list empty to permit your whole local network but never the internet; that's how it starts."),
+  return [h("p", { class: "quiet" }, "Three lists of permitted addresses, checked on every connection. Each one: a single address (192.168.1.50) or a range (192.168.1.0/24). Leave a list empty to permit your whole local network but never the internet; that's how it starts. The entry local keeps the local network in a list that also names addresses."),
     ...sections, box, h("div", { class: "row-actions" }, save, note)];
 }
 

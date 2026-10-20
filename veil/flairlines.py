@@ -75,7 +75,7 @@ def save_approved(who, doc):
     head = (f"# personality/approved/{who}.yaml - dropped: lines from her books you deleted from her lines\n"
             f"# bank (personality/{who}.yaml), so combing the books again leaves them out. (flourishes: is\n"
             f"# empty since Oct 14: accepted lines go straight into her lines bank.)\n\n")
-    os.makedirs(_file("approved"), exist_ok=True)
+    config.make_dirs(_file("approved"))
     config.write_text(_file("approved", f"{who}.yaml"),
                       head + yaml.safe_dump({"flourishes": doc["flourishes"], "dropped": doc["dropped"]},
                                             sort_keys=False, allow_unicode=True, width=200) + "\n\n")
@@ -109,7 +109,7 @@ def save_candidates(who, cands):
                      f"  mood: [{', '.join(c.get('mood') or ['plain'])}]\n"
                      f"  from: {json.dumps(c.get('from', ''), ensure_ascii=False)}\n"
                      f"  found: {json.dumps(c.get('found', c.get('text', '')), ensure_ascii=False)}\n")
-    os.makedirs(_file("candidates"), exist_ok=True)
+    config.make_dirs(_file("candidates"))
     config.write_text(_file("candidates", f"{who}.yaml"), "".join(lines) + "\n\n")
 
 

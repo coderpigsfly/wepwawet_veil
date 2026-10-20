@@ -90,8 +90,8 @@ async def read_spec(i):
 
 
 def spec_doc(r, title):
-    """A spec (or a part of one) as a dict: JSON, or YAML (OpenAPI allows either: Day in History's is
-    YAML, application/vnd.oai.openapi), whichever it is; else an error that says so."""
+    """A spec (or a part of one) as a dict: JSON, or YAML (OpenAPI allows either; a YAML one
+    may come as application/vnd.oai.openapi), whichever it is; else an error that says so."""
     import json
     import yaml
     text = r.text

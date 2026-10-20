@@ -37,6 +37,20 @@ def never_list(root):
         return []
 
 
+ON = ("weather_brain", "donetick")
+
+
+def switch_on(settings, names):
+    """enabled: true for these services in the copy's settings.yaml, its comments kept."""
+    import re
+    with open(settings) as f:
+        text = f.read()
+    for name in names:
+        text = re.sub(rf"(\n  {name}:\n    enabled: )false\b[^\n]*", r"\1true", text, count=1)
+    with open(settings, "w") as f:
+        f.write(text)
+
+
 def make(dest, root=HERE):
     import fnmatch
     if os.path.exists(dest):
@@ -61,6 +75,8 @@ def make(dest, root=HERE):
     # the starting copies, put in place by the router's own start-up step
     env = dict(os.environ, ROUTER_ROOT=dest, ROUTER_DATA=os.path.join(dest, "data"))
     subprocess.run([sys.executable, "-c", "from veil import config"], cwd=dest, env=env, check=True)
+    # the apps the tests talk to, switched on (they ship off until a house has them installed)
+    switch_on(os.path.join(dest, "settings.yaml"), ON)
     # the stand-in assistants (her personality is the household's own)
     fx = os.path.join(root, "tests", "fixtures", "personality")
     shutil.copytree(fx, os.path.join(dest, "personality"), dirs_exist_ok=True,

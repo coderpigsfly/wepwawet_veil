@@ -253,6 +253,22 @@ topics:
     seed: [chore, chores, todo, task, tasks, list, calendar, reminder, reminders, project, projects]
     always_tentative: []
     pinned: []
+  # the samples on the internet (services below, off until you switch them on)
+  feasts:
+    service: litcal
+    spoken: the feast days
+    seed: [feast, feasts, feast day, feast days, holy day, holy days, holy day of obligation, obligation]
+    always_tentative: []
+    pinned: []
+  history:
+    service: wikipedia
+    spoken: history
+    seed: [history, in history, on this day, this day in history, historical, happened, born, died, who was born, born
+          today, born on this day, who died, died today, died on this day, what happened today, what happened on this
+          day, what happened on, tell me something]
+    always_tentative: [happened, born, died]
+    pinned: [is today a holiday, what holiday is today, holidays today, what holidays are today]
+    datasets: false
 
 # ---------- services ----------
 # Every service has the same keys, even when empty.
@@ -268,7 +284,7 @@ topics:
 # Secrets (API tokens) live in the vault (Security page) or .env, never here; secret: is the name.
 services:
   weather_brain:
-    enabled: true
+    enabled: false                 # on once your weather brain runs (its own install)
     kind: contract
     url: http://192.168.1.20:8765/ask
     spec: http://192.168.1.20:8765/openapi.json   # its API document, with its x-wepwawet section
@@ -276,7 +292,7 @@ services:
     timeout: 8
     options: {}
   donetick:
-    enabled: true
+    enabled: false                 # on once Donetick runs (its own install) and DONETICK_TOKEN is set
     kind: openapi
     url: http://192.168.1.20:2021/api/v1
     spec: http://192.168.1.20:2021/swagger/doc.json
@@ -300,6 +316,42 @@ services:
       people: {from: GET /circles/members, id: userId, name: displayName, house: people, default: Owner, me: default,
                names: {Owner: [sam, me, myself], Beth: []}}
       project: {from: GET /projects, id: id, name: name, default: House}
+  # Samples on the internet: nothing to install, no key. Switch one on (Integrations), then permit
+  # it going out by its name (Security, Addresses, Recently refused: Add).
+  litcal:
+    enabled: false
+    title: Liturgical calendar
+    kind: openapi
+    url: "https://litcal.johnromanodorazio.com/api/v5"
+    spec: "https://litcal.johnromanodorazio.com/api/v5/schemas/openapi.json"
+    secret: ""
+    timeout: 8.0
+    options:
+      calendar_id: US
+      year_type: CIVIL
+    lists:
+      feast: {from: "GET /calendar/nation/{calendar_id}/{year}", id: event_key, name: name, skip: {is_vigil_mass: true},
+              weight: {field: grade, higher: true, from: 2, words: grade_lcl}, defined: {from: "GET /events/nation/{calendar_id}",
+              month: month, day: day}}
+    cache_refresh_seconds: 3600
+    spoken_name: the feast days
+  wikipedia:
+    enabled: false
+    title: Wikipedia
+    kind: openapi
+    url: "https://en.wikipedia.org/api/rest_v1"
+    spec: "https://raw.githubusercontent.com/wikimedia/mediawiki-services-wikifeeds/master/spec.yaml"
+    spec_prefix: "/{domain}/v1"
+    secret: ""
+    timeout: 8.0
+    options: {}
+    lists:
+      event:
+        from: "GET /{domain}/v1/feed/onthisday/selected/{month}/{day}"
+        id: text
+        name: text
+    cache_refresh_seconds: 3600
+    spoken_name: Wikipedia
 
 
 # ---------- security ----------
@@ -363,7 +415,7 @@ web:
   enabled: true
   port: 8771
   tls: auto
-  tls_names: [192.168.1.20, myserver]    # names and addresses the self-signed certificate covers
+  tls_names: []                          # your server's address and name for the self-signed certificate, like [192.168.1.20, myserver]
 
 # ---------- transactions, the Off-Platform bank and savings ----------
 # The activity log and the Off-Platform bank (data/veil.db), for the Transactions and

@@ -251,6 +251,33 @@ polite_thank_you:
     - "You're welcome."
     - "My pleasure."
 
+# hello and goodbye, each way of saying them (polite_<phrase>)
+polite_hello:
+  any:
+    - "Hello! What can I do for you?"
+    - "Hello there. I'm listening."
+polite_hi:
+  any:
+    - "Hello! What can I do for you?"
+    - "Hello there. I'm listening."
+polite_hey_there:
+  any:
+    - "Hello! What can I do for you?"
+    - "Hello there. I'm listening."
+
+polite_goodbye:
+  any:
+    - "Goodbye!"
+    - "Goodbye for now."
+polite_bye:
+  any:
+    - "Goodbye!"
+    - "Goodbye for now."
+polite_see_you:
+  any:
+    - "Goodbye!"
+    - "Goodbye for now."
+
 polite:
   any:
     - "Mm-hm."

@@ -544,7 +544,7 @@ def bank_export(request: Request):
         raise VeilError("The activity log is off, so there's no bank")
     rows = r.ACTIVITY.bank_export()
     file = config.path("learn", "bank.yaml")
-    os.makedirs(os.path.dirname(file), exist_ok=True)
+    config.make_dirs(os.path.dirname(file))
     tmp = file + ".tmp"
     with open(tmp, "w") as f:
         f.write(BANK_EXPORT_HEADER + f"# Exported {time.strftime('%Y-%m-%d %H:%M')}: {len(rows)} sayings.\n\n")
@@ -3651,7 +3651,7 @@ async def access_set(request: Request):
     b = await body_of(request)
     new = {k: [str(e).strip() for e in (b.get(k) or []) if str(e).strip()] for k in access.LISTS}
     for k, v in new.items():
-        access.parse(v)
+        access.parse(v, names_ok=k == "outbound_allowed")
     test = access.Access(new)
     if not test.allowed("admin_allowed", client_of(request)):
         raise VeilError(f"That would lock you out: your address ({client_of(request)}) isn't in admin_allowed", 409)

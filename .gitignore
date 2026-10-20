@@ -21,3 +21,18 @@ venv/
 
 # Wepwawet Veil: accounts, sessions, vault, activity database, certificates
 data/
+
+# Your household's own files, made on the first start (never committed)
+/personality/
+/learn/
+/frontend/
+/connectors/*.commands.json
+/actions/donetick.yaml
+/connectors/donetick.yaml
+/firewall.yaml
+/scores/chores.yaml
+/scores/weather.yaml
+/settings.yaml
+/tools/sources.yaml
+/topics/chores.yaml
+/topics/weather.yaml

@@ -1,0 +1,497 @@
+{
+ "read_from": "https://raw.githubusercontent.com/wikimedia/mediawiki-services-wikifeeds/master/spec.yaml",
+ "title": "Wikifeeds API",
+ "accepted": "2026-10-20 14:56",
+ "commands": [
+  {
+   "api": "GET /robots.txt",
+   "summary": "Get robots.txt",
+   "requires": [],
+   "returns": [],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /",
+   "summary": "Root endpoint",
+   "requires": [],
+   "returns": [],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /_info",
+   "summary": "Get service information",
+   "requires": [],
+   "returns": [],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/feed/availability",
+   "summary": "Get supported projects",
+   "requires": [
+    "path: domain"
+   ],
+   "returns": [
+    "todays_featured_article",
+    "most_read",
+    "picture_of_the_day",
+    "in_the_news",
+    "on_this_day",
+    "did_you_know"
+   ],
+   "params": [
+    "path: domain"
+   ],
+   "types": {
+    "domain": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/feed/announcements",
+   "summary": "Get app announcements",
+   "requires": [
+    "path: domain"
+   ],
+   "returns": [
+    "announce",
+    "id",
+    "type",
+    "start_time",
+    "end_time",
+    "platforms",
+    "text",
+    "image",
+    "image_url",
+    "action",
+    "caption_HTML",
+    "countries",
+    "min_version",
+    "max_version",
+    "beta",
+    "logged_in",
+    "reading_list_sync_enabled",
+    "negative_text",
+    "image_height",
+    "articleTitles",
+    "displayDelay",
+    "percent_receiving_experiment"
+   ],
+   "params": [
+    "path: domain"
+   ],
+   "types": {
+    "domain": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/feed/onthisday/{type}/{month}/{day}",
+   "summary": "Get events on a day in history",
+   "requires": [
+    "path: domain",
+    "path: type",
+    "path: month",
+    "path: day"
+   ],
+   "returns": [
+    "births",
+    "deaths",
+    "events",
+    "holidays",
+    "selected",
+    "text",
+    "year",
+    "pages",
+    "type",
+    "titles",
+    "title",
+    "displaytitle",
+    "namespace",
+    "wikibase_item",
+    "pageid",
+    "revision",
+    "tid",
+    "extract",
+    "extract_html",
+    "thumbnail",
+    "originalimage",
+    "lang",
+    "dir",
+    "timestamp",
+    "description",
+    "description_source",
+    "content_urls",
+    "coordinates",
+    "normalizedtitle"
+   ],
+   "params": [
+    "path: domain",
+    "path: type",
+    "path: month",
+    "path: day"
+   ],
+   "types": {
+    "domain": "string",
+    "type": "string",
+    "month": "string",
+    "day": "string"
+   },
+   "patterns": {
+    "month": "^(0[1-9]|1[012])$",
+    "day": "^(0[1-9]|[12][0-9]|3[01])$"
+   },
+   "enums": {
+    "type": [
+     "selected",
+     "births",
+     "deaths",
+     "holidays",
+     "events",
+     "all"
+    ]
+   },
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/page/featured/{year}/{month}/{day}",
+   "summary": "Get featured article of the day",
+   "requires": [
+    "path: domain",
+    "path: year",
+    "path: month",
+    "path: day"
+   ],
+   "returns": [
+    "type",
+    "titles",
+    "title",
+    "displaytitle",
+    "namespace",
+    "wikibase_item",
+    "pageid",
+    "revision",
+    "tid",
+    "extract",
+    "extract_html",
+    "thumbnail",
+    "originalimage",
+    "lang",
+    "dir",
+    "timestamp",
+    "description",
+    "description_source",
+    "content_urls",
+    "coordinates",
+    "normalizedtitle"
+   ],
+   "params": [
+    "path: domain",
+    "path: year",
+    "path: month",
+    "path: day"
+   ],
+   "types": {
+    "domain": "string",
+    "year": "integer",
+    "month": "string",
+    "day": "string"
+   },
+   "patterns": {
+    "month": "^(0[1-9]|1[012])$",
+    "day": "^(0[1-9]|[12][0-9]|3[01])$"
+   },
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/media/image/featured/{year}/{month}/{day}",
+   "summary": "Get picture of the day",
+   "requires": [
+    "path: domain",
+    "path: year",
+    "path: month",
+    "path: day"
+   ],
+   "returns": [
+    "title",
+    "thumbnail",
+    "image",
+    "description",
+    "file_page",
+    "artist",
+    "credit",
+    "license",
+    "wb_entity_id",
+    "structured"
+   ],
+   "params": [
+    "path: domain",
+    "path: year",
+    "path: month",
+    "path: day"
+   ],
+   "types": {
+    "domain": "string",
+    "year": "integer",
+    "month": "string",
+    "day": "string"
+   },
+   "patterns": {
+    "month": "^(0[1-9]|1[012])$",
+    "day": "^(0[1-9]|[12][0-9]|3[01])$"
+   },
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/page/most-read/{year}/{month}/{day}",
+   "summary": "Get most-viewed pages",
+   "requires": [
+    "path: domain",
+    "path: year",
+    "path: month",
+    "path: day"
+   ],
+   "returns": [
+    "date",
+    "articles",
+    "type",
+    "titles",
+    "title",
+    "displaytitle",
+    "namespace",
+    "wikibase_item",
+    "pageid",
+    "revision",
+    "tid",
+    "extract",
+    "extract_html",
+    "thumbnail",
+    "originalimage",
+    "lang",
+    "dir",
+    "timestamp",
+    "description",
+    "description_source",
+    "content_urls",
+    "coordinates",
+    "normalizedtitle",
+    "views",
+    "view_history",
+    "rank"
+   ],
+   "params": [
+    "path: domain",
+    "path: year",
+    "path: month",
+    "path: day"
+   ],
+   "types": {
+    "domain": "string",
+    "year": "integer",
+    "month": "string",
+    "day": "string"
+   },
+   "patterns": {
+    "month": "^(0[1-9]|1[012])$",
+    "day": "^(0[1-9]|[12][0-9]|3[01])$"
+   },
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/page/news",
+   "summary": "Get current news headlines",
+   "requires": [
+    "path: domain"
+   ],
+   "returns": [
+    "story",
+    "links",
+    "type",
+    "titles",
+    "title",
+    "displaytitle",
+    "namespace",
+    "wikibase_item",
+    "pageid",
+    "revision",
+    "tid",
+    "extract",
+    "extract_html",
+    "thumbnail",
+    "originalimage",
+    "lang",
+    "dir",
+    "timestamp",
+    "description",
+    "description_source",
+    "content_urls",
+    "coordinates",
+    "normalizedtitle"
+   ],
+   "params": [
+    "path: domain"
+   ],
+   "types": {
+    "domain": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/page/random/title",
+   "summary": "Get a random article",
+   "requires": [
+    "path: domain"
+   ],
+   "returns": [
+    "items",
+    "title",
+    "page_id",
+    "rev",
+    "tid",
+    "namespace",
+    "user_id",
+    "user_text",
+    "comment",
+    "timestamp",
+    "tags",
+    "restrictions",
+    "page_language",
+    "redirect"
+   ],
+   "params": [
+    "path: domain"
+   ],
+   "types": {
+    "domain": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/feed/configuration",
+   "summary": "Get feed configuration",
+   "requires": [
+    "path: domain"
+   ],
+   "returns": [],
+   "params": [
+    "path: domain"
+   ],
+   "types": {
+    "domain": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/feed/did-you-know",
+   "summary": "Get featured facts",
+   "requires": [
+    "path: domain"
+   ],
+   "returns": [
+    "text",
+    "html"
+   ],
+   "params": [
+    "path: domain"
+   ],
+   "types": {
+    "domain": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{domain}/v1/aggregated/featured/{year}/{month}/{day}",
+   "summary": "Get featured content",
+   "requires": [
+    "path: domain",
+    "path: year",
+    "path: month",
+    "path: day"
+   ],
+   "returns": [
+    "tfa",
+    "mostread",
+    "image",
+    "news",
+    "onthisday",
+    "dyk",
+    "story",
+    "links",
+    "type",
+    "titles",
+    "title",
+    "displaytitle",
+    "namespace",
+    "wikibase_item",
+    "pageid",
+    "revision",
+    "tid",
+    "extract",
+    "extract_html",
+    "thumbnail",
+    "originalimage",
+    "lang",
+    "dir",
+    "timestamp",
+    "description",
+    "description_source",
+    "content_urls",
+    "coordinates",
+    "normalizedtitle"
+   ],
+   "params": [
+    "path: domain",
+    "path: year",
+    "path: month",
+    "path: day"
+   ],
+   "types": {
+    "domain": "string",
+    "year": "integer",
+    "month": "string",
+    "day": "string"
+   },
+   "patterns": {
+    "month": "^(0[1-9]|1[012])$",
+    "day": "^(0[1-9]|[12][0-9]|3[01])$"
+   },
+   "enums": {},
+   "accepts": []
+  }
+ ],
+ "wepwawet": null,
+ "auth": null,
+ "base": "https://raw.githubusercontent.com",
+ "version": "1.0.0",
+ "checked": {
+  "version": "1.0.0",
+  "at": "2026-10-20 14:56",
+  "from": "https://raw.githubusercontent.com/wikimedia/mediawiki-services-wikifeeds/master/spec.yaml"
+ }
+}

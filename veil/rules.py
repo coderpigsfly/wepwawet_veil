@@ -766,7 +766,7 @@ async def run(conn, name, said, state=None, memory=None):
                     pick = random.choice(things)            # a fun fact, not a recital
                     v.update({k: plain(x) for k, x in pick.items() if isinstance(x, (str, int, float))})
             if param(kind, p, "list"):
-                # each thing by its name: the Search's field, else the list card's (Day in History's title)
+                # each thing by its name: the Search's field, else the list card's (a title)
                 card = conn.card_for(f"GET {listed_as}") if listed_as and hasattr(conn, "card_for") else {}
                 nf = st.get("field") or card.get("name") or "name"
                 names = [str(x.get(nf)) for x in listed or [] if isinstance(x, dict) and x.get(nf)]

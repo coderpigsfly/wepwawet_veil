@@ -61,7 +61,7 @@ def _capped(items, most):
 
 
 def save(items):
-    os.makedirs(os.path.dirname(FILE), exist_ok=True)
+    config.make_dirs(os.path.dirname(FILE))
     items = _capped(items, int(config.settings().get("miss_log_max", 500) or 0))
     items = [p for p in items if p.get("heard")]            # an intention with nothing under it goes
     tmp = FILE + ".tmp"
@@ -235,7 +235,7 @@ def use(heard, meant, on=True):
     kept = [dict((k, v) for k, v in s.items() if v != "") for s in swaps() if s["heard"] != heard]
     if on:
         kept.append({"heard": heard, "meant": meant, "added": dt.datetime.now().strftime("%Y-%m-%d %H:%M")})
-    os.makedirs(os.path.dirname(SWAPS_FILE), exist_ok=True)
+    config.make_dirs(os.path.dirname(SWAPS_FILE))
     with open(SWAPS_FILE, "w") as f:
         f.write("# learn/swaps.yaml - mishearings pushed back (the Misses page, Use it): before anything is decided,\n"
                 "# each heard is replaced by meant, as whole words only, longest first.\n")

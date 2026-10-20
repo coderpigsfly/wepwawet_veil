@@ -62,6 +62,11 @@ service_error:
   any:
     - "Something went wrong talking to Donetick, so I didn't change anything."
 
+# ...when only reading (the list, the projects): nothing could have changed
+service_error_read:
+  any:
+    - "Something went wrong talking to Donetick, so I can't read the list right now."
+
 
 
 undo_unsupported:

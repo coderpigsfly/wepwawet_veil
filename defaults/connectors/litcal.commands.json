@@ -1,0 +1,1151 @@
+{
+ "read_from": "https://litcal.johnromanodorazio.com/api/v5/schemas/openapi.json",
+ "title": "Liturgical Calendar",
+ "accepted": "2026-10-20 14:56",
+ "commands": [
+  {
+   "api": "GET /calendar",
+   "summary": "Retrieve liturgical events for the General Roman Calendar for each day of the current year",
+   "requires": [],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "query: year_type",
+    "query: epiphany",
+    "query: ascension",
+    "query: corpus_christi",
+    "query: eternal_high_priest"
+   ]
+  },
+  {
+   "api": "POST /calendar",
+   "summary": "Retrieve liturgical events for the General Roman Calendar for each day of the current year",
+   "requires": [],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /calendar/{year}",
+   "summary": "Retrieve liturgical events from the General Roman Calendar for each day of the given year",
+   "requires": [
+    "path: year"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: year",
+    "query: year_type",
+    "query: epiphany",
+    "query: ascension",
+    "query: corpus_christi",
+    "query: eternal_high_priest"
+   ]
+  },
+  {
+   "api": "POST /calendar/{year}",
+   "summary": "Retrieve liturgical events from the General Roman Calendar for each day of the given year",
+   "requires": [
+    "path: year"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: year"
+   ]
+  },
+  {
+   "api": "GET /calendar/nation/{calendar_id}",
+   "summary": "Retrieve liturgical events from the liturgical calendar for a given nation for each day of the current year",
+   "requires": [
+    "path: calendar_id"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: calendar_id",
+    "query: year_type"
+   ]
+  },
+  {
+   "api": "POST /calendar/nation/{calendar_id}",
+   "summary": "Retrieve liturgical events from the liturgical calendar for a given nation for each day of the current year",
+   "requires": [
+    "path: calendar_id"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: calendar_id"
+   ]
+  },
+  {
+   "api": "GET /calendar/nation/{calendar_id}/{year}",
+   "summary": "Retrieve liturgical events from the liturgical calendar for a given nation for each day of a given year",
+   "requires": [
+    "path: calendar_id",
+    "path: year"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: calendar_id",
+    "path: year",
+    "query: year_type"
+   ]
+  },
+  {
+   "api": "POST /calendar/nation/{calendar_id}/{year}",
+   "summary": "Retrieve liturgical events from the liturgical calendar for a given nation for each day of a given year",
+   "requires": [
+    "path: calendar_id",
+    "path: year"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: calendar_id",
+    "path: year"
+   ]
+  },
+  {
+   "api": "GET /calendar/diocese/{calendar_id}",
+   "summary": "Retrieve liturgical events from the liturgical calendar for a given diocese for each day of the current year",
+   "requires": [
+    "path: calendar_id"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: calendar_id",
+    "query: year_type"
+   ]
+  },
+  {
+   "api": "POST /calendar/diocese/{calendar_id}",
+   "summary": "Retrieve liturgical events from the liturgical calendar for a given diocese for each day of the current year",
+   "requires": [
+    "path: calendar_id"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: calendar_id"
+   ]
+  },
+  {
+   "api": "GET /calendar/diocese/{calendar_id}/{year}",
+   "summary": "Retrieve liturgical events from the liturgical calendar for a given diocese for each day of a given year",
+   "requires": [
+    "path: calendar_id",
+    "path: year"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: calendar_id",
+    "path: year",
+    "query: year_type"
+   ]
+  },
+  {
+   "api": "POST /calendar/diocese/{calendar_id}/{year}",
+   "summary": "Retrieve liturgical events from the liturgical calendar for a given diocese for each day of a given year",
+   "requires": [
+    "path: calendar_id",
+    "path: year"
+   ],
+   "returns": [
+    "settings",
+    "metadata",
+    "litcal",
+    "messages",
+    "event_idx",
+    "event_key",
+    "name",
+    "date",
+    "color",
+    "color_lcl",
+    "type",
+    "grade",
+    "grade_lcl",
+    "grade_abbr",
+    "grade_display",
+    "common",
+    "common_lcl",
+    "day_of_the_week_iso8601",
+    "month",
+    "day",
+    "year",
+    "month_short",
+    "month_long",
+    "day_of_the_week_short",
+    "day_of_the_week_long",
+    "liturgical_year",
+    "liturgical_season",
+    "liturgical_season_lcl",
+    "has_vigil_mass",
+    "has_vesper_i",
+    "has_vesper_ii",
+    "psalter_week",
+    "readings",
+    "holy_day_of_obligation",
+    "is_vigil_mass",
+    "is_vigil_for"
+   ],
+   "params": [
+    "path: calendar_id",
+    "path: year"
+   ]
+  },
+  {
+   "api": "POST /auth/login",
+   "summary": "Authenticate user and obtain JWT tokens",
+   "requires": [
+    "body: username",
+    "body: password"
+   ],
+   "returns": [
+    "access_token",
+    "refresh_token",
+    "token_type",
+    "expires_in"
+   ],
+   "params": []
+  },
+  {
+   "api": "POST /auth/refresh",
+   "summary": "Refresh access token using refresh token",
+   "requires": [],
+   "returns": [
+    "access_token",
+    "token_type",
+    "expires_in"
+   ],
+   "params": []
+  },
+  {
+   "api": "POST /auth/logout",
+   "summary": "Logout user session",
+   "requires": [],
+   "returns": [
+    "message"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /auth/me",
+   "summary": "Get current authenticated user information",
+   "requires": [],
+   "returns": [
+    "authenticated",
+    "username",
+    "roles",
+    "exp"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /calendars",
+   "summary": "Retrieve an index of current supported national and diocesan calendars and relative locales, settings, etc.",
+   "requires": [],
+   "returns": [
+    "litcal_metadata"
+   ],
+   "params": []
+  },
+  {
+   "api": "POST /calendars",
+   "summary": "Retrieve an index of current supported national and diocesan calendars and relative locales, settings, etc.",
+   "requires": [],
+   "returns": [
+    "litcal_metadata"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /events",
+   "summary": "Retrieve all possible liturgical events from the General Roman Calendar even if they won't appear in the Liturgical Calendar one year or the other; useful mostly for frontend select inputs to choose an `event_key` that corresponds with an actual liturgical event",
+   "requires": [],
+   "returns": [
+    "litcal_events",
+    "settings"
+   ],
+   "params": []
+  },
+  {
+   "api": "POST /events",
+   "summary": "Retrieve all possible liturgical events from the General Roman Calendar even if they won't appear in the Liturgical Calendar one year or the other; useful mostly for frontend select inputs to choose an `event_key` that corresponds with an actual liturgical event",
+   "requires": [],
+   "returns": [
+    "litcal_events",
+    "settings"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /events/nation/{calendar_id}",
+   "summary": "Retrieve all possible liturgical events from the given national calendar even if they won't appear in the Liturgical Calendar one year or the other; useful mostly for frontend select inputs to choose an `event_key` that corresponds with an actual liturgical event",
+   "requires": [
+    "path: calendar_id"
+   ],
+   "returns": [
+    "litcal_events",
+    "settings"
+   ],
+   "params": [
+    "path: calendar_id"
+   ]
+  },
+  {
+   "api": "POST /events/nation/{calendar_id}",
+   "summary": "Retrieve all possible liturgical events from the given national calendar even if they won't appear in the Liturgical Calendar one year or the other; useful mostly for frontend select inputs to choose an `event_key` that corresponds with an actual liturgical event",
+   "requires": [
+    "path: calendar_id"
+   ],
+   "returns": [
+    "litcal_events",
+    "settings"
+   ],
+   "params": [
+    "path: calendar_id"
+   ]
+  },
+  {
+   "api": "GET /events/diocese/{calendar_id}",
+   "summary": "Retrieve all possible liturgical events from the given diocesan calendar even if they won't appear in the Liturgical Calendar one year or the other; useful mostly for frontend select inputs to choose an `event_key` that corresponds with an actual liturgical event",
+   "requires": [
+    "path: calendar_id"
+   ],
+   "returns": [
+    "litcal_events",
+    "settings"
+   ],
+   "params": [
+    "path: calendar_id"
+   ]
+  },
+  {
+   "api": "POST /events/diocese/{calendar_id}",
+   "summary": "Retrieve all possible liturgical events from the given diocesan calendar even if they won't appear in the Liturgical Calendar one year or the other; useful mostly for frontend select inputs to choose an `event_key` that corresponds with an actual liturgical event",
+   "requires": [
+    "path: calendar_id"
+   ],
+   "returns": [
+    "litcal_events",
+    "settings"
+   ],
+   "params": [
+    "path: calendar_id"
+   ]
+  },
+  {
+   "api": "PUT /data/nation",
+   "summary": "Create a national calendar data resource",
+   "requires": [
+    "body: litcal",
+    "body: metadata",
+    "body: settings"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": []
+  },
+  {
+   "api": "PUT /data/widerregion",
+   "summary": "Create a wider region data resource",
+   "requires": [
+    "body: litcal",
+    "body: national_calendars",
+    "body: metadata"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": []
+  },
+  {
+   "api": "PUT /data/diocese",
+   "summary": "Create a diocesan calendar data resource",
+   "requires": [
+    "body: litcal",
+    "body: metadata"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /data/nation/{key}",
+   "summary": "Retrieve a national calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "litcal",
+    "settings",
+    "metadata",
+    "i18n",
+    "liturgical_event"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "POST /data/nation/{key}",
+   "summary": "Retrieve a national calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "litcal",
+    "settings",
+    "metadata",
+    "i18n",
+    "liturgical_event"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "PATCH /data/nation/{key}",
+   "summary": "Update a national calendar data resource",
+   "requires": [
+    "path: key",
+    "body: litcal",
+    "body: metadata",
+    "body: settings"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "DELETE /data/nation/{key}",
+   "summary": "Delete a national calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "GET /data/diocese/{key}",
+   "summary": "Retrieve a diocesan calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "litcal",
+    "settings",
+    "metadata",
+    "i18n"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "POST /data/diocese/{key}",
+   "summary": "Retrieve a diocesan calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "litcal",
+    "settings",
+    "metadata",
+    "i18n"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "PATCH /data/diocese/{key}",
+   "summary": "Update a diocesan calendar data resource",
+   "requires": [
+    "path: key",
+    "body: litcal",
+    "body: metadata"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "DELETE /data/diocese/{key}",
+   "summary": "Delete a diocesan calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "GET /data/widerregion/{key}",
+   "summary": "Retrieve a wider region calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "litcal",
+    "national_calendars",
+    "metadata",
+    "i18n",
+    "liturgical_event"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "POST /data/widerregion/{key}",
+   "summary": "Retrieve a wider region calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "litcal",
+    "national_calendars",
+    "metadata",
+    "i18n",
+    "liturgical_event"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "PATCH /data/widerregion/{key}",
+   "summary": "Update a wider region calendar data resource",
+   "requires": [
+    "path: key",
+    "body: litcal",
+    "body: national_calendars",
+    "body: metadata"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "DELETE /data/widerregion/{key}",
+   "summary": "Delete a wider region calendar data resource",
+   "requires": [
+    "path: key"
+   ],
+   "returns": [
+    "success"
+   ],
+   "params": [
+    "path: key"
+   ]
+  },
+  {
+   "api": "GET /easter",
+   "summary": "Retrieve the date of Easter, both gregorian and julian, for the years 1583 to 1999",
+   "requires": [],
+   "returns": [
+    "EasterDates",
+    "lastCoincidenceString",
+    "lastCoincidence",
+    "gregorianEaster",
+    "julianEaster",
+    "westernJulianEaster",
+    "coinciding",
+    "gregorianDateString",
+    "julianDateString",
+    "westernJulianDateString"
+   ],
+   "params": [
+    "query: locale"
+   ]
+  },
+  {
+   "api": "GET /missals",
+   "summary": "Retrieve the index of defined Roman Missals",
+   "requires": [],
+   "returns": [
+    "litcal_missals",
+    "missal_id",
+    "name",
+    "region",
+    "year_published",
+    "year_limits",
+    "locales",
+    "api_path"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /missals/{missal_id}",
+   "summary": "Retrieve a Roman Missal by its ID",
+   "requires": [
+    "path: missal_id"
+   ],
+   "returns": [
+    "missal_id",
+    "name",
+    "region",
+    "year_published",
+    "year_limits",
+    "locales",
+    "api_path"
+   ],
+   "params": [
+    "path: missal_id"
+   ]
+  },
+  {
+   "api": "GET /decrees",
+   "summary": "Retrieve the index of defined Decrees of the Dicastery for Divine Worship and the Discipline of the Sacraments",
+   "requires": [],
+   "returns": [
+    "litcal_decrees",
+    "decree_id",
+    "decree_date",
+    "decree_protocol",
+    "description",
+    "liturgical_event",
+    "metadata",
+    "api_path"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /decrees/{decree_id}",
+   "summary": "Retrieve the data for a Decree of the Dicastery for Divine Worship and the Discipline of the Sacraments",
+   "requires": [
+    "path: decree_id"
+   ],
+   "returns": [
+    "decree_id",
+    "decree_date",
+    "decree_protocol",
+    "description",
+    "liturgical_event",
+    "metadata",
+    "api_path"
+   ],
+   "params": [
+    "path: decree_id"
+   ]
+  },
+  {
+   "api": "GET /tests",
+   "summary": "Retrieve all the unit tests defined in the API `tests` folder as an index useful for frontend processing",
+   "requires": [],
+   "returns": [
+    "name",
+    "event_key",
+    "description",
+    "test_type",
+    "assertions",
+    "applies_to",
+    "excludes",
+    "year",
+    "expected_value",
+    "assert",
+    "assertion",
+    "comment",
+    "year_since",
+    "year_until"
+   ],
+   "params": []
+  },
+  {
+   "api": "PUT /tests",
+   "summary": "Create a new unit test in the API `tests` folder",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "status",
+    "response"
+   ],
+   "params": []
+  },
+  {
+   "api": "GET /tests/{test_name}",
+   "summary": "Retrieve a single unit test defined in the API `tests` by its name",
+   "requires": [
+    "path: test_name"
+   ],
+   "returns": [
+    "name",
+    "event_key",
+    "description",
+    "test_type",
+    "assertions",
+    "applies_to",
+    "excludes",
+    "year",
+    "expected_value",
+    "assert",
+    "assertion",
+    "comment",
+    "year_since",
+    "year_until"
+   ],
+   "params": [
+    "path: test_name"
+   ]
+  },
+  {
+   "api": "PATCH /tests/{test_name}",
+   "summary": "Update an existing unit test in the API `tests` folder",
+   "requires": [
+    "path: test_name",
+    "body"
+   ],
+   "returns": [
+    "response"
+   ],
+   "params": [
+    "path: test_name"
+   ]
+  },
+  {
+   "api": "DELETE /tests/{test_name}",
+   "summary": "Delete a unit test from the API `tests` folder",
+   "requires": [
+    "path: test_name"
+   ],
+   "returns": [],
+   "params": [
+    "path: test_name"
+   ]
+  }
+ ],
+ "wepwawet": null,
+ "auth": {
+  "in": "header",
+  "name": "Authorization",
+  "prefix": "Bearer "
+ },
+ "base": "https://litcal.johnromanodorazio.com/api/v5",
+ "version": "5.7",
+ "checked": {
+  "version": "5.7",
+  "at": "2026-10-20 14:56",
+  "from": "https://litcal.johnromanodorazio.com/api/v5/schemas/openapi.json"
+ }
+}

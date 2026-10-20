@@ -260,8 +260,10 @@ The menu has a small picture beside each page. Hide it with the arrow at its top
     - **Grantors**: programs the router needs a key from (LiteLLM, Donetick...): where each key
       comes from and whether it's in the vault, with Set, Replace and Delete. **Add a key** is
       the first step of adding an app.
-  - **Addresses**: which machines may reach the router (empty means the local network only),
-    the machines recently let in (with an Add button) and the ones refused.
+  - **Addresses**: which machines may reach the router (empty means the local network only;
+    the entry **local** keeps the local network in a list that also names addresses, and the
+    going-out list may name an app on the internet, like litcal.johnromanodorazio.com), the
+    machines recently let in and the ones refused, each with an Add button.
   - **Audit**: who changed what.
 - **Settings**: **The house** first (its timezone, picked from the standard list, and its
   location, shared by every app), then the
@@ -307,10 +309,22 @@ map, the keyword files, the datasets list, your recorded misses, and your assist
 and flair. A public release never carries yours: it ships the starting copies below instead.
 
 A fresh install starts from **starting copies** (in defaults/), which are examples from one
-household: the topics (weather, chores), Donetick's voice map, settings with that house's
-addresses, an empty firewall, and an example assistant. **Change them to fit your house, and
-delete what you don't use**: a topic you don't want on Seed Topics, an app on Integrations, the
-example assistant once you've made your own.
+household: the topics (weather, chores, feast days, history), Donetick's voice map, settings with
+that house's addresses, an empty firewall, and an example assistant. Every app starts switched
+off. **Change them to fit your house, and delete what you don't use**: a topic you don't want on
+Seed Topics, an app on Integrations, the example assistant once you've made your own.
+
+### The sample apps
+
+| App | Answers | To switch it on |
+| --- | --- | --- |
+| Liturgical Calendar | "What feast is today?" | Nothing to install. Integrations, **On**, Save, and restart; ask it once, then Security, Addresses, Going out, Recently refused: **Add** it (by its name, litcal.johnromanodorazio.com) and Save |
+| Wikipedia (On this day) | "What happened on this day?", "Who was born today?" | The same: nothing to install; permit en.wikipedia.org going out (and raw.githubusercontent.com, where its spec is checked for a new version) |
+| The weather brain | The weather, sunrise and sunset | Its own install ([weather_brain](https://github.com/coderpigsfly/weather_brain)); then its address on Integrations |
+| Donetick | Chores: add, list, check off, move, nag | Its own install ([Donetick](https://github.com/donetick/donetick)); its address on Integrations and its key (Appendix A) |
+
+The two on the internet are switched off on purpose: a question to one of them leaves the house,
+and nothing leaves until you choose.
 
 When a release ships something new in a starting copy (a new setting, a new pinned word), it
 doesn't land in your files by itself. Settings, **New in the starting copies**, lists each one:

@@ -4,7 +4,7 @@
 # and off, tier 2 (by voice) tries them; a refactor pulls them out once tier 2 is done.
 
 PHASES = {
-    "dump1": True,   # Oct 19: a command's address from the date said, each part as the app writes it (Day in History)
+    "dump1": True,   # Oct 19: a command's address from the date said, each part as the app writes it
     "dump2": True,   # Oct 19: a list item read by a line of its own fields ("{year}: {title}")
     "dump3": True,   # Oct 19: a Response that says one thing at random
     "dump4": True,   # Oct 19: outside text read as plain words (inbound defense 1)

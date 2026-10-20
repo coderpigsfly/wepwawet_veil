@@ -29,6 +29,8 @@ import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES_FILE = os.path.join(ROOT, "tools", "sources.yaml")
+if not os.path.exists(SOURCES_FILE):      # a fresh clone before the first start: the starting copy
+    SOURCES_FILE = os.path.join(ROOT, "defaults", "tools", "sources.yaml")
 
 
 def load_yaml(path):

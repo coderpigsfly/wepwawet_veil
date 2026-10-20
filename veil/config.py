@@ -66,7 +66,7 @@ def seed_household():
                                           if (os.path.dirname(d), os.path.splitext(d)[1]) not in had]:
         if os.path.exists(dst):
             continue
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        make_dirs(os.path.dirname(dst))
         shutil.copy2(src, dst)
         hand_back(dst)
         made.append(os.path.relpath(dst, ROOT))
@@ -334,6 +334,20 @@ def hand_back(file):
         log.info("  ! couldn't hand %s back to %s: %s", file, owner, e)
 
 
+def make_dirs(folder):
+    """os.makedirs, and each folder it made handed back to you too (FILE_OWNER), so a new install's
+    personality/, learn/ and the like stay yours to edit without sudo."""
+    folder = folder or "."
+    made = []
+    d = os.path.abspath(folder)
+    while d and not os.path.exists(d):
+        made.append(d)
+        d = os.path.dirname(d)
+    os.makedirs(folder, exist_ok=True)
+    for d in made:
+        hand_back(d)
+
+
 def stamp(file, key):
     """A short fingerprint of one section of a YAML file as it is now (its rules:, actions: or
     fleas:): a page keeps the one it opened with and sends it back on Save, so a save from an old
@@ -355,7 +369,7 @@ def check_stamp(file, key, given):
 
 
 def write_text(file, text):
-    os.makedirs(os.path.dirname(file) or ".", exist_ok=True)
+    make_dirs(os.path.dirname(file))
     tmp = file + ".tmp"
     with open(tmp, "w") as f:
         f.write(text)

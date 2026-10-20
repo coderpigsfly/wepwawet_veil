@@ -10,7 +10,8 @@
 #   2. Builds the public copy: every tracked file, minus release.yaml's never: list (unless its
 #      keep: list names it, like an empty folder's .keep), minus every
 #      household file that has a skeleton (its skeleton ships in the skeletons folder instead and
-#      is put in place on a new install's first start).
+#      is put in place on a new install's first start). Those places, and release.yaml's
+#      public_ignore:, are added to the public .gitignore.
 #   3. Shows what's left out, and what's added, changed and removed since the last release.
 #   4. On your "yes": one commit in the public repo, tagged v<version>, pushed; and the
 #      development commit it came from tagged release-v<version>, pushed here.
@@ -97,7 +98,24 @@ def build(spec, dest):
             kept.append(path)
             os.makedirs(os.path.dirname(os.path.join(dest, path)) or dest, exist_ok=True)
             shutil.copy2(os.path.join(REPO, path), os.path.join(dest, path))
+    ignore_household(spec, dest, sorted(backed))
     return kept, left_out
+
+
+def ignore_household(spec, dest, backed):
+    """A new install makes its household files (from the skeletons) beside the code: the public
+    .gitignore gets them, and release.yaml's public_ignore:, so git status doesn't offer them for
+    a commit. Only when release.yaml has public_ignore: (a repo without it is left as it was)."""
+    extra = spec.get("public_ignore")
+    if extra is None:
+        return
+    # each from the top (/settings.yaml), so defaults/settings.yaml and the like stay in git
+    lines = ["/" + str(p).lstrip("/") for p in extra] + ["/" + p for p in backed if not never(p, extra)]
+    path = os.path.join(dest, ".gitignore")
+    old = open(path).read() if os.path.exists(path) else ""
+    with open(path, "w") as f:
+        f.write(old.rstrip("\n") + "\n\n# Your household's own files, made on the first start (never committed)\n"
+                + "\n".join(lines) + "\n")
 
 
 def files_in(folder):

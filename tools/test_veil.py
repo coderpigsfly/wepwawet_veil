@@ -227,6 +227,25 @@ raises("outbound refused", lambda: a.check_outbound("http://192.168.1.65:2021/ap
 a.check_outbound("http://192.168.1.20:4000/chat")
 PASSED.append("outbound permitted")
 raises("a bad entry", lambda: access.parse(["not-an-address"]))
+# Oct 20: "local" keeps the local network in a list that also names an app on the internet
+c = access.Access({"outbound_allowed": ["local", "37.187.213.137"]})
+case("local in a list: the local network still permitted", c.allowed("outbound_allowed", "192.168.1.20"), True)
+case("...and the address beside it", c.allowed("outbound_allowed", "37.187.213.137"), True)
+case("...and the rest of the internet still not", c.allowed("outbound_allowed", "8.8.8.8"), False)
+# ...and an app on the internet permitted by its name, whatever its addresses (going out only)
+c = access.Access({"outbound_allowed": ["local", "litcal.johnromanodorazio.com"]})
+c.check_outbound("https://litcal.johnromanodorazio.com/api/v5/calendar")
+PASSED.append("a name in the going-out list: calls to it permitted")
+raises("...another name isn't", lambda: c.check_outbound("https://example.com/x"))
+raises("a name in the coming-in list is refused when saved", lambda: access.parse(["litcal.johnromanodorazio.com"]))
+# Oct 20: folders the router makes are handed back like its files (FILE_OWNER), not left to root
+_handed = []
+_was_hand_back, config.hand_back = config.hand_back, _handed.append
+config.make_dirs(os.path.join(TMP, "made", "personality", "approved"))
+config.make_dirs(os.path.join(TMP, "made", "personality"))
+config.hand_back = _was_hand_back
+case("new folders handed back, each one made, none twice",
+     sorted(os.path.relpath(d, TMP) for d in _handed), ["made", "made/personality", "made/personality/approved"])
 # Oct 18, after the power cut: a program at a new address, refused, is warned of with who used that door before
 b = access.Access({"inbound_allowed": ["192.168.1.50"]})
 b.allowed("inbound_allowed", "192.168.1.50", "Wyoming port for iris")
@@ -971,6 +990,13 @@ case("No app code: a field the spec requires that no spoken need fills is said, 
 
 # ---------- an app that takes the words as said: the plain connector, its one door (piece 2) ----------
 from veil import access as _acc
+# Oct 20: a failed question isn't told "I didn't change anything" when the app has a reading line
+_k3 = _cn.make("donetick", _s["services"]["donetick"], _s, lambda sec, **v: sec,
+               actions_dir=os.path.join(ROOT, "actions"), connectors_dir=os.path.join(ROOT, "connectors"),
+               has_line=lambda sec: sec == "service_error_read")
+case("a failed read: its own line; a failed change: the changed-nothing line",
+     (_k3.error_line(_k3.changes("list")), _k3.error_line(_k3.changes("add"))), ("service_error_read", "service_error"))
+case("...and an app without a reading line keeps the one line", _k2.error_line(False), "service_error")
 _wb = _cn.make("weather_brain", {"kind": "contract", "url": "http://brain/ask", "timeout": 3}, _s, lambda *a, **k: "",
                actions_dir=os.path.join(ROOT, "actions"), connectors_dir=os.path.join(ROOT, "connectors"))
 _asked = []
@@ -1018,7 +1044,7 @@ case("A spec in several files: the part it points at is read, so the fields of e
 class _R:
     def __init__(self, text, kind):
         self.text, self.headers = text, {"content-type": kind}
-case("A spec as JSON or YAML (Day in History's is YAML), and a plain error for neither",
+case("A spec as JSON or YAML, and a plain error for neither",
      (_ap.spec_doc(_R("openapi: 3.0.3\npaths: {}", "application/vnd.oai.openapi; charset=utf-8"), "X")["openapi"],
       _ap.spec_doc(_R('{"openapi": "3.1.0"}', "application/json"), "X")["openapi"],
       _ap.spec_doc(_R("swagger: '2.0'", "text/plain"), "X")["swagger"]),
