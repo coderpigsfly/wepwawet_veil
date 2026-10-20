@@ -1,0 +1,17 @@
+# personality/sources.yaml - where each assistant's flourishes come from (public-domain books).
+# Read by tools/build_flair.py; the router never reads it.
+# An example (defaults/examples/personality/): add your own assistants below and delete the example.
+# After editing: python3 tools/build_flair.py refresh, then mine <assistant>
+#
+# For each assistant:
+#   speakers: who she is in the books. A quote said by one of them counts most.
+#   near:     words that put a quote in her world when no speaker is named (counts less)
+#   books:    each with a title (author, year: all before 1929, so public domain), the
+#             Project Gutenberg plain-text url, and where the local copy lives
+#             (datasets stay outside the router's folder, like ~/datasets/books/).
+# Copyrighted works are never sources, however well known their lines.
+
+assistant:
+  speakers: []
+  near: []
+  books: []

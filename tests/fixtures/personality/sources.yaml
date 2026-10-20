@@ -1,0 +1,8 @@
+# tests/fixtures/personality/sources.yaml - stand-in book list for the tests.
+iris:
+  speakers: [witch]
+  near: [spell]
+  books:
+    - title: A Test Book (Nobody, 1900)
+      url: https://example.invalid/test-book.txt
+      local: ~/datasets/books/test-book.txt

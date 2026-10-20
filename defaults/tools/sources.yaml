@@ -1,0 +1,97 @@
+# tools/sources.yaml - labeled datasets the build tool learns from.
+# Describes datasets only; topics are declared in settings.yaml.
+# Datasets live outside the router, in ~/datasets/.
+# use:    doors -> broad (many competing topics), scores tier 1
+#         depth -> topic-specific, feeds tiers 2 and 3 only
+# roles:  which labels mean when / where / who; every other label becomes tier 2
+# ignore: labels never learned from
+# format: how to read it (tools/datasets.py: massive_jsonl, clinc_json, snips_json, jsonl, csv,
+#         lines); enabled: false leaves a source out of every build.
+# Refresh: python3 tools/build_scores.py refresh [name]   (or the Tools page)
+# Every tool reads datasets through tools/datasets.py, so no dataset is named in the code.
+
+sources:
+
+  massive:
+    description: Amazon MASSIVE 1.1, English only. Assistant requests, 18 scenarios.
+    url: https://amazon-massive-nlu-dataset.s3.amazonaws.com/amazon-massive-dataset-1.1.tar.gz
+    extract: 1.1/data/en-US.jsonl
+    local: ~/datasets/massive/en-US.jsonl
+    format: massive_jsonl
+    text_field: utt
+    label_field: scenario
+    slot_field: annot_utt
+    use: [doors, depth]
+    roles:
+      when:  [date, time, timeofday, general_frequency]
+      where: [place_name]
+      who:   [person, relation]
+    ignore: []
+    never_claim: []   # "never mind", "yes", "hello"... not topics
+    intent_field: intent        # finer than scenario: lists_query, lists_createoradd...
+
+  clinc150:
+    description: CLINC150 (oos-eval). 150 assistant intents, 150 sentences each, plus out-of-scope.
+    url: https://raw.githubusercontent.com/clinc/oos-eval/master/data/data_full.json
+    local: ~/datasets/clinc150/data_full.json
+    format: clinc_json
+    sections: [train, val, test]
+    out_of_scope_sections: [oos_train, oos_val, oos_test]
+    use: [doors]
+    roles: {}
+    ignore: []
+    never_claim: [cancel, repeat, yes, no, maybe, greeting, goodbye, thank_you]   # "never mind", "yes", "hello"... not topics
+    intent_field: ""            # its labels already are intents
+
+  snips_weather:
+    description: SNIPS GetWeather (2017 custom intents). Template-generated weather requests.
+    url: https://raw.githubusercontent.com/sonos/nlu-benchmark/master/2017-06-custom-intent-engines/GetWeather/train_GetWeather_full.json
+    local: ~/datasets/snips/train_GetWeather_full.json
+    format: snips_json
+    use: [depth]
+    roles:
+      when:  []
+      where: [city, country, state, geographic_poi, current_location, spatial_relation]
+      who:   []
+    ignore: [timeRange]       # unrealistic times ("135 days from now")
+    never_claim: []
+    intent_field: ""            # its labels already are intents
+
+# ---------- the Gemini gate's test set (tools/shape_test.py, tools/perplexity_test.py) ----------
+# Real requests the house can't answer, so they rightly go straight to Gemini: per_source
+# sentences from each source, only those with these labels (by: label or intent).
+# known_nonsense: speech-to-text inventions and overheard speech from the logs (the miss log
+# adds more). other_wake_words: other assistants' wake words the datasets were recorded with
+# (Home Assistant takes the wake word off, so the tests do too).
+# perplexity_model: the small local model tools/perplexity_test.py scores with (an experiment
+# that failed, Oct 10; kept so it can be rerun).
+gate_test:
+  per_source: 250
+  real_requests:
+    - source: massive
+      by: label
+      labels: [qa, general, recommendation, news, cooking, transport, datetime]
+    - source: clinc150
+      by: label
+      labels: [definition, fun_fact, calories, cook_time, recipe, measurement_conversion, translate,
+               spelling, distance, timezone, meaning_of_life, nutrition_info, ingredient_substitution,
+               food_last, what_is_your_name, tell_joke, who_made_you, travel_suggestion, flight_status,
+               exchange_rate, insurance, w2, taxes]
+  extra_real:
+    - Tell me a joke
+    - Good night, could you check the security of the house?
+    - How long do I boil an egg?
+    - What's the capital of Australia?
+    - Who won the World Series last year?
+    - How many cups are in a quart?
+  known_nonsense:
+    - Goddamn called on it.
+    - Coming in is different than the expected verbiage of gunte.
+    - Cook of chew, but you go. cook of chew.
+    - As well as try to respond to it with gy.
+    - EPI.
+    - My.
+  other_wake_words: [olly, alexa, siri, google, hey, ok, okay]
+  perplexity_model: distilgpt2
+
+

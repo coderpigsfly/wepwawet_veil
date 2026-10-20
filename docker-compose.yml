@@ -1,0 +1,25 @@
+# Wepwawet Veil (the house router): ~/docker/house-router on myserver.
+#   8770  the chat door: LiteLLM lists it as an OpenAI-compatible model (plain http)
+#   8771  the pages: https://<server>:8771/ (security: admin_allowed decides who may open them)
+#   10410-10419  Wyoming, one port per device, in front of Oread (integrations: oread: wyoming:)
+# The whole folder is mounted, so the pages can save settings.yaml, firewall.yaml and the
+# personality files, and the Tools page can rebuild topics/, scores/ and actions/.
+# Your datasets and books (~/datasets) are mounted for the Tools page's builds.
+# In .env, FILE_OWNER=1000:1000 hands files the router writes back to you (for your editor and git).
+services:
+  house-router:
+    build:
+      context: .
+      args:
+        SPACY_MODEL_WHEEL: ${SPACY_MODEL_WHEEL:-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl}
+    container_name: house-router
+    restart: unless-stopped
+    ports:
+      - "8770:8770"
+      - "8771:8771"
+      - "10410-10419:10410-10419"
+    env_file: .env
+    volumes:
+      - .:/app
+      - ${DATASETS_DIR:-~/datasets}:/root/datasets
+      - /etc/localtime:/etc/localtime:ro

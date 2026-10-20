@@ -1,0 +1,45 @@
+# firewall.yaml - who may use what, by voice. Read by veil/firewall.py; edited on the
+# Firewall page (or here, then docker compose restart).
+# With Oread off every voice is "unknown": rules for anyone or unknown apply, rules naming a person wait.
+#
+#   enabled:          false -> no rule is checked
+#   sure_score:       Oread must be at least this sure to count a voice as that person
+#   sure_labels:      Oread labels that count as sure (known)
+#   when_oread_down:  unknown -> a voice is "unknown" while Oread can't be asked (rules for
+#                     unknown apply); allow -> nobody is blocked while Oread is down
+#
+# Each rule:
+#   name:           what it's for (shown in the log and on the pages)
+#   enabled:        false -> skipped
+#   people:         the voice ID's own names (Oread's, exactly as it sends them), unknown, or anyone
+#   assistants:     only on these voice devices (empty: all of them)
+#   voice_devices:  they may not use these voice devices at all
+#   devices:        home devices they may not work (in what they say, and in the Off-Platform model's device commands)
+#   commands:       phrases they may not say (whole words)
+#   topics:         home topics (chores) or topic.action (chores.add)
+#   gemini:         true -> nothing they say goes Off-Platform
+#   intents:        actions they may not do to a device: the front end's command names (HassTurnOn, HassTurnOff,
+#                   HassSetPosition...; HassTurnOn:lock for one kind of device)
+#   domains:        kinds of device they may not use at all: the front end's names (lock, cover...)
+#                   (the Firewall page shows both in the router's words: frontend/home_assistant.yaml)
+#                   (intents, domains and devices also cover Home Assistant's own commands
+#                   once Veil Guard Service (the router's hook in Home Assistant) is installed in Home Assistant)
+#   message:        what she says instead (empty: a line from phrases/router.yaml firewall_blocked)
+# A rule must stop something: devices, commands, topics, domains, intents, voice_devices or gemini.
+#
+# Example (an example, not a rule of this house):
+#   - name: no garage for voices Oread doesn't know
+#     people: [unknown]
+#     devices: [garage door, garage]
+#     message: "Sorry, I can't do that for you."
+
+enabled: false
+sure_score: 0.8
+sure_labels: [known]
+when_oread_down: unknown
+# never worked by the Off-Platform model, whoever spoke: its device commands naming these are stopped
+# (Home Assistant's own, said plainly, aren't these)
+off_platform_never: [lock, alarm, garage door]
+rules: []
+
+

@@ -1,0 +1,100 @@
+# vocab/language.yaml - the language words the router reads dates, times, repeats, durations
+# and short answers with (fields.py, for adding things through any app, and the connectors).
+# Moved out of the code Oct 13 (no hard-coding of anything that's a setting); English today.
+# Another language: copy this file's shape with its own words. After editing: docker compose restart
+
+weekdays: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]   # in this order
+months: [january, february, march, april, may, june, july, august, september, october, november, december]
+
+# number words -> numbers ("seven thirty" -> 7 30, "twenty first" -> 21st)
+ones: {zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+       eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17,
+       eighteen: 18, nineteen: 19}
+tens: {twenty: 20, thirty: 30, forty: 40, fifty: 50}
+ordinals: {first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9,
+           tenth: 10, eleventh: 11, twelfth: 12, thirteenth: 13, fourteenth: 14, fifteenth: 15,
+           sixteenth: 16, seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20, thirtieth: 30}
+
+# units of time, and how many minutes each is (for reminders before or after)
+units: {minute: minute, minutes: minute, min: minute, mins: minute, hour: hour, hours: hour, hr: hour,
+        hrs: hour, day: day, days: day, week: week, weeks: week, month: month, months: month,
+        year: year, years: year}
+unit_minutes: {minute: 1, hour: 60, day: 1440, week: 10080}
+# parts of a unit said as an amount: "every half hour", "a quarter of an hour", "half a day"
+fractions: {half: 0.5, quarter: 0.25}
+
+# hours said with no am/pm and no "morning"/"evening" are taken as pm (she reads the time back,
+# so a wrong guess is heard and can be corrected)
+bare_hours_pm: [1, 2, 3, 4, 5, 6]
+parts_of_day: [morning, afternoon, evening, night, tonight]      # the first one means am; the rest pm
+# a part of the day said with no time sets this time ("Saturday morning" -> Saturday at 6 am);
+# a part not listed here sets none (the app's own default time, if it has one, is used)
+part_times: {morning: "06:00", evening: "17:00", tonight: "17:00"}
+before_words: [before, ahead, early, prior, beforehand]          # "an hour before"
+after_words: [after, late, later, past, afterwards, overdue]     # "15 minutes after"
+date_lead: ["on", by, for, due]                                    # "due on Tuesday"
+
+# short answers to her "anything else?"
+"yes": ["yes", yeah, yep, yup, sure, okay, ok, please, absolutely]
+"no": ["no", nope, nah]
+negate: ["no", not, "don't", dont, without, never]               # "no nags", "without a reminder"
+pronouns: [me, myself]                                           # "for me" assigns; "nag me" doesn't
+this_words: [it, that, this]                                     # "rename that": the item she last named (user rules' Search, Last)
+this_phrases: [the one you just added, the one i just added, the one you added, the one you just made, what you just added]   # point at it too
+correction_openers: ["no", nope, "that's wrong", that is wrong, "that's not right", wrong, actually]   # "No, rename it to ...": not the rule's words
+position_words: [number]
+# Abbreviations speech-to-text writes ("St. Joseph"), the periods already gone, and what each may mean,
+# tried only when the words as heard match nothing (veil/match.py; every app; an app adds its own as alike)
+abbreviations: {st: [saint, street], sts: [saints], dr: [doctor, drive], mt: [mount, mountain], ft: [fort, feet],
+  fr: [father], sr: [sister, senior], jr: [junior], mr: [mister], mrs: [missus], ms: [miss], prof: [professor],
+  rev: [reverend], msgr: [monsignor], ave: [avenue], blvd: [boulevard], rd: [road], ln: [lane], hwy: [highway],
+  apt: [apartment], dept: [department], co: [company, county], approx: [approximately], vs: [versus],
+  jan: [january], feb: [february], mar: [march], apr: [april], aug: [august], sept: [september], sep: [september],
+  oct: [october], nov: [november], dec: [december], mon: [monday], tue: [tuesday], tues: [tuesday], wed: [wednesday],
+  thu: [thursday], thurs: [thursday], fri: [friday], sat: [saturday], sun: [sunday], "no": [number], vol: [volume]}                                          # "mark number 3 done": its place in the list she read
+# words that carry nothing of their own in an answer (yes and no words count too)
+glue: [and, at, "on", the, a, an, to, it, please, add, set, make, with, for, me, i, want, would, like,
+       also, can, you, be, of, in, that, this, is, um, uh, so, then, lets, "let's", put, give, "it's",
+       its, should, just, but, do, go, ahead, have, has, will, every, "o'clock", oclock, before, early,
+       prior]
+
+# little words the datasets measured as an action's words ("to", "me", "in" for an add) that never pick
+# an action by themselves: "Task fixed rotisserie market complete" isn't an add (dump15)
+not_action_words: [to, me, at, with, in, "on", of, for, the, a, an, it, and, my, i, is, be, you, can, so, that, this,
+                   what, when, where, who, how, are, do, does, did, will]   # question words too: "what is the remainder when ..." isn't a list
+
+# said in an add, it isn't to be added ("... named do not save that"): she stops, nothing added (dump15)
+cancel_phrases: [do not save, "don't save", do not add, "don't add", never mind, nevermind, cancel that, forget it, scratch that]
+
+# an Off-Platform answer that claims a change with no tool call to make it ("I have updated your tasks
+# list ..."): she says honestly that nothing was changed (phrases/router.yaml claimed_change, dump16)
+claimed_change_words: [i have updated, "i've updated", i have added, "i've added", i have marked, "i've marked",
+                       marked as complete, marked as done, i have set, "i've set", i have scheduled, "i've scheduled",
+                       i have created, "i've created", i have removed, "i've removed", i have deleted, "i've deleted",
+                       i have moved, "i've moved", i have renamed, "i've renamed", "it's done", "all done", i have completed,
+                       "i've completed"]
+
+# words of a number or a sum, besides ones and tens: never a topic's word (dump19)
+number_words: [hundred, thousand, million, billion, divided, times, plus, minus, percent, half]
+
+# repeats
+repeat_words: {daily: day, nightly: day, weekly: week, monthly: month, yearly: year, annually: year}
+every_words: [every, each]                                       # "every Tuesday", "each week"
+noon_words: [noon, midday]
+
+# how she reads back each type of field after adding it ("Clean the gutters, due Tuesday at 7 pm")
+readback: {date: "due {say}", time: "at {say}", recurrence: "{say}", duration: "{say}", yesno: "{say}",
+           person: "for {say}", choice: "in {say}", text: "{say}"}
+
+
+
+# ---------- an action run from the voice map with no app code (connector.py, the generic runner) ----------
+# words after which comes the thing's name ("create a project CALLED Voice Test")
+naming_words: [called, named, titled]
+# words that are a day by themselves (they end a spoken name: "call the plumber TOMORROW")
+day_words: [today, tomorrow, tonight, yesterday]
+# (Quote on, off, yes and no in these lists: bare, YAML reads them as true and false.)
+# strip_away, the language's layer: how people talk around a thing's name, left off either end of it
+# ("make A new project PLEASE", "I NEED TO add..."). Every app's name reader takes these, then its
+# own (connectors/<app>.yaml language: strip_away), then the action's (its voice map entry's strip_away).
+strip_away: [a, an, the, please, for, me, to, new, of, "on", and, can, you, could, would, i, "i'd", "i'm", need, want, like, have, so, just]

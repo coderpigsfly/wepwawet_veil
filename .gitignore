@@ -1,0 +1,23 @@
+.env
+.env.*
+state/
+__pycache__/
+*.pyc
+*.log
+captures/
+!.env.example
+
+# Python
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Editors and OS
+.vscode/
+.idea/
+*.sublime-workspace
+.DS_Store
+
+# Wepwawet Veil: accounts, sessions, vault, activity database, certificates
+data/

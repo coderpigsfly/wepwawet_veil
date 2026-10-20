@@ -1,0 +1,436 @@
+# phrases/router.yaml - the router's own lines.
+# Each section has an "any" list; add "iris:" or "felix:" lists
+# for personal versions. Lines are never questions, except in the path C sections
+# marked QUESTION (a question keeps the mic open and saves a pending question).
+# After editing: docker compose restart
+
+false_wake:
+  any:
+    - "Oh... yawn. Just stretching."
+    - "Mm? Just dozing by the cauldron."
+    - "Nothing? Back to my nap, then."
+    - "Just a little stretch. Carry on."
+
+dismissed:
+  any:
+    - "Back to my nap, then."
+    - "Alright, I'll be here."
+    - "Off I go."
+    - "Consider it forgotten."
+
+# Her own words came back (an echo): nothing to say, but never an empty reply, or Home Assistant
+# says "unable to get response" (Oct 18). Punctuation only: text to speech has nothing to read.
+echo:
+  any:
+    - "…"
+
+
+# ---------- reading lists aloud (any service) ----------
+# After the first read_list_max items (settings.yaml)
+list_more:
+  any:
+    - "Plus {more} more."
+    - "And {more} more after that."
+
+# QUESTION (path C): asked when items are left over
+list_ask:
+  any:
+    - "Want to hear the rest?"
+    - "Shall I read the rest?"
+
+# "Yes" to list_ask: {items} is the next batch
+list_rest:
+  any:
+    - "The rest: {items}."
+    - "Here's the rest: {items}."
+
+# "Yes" to list_ask, when even more are left after this batch: {items} is the next batch
+list_next:
+  any:
+    - "Next: {items}."
+    - "Here are the next few: {items}."
+
+# "No" to list_ask
+list_no:
+  any:
+    - "Okay."
+    - "Alright, I'll leave it there."
+
+
+# ---------- a spoken need that wasn't heard (any app's voice map: needs: ... required) ----------
+# QUESTION (path C): the answer is added to what was said and the request runs again.
+# need_<name> for one need (router: heard_needs in settings.yaml lists the ones the router hears itself);
+# need for any other, with {need} as its name.
+need_who:
+  any:
+    - "Who is it for?"
+    - "For who?"
+
+need_when:
+  any:
+    - "When?"
+    - "For when?"
+
+need:
+  any:
+    - "What's the {need}?"
+
+# QUESTION (path C): what was said names a thing of more than one app ({apps}: "Donetick or the Builder")
+which_app:
+  any:
+    - "Is that for {apps}?"
+
+# ---------- an action the router runs itself from the voice map (no app code for it) ----------
+# <action>_done in the app's own phrases file wins (create_project_done: "Made the project {name}.")
+generic_done:
+  any:
+    - "Done: {name}."
+# a field the app's spec requires that nothing said fills ({fields})
+generic_missing:
+  any:
+    - "I can't {action} yet: I'd need the {fields}."
+# the command needs to know which one (a chore, a project) and this kind of action can't pick one yet
+generic_cannot:
+  any:
+    - "I can't {action} by voice yet."
+
+# ---------- user rules (an app's User rules tab; veil/rules.py) ----------
+# A step's own line, typed on the tab, is said instead when it has one.
+# Match wasn't sure of the item ({item}): Confirm checks first
+rule_confirm:
+  any:
+    - "I believe I heard you say {item}. Is that right?"
+# Ask: a detail the rule needs ({need}) wasn't said
+rule_ask:
+  any:
+    - "What's the {need}?"
+# a no to the rule's question
+rule_no:
+  any:
+    - "Alright, I'll leave it."
+# Match: nothing scored at or above its Ask %
+# the collision hook (a list card's defined: the app's list of what should be, dump18): a thing only in
+# that list ({item}, its {usual} day), and one kept on another day than its usual one ({usual}, {other})
+not_kept:
+  any:
+    - "{item} is usually {usual}, but it isn't kept this year: something else outranks it."
+gives_way:
+  any:
+    - "On {usual} this year it gives way to {other}."
+# the Off-Platform answer claimed a change it had no way to make (dump16): nothing was changed
+claimed_change:
+  any:
+    - "I couldn't do that from out there, so nothing was changed. Say it again and I'll try here at home."
+# the Off-Platform model tried to work a lock, a door or the alarm (firewall.yaml off_platform_never, dump16)
+off_platform_never:
+  any:
+    - "I won't work that from out there. Ask me plainly and I'll try here at home."
+# an add that says not to save it ("... named do not save that", vocab/language.yaml cancel_phrases)
+add_cancelled:
+  any:
+    - "Okay, I won't add it."
+# a rule whose lines say the day ({day_said}), with no day said ("What happened on Victory Day?", dump21)
+rule_which_day:
+  any:
+    - "Which day do you mean? Say a date, like December 7th."
+# a rule's Search with nothing said to search by ("Find the task."): she asks, and searches by the answer
+rule_which_name:
+  any:
+    - "Which one?"
+rule_not_found:
+  any:
+    - "I couldn't find that one."
+# "rename that" with nothing named here lately (Search, Last)
+rule_no_last:
+  any:
+    - "I'm not sure which one you mean. Say its name?"
+# Search came before any command answered a list (the rule's steps are out of order)
+rule_no_list:
+  any:
+    - "I can't {action} yet: there's no list to search."
+# Who spoke: Oread isn't sure enough who it is (below the step's Hedge %): a polite way out, never a
+# name (the step's own Unsure lines win)
+rule_who_unsure:
+  any:
+    - "I'm still getting to know everyone's voice. Ask me again in a few days."
+    - "I'd rather not guess and get it wrong."
+    - "Voices are tricky for me yet. Who's asking?"
+    - "I can't tell who you are from here."
+# Who spoke: between the step's Hedge and Sure %: she thinks so ({speaker})
+rule_who_hedge:
+  any:
+    - "I think it's {speaker}, but I'm still learning voices."
+    - "It sounds like {speaker}, though I'm not certain yet."
+
+# ---------- brain fleas (the Brain fleas page; veil/fleas.py) ----------
+# a voice add, change or forget from someone the page doesn't name, or Oread isn't sure of
+flea_not_allowed:
+  any:
+    - "I can only change what I remember for the people allowed to."
+# a flea's rule failed (never claim it was saved)
+flea_error:
+  any:
+    - "Something went wrong there, so I left it as it was."
+
+# the rule is done and has no Response step
+rule_done:
+  any:
+    - "Done."
+
+# ---------- adding through an app: the follow-up series (any app) ----------
+# QUESTION (path C): right after the item was created, with extras open
+series_added:
+  any:
+    - "Added {name}. Is there anything else for this {noun}? I can add {offers}."
+
+# offered last in "I can add ...": an app's user rule that works on the item just added ("rename it")
+series_offer_rule:
+  any:
+    - "{word} it"
+
+# right after the item was created, nothing left to offer
+series_added_done:
+  any:
+    - "Added {name}."
+
+# after an addition: the whole item read back
+series_readback:
+  any:
+    - "{item}."
+
+# QUESTION (path C): after the read-back, extras still open
+series_more:
+  any:
+    - "I can also add {offers}. Anything else?"
+
+# a bare "yes"
+series_bare_yes:
+  any:
+    - "Did you say you wanted to add something? Here's what I can add: {offers}."
+
+# QUESTION (path C): a yes the persona couldn't use
+series_reoffer:
+  any:
+    - "I'm sorry, I didn't understand that. Could you repeat? I can add {offers}."
+
+# a stop answer
+series_done:
+  any:
+    - "Okay, all set."
+    - "Okay."
+
+
+# ---------- the last check before Gemini ----------
+# Not a whole sentence (no verb and noun, no topic): never a question, so the mic can't reopen
+fragment:
+  any:
+    - "Sorry, I didn't catch that."
+    - "Please say that again."
+    - "Sorry, I missed that. Please say it again."
+
+# Polite words alone. The persona looks for a section named after what was heard first
+# (polite_good_morning; "morning" alone also finds it), else uses the shared "polite" list.
+# To add one: polite_ plus the phrase from vocab/path0.yaml polite_phrases, spaces as _.
+polite_good_morning:
+  any:
+    - "Good morning! The cauldron's already bubbling."
+    - "Morning, dear. Coffee's brewing somewhere, I hope."
+
+polite_good_evening:
+  any:
+    - "Good evening. The candles are lit."
+    - "Evening! A fine night for a spell or two."
+
+polite_good_night:
+  any:
+    - "Good night. Sweet dreams."
+    - "Night night. I'll keep watch."
+
+polite_thank_you:
+  any:
+    - "You're welcome."
+    - "My pleasure."
+
+polite:
+  any:
+    - "Mm-hm."
+    - "Of course."
+    - "Anytime."
+
+
+# ---------- the learn level (vocab/learn.yaml) ----------
+# "Who answered that?"
+learn_engine:
+  any:
+    - "{engine} answered that."
+learn_me:
+  any:
+    - "The intent router answered that."
+# ...after an answer from the Off-Platform bank: {model} is the Off-Platform model's name (vocab/learn.yaml engines)
+learn_bank:
+  any:
+    - "The intent router answered that from its bank: what {model} said before to the same words."
+
+# "What did you hear?"
+learn_heard:
+  any:
+    - "I heard: {heard}"
+
+# the turn before wasn't hers (HA answered it), or there's nothing recent to ask about
+learn_not_me:
+  any:
+    - "That one didn't come through me. Home Assistant answered it."
+learn_nothing:
+  any:
+    - "I don't remember anything just before that."
+
+# "Record that as a misunderstanding" (the kind comes from the question just asked)
+learn_saved_engine:
+  any:
+    - "Saved as an engine miss."
+learn_saved_misheard:
+  any:
+    - "Saved as a mishearing."
+learn_saved_again:
+  any:
+    - "That's {count} times for that one."
+learn_ask_first:
+  any:
+    - "Ask me who answered that, or what I heard, first."
+learn_nothing_to_record:
+  any:
+    - "There's nothing of mine to record there."
+learn_save_failed:
+  any:
+    - "Something went wrong saving that, so it isn't recorded."
+
+# "That should have been ..." after recording: for a mishearing, what you really said (it files the
+# mishearing under it, Misses page); for the wrong part answering, a note (never acted on)
+learn_noted:
+  any:
+    - "Noted: that should have been {note}."
+learn_record_first:
+  any:
+    - "Say record that as a misunderstanding first, then tell me what it should have been."
+
+# ---------- not shaped like a request (vocab/requests.yaml) ----------
+# QUESTION (path C): yes sends the original words to Gemini; no ends it.
+# Also counts as "What did you hear?": "Record that as a misunderstanding" saves a mishearing.
+ask_around:
+  any:
+    - "I think I heard \"{heard}\". That's not something I know here at home. Want me to ask around?"
+  # Keep "I think I heard" (it counts as "What did you hear?") and end on the question.
+  # Words the persona uses for asking belong in vocab/answers.yaml about_asking too.
+  iris:
+    - "I think I heard \"{heard}\". That's not in my spell book here at home. Shall I check with my coven?"
+    - "I think I heard \"{heard}\". I'm not sure I can answer that. Shall I consult the bigger spell book?"
+    - "I think I heard \"{heard}\". That's not clear to me. Shall I look into the magic cauldron?"
+# QUESTION (path C, dump13): the Off-Platform model heard a change answered at home ("mark it complete"
+# for "market complete"): she asks before doing it. Yes does it (and keeps the mishearing); no ends it.
+heard_as:
+  any:
+    - "I think you meant \"{meant}\". Shall I?"
+heard_as_no:
+  any:
+    - "Okay, I'll leave it."
+ask_around_no:
+  any:
+    - "Okay."
+    - "Alright, I'll leave it."
+  iris:
+    - "Very well, the coven can rest."
+    - "Alright, the spell book stays shut."
+    - "Okay, the cauldron stays covered."
+
+
+# ---------- the firewall (firewall.yaml) ----------
+# When a rule stops a request and the rule has no message: of its own
+firewall_blocked:
+  any:
+    - "Sorry, that's not something I can do for you."
+    - "I'm afraid I can't do that one for you."
+
+# The cloud model went back and forth for actions more than router: off_platform_tool_rounds allows:
+# nothing more is done, and she asks for it again
+tool_rounds_over:
+  any:
+    - "I'm sorry, please repeat that."
+    - "Sorry, I lost track of that one. Please say it again."
+
+# A request in a tree that the tree can't do, and the tree has no line of its own for it (settings:
+# tree_stays_home). {tree} is the topic's spoken name (settings topics: <topic>: spoken).
+stay_home:
+  any:
+    - "Sorry, I have to do my hair, I'm staying home with {tree}."
+    - "{tree} is always sleeping. I'll go wake {tree} up, but that one stays home."
+    - "{tree} didn't follow that, and I'm not leaving the house over it."
+  iris:
+    - "Sorry, I have to do my hair. I'm staying home with {tree}."
+    - "{tree} is asleep by the cauldron again. I'll stir {tree} awake, but I'm staying home."
+  felix:
+    - "Sorry, I have to polish my lamp. I'm staying home with {tree}."
+    - "{tree} is napping in the lamp again. I'll rub {tree} awake, but I'm staying home."
+# ...when the router knows the verb she couldn't do ({verb}: "find", "hide"): said instead of stay_home
+stay_home_verb:
+  any:
+    - "{tree} doesn't know how to {verb} that, so I'm staying home."
+    - "I can't {verb} that with {tree}, and I'm not leaving the house over it."
+  iris:
+    - "{tree} doesn't know how to {verb} that, so I'm staying home by the cauldron."
+  felix:
+    - "{tree} doesn't know how to {verb} that, so I'm staying in my lamp."
+
+# Something the voice map keeps off the voice (connectors/<app>.yaml never_by_voice: delete, archive...).
+# {verb} is the word said, {app} the app's name.
+never_by_voice:
+  any:
+    - "I can't {verb} things by voice. That's done on {app}'s own page."
+    - "{app} doesn't let me {verb} by voice. Its own page can do that."
+
+# When the router may not call Gemini (security: outbound_allowed) or can't reach it
+gemini_unreachable:
+  any:
+    - "I can't reach my helpers outside the house right now."
+
+# ---------- which of an app's things you meant (veil/match.py; any app) ----------
+# Two of its things fit what was said equally: the persona asks which, each with its group (a chore's
+# project), the default project's first. {items} is the list; thing_in_group and thing_or build it.
+# several fit and the app's list card weighs them (its weight): the main one first, and how many
+thing_main:
+  any:
+    - "There are {count} of them. The main one is {name}{label}{when}. Is that the one?"
+
+thing_which:
+  any:
+    - "Do you mean {items}?"
+    - "Which one: {items}?"
+thing_in_group:
+  any:
+    - "{name} in {group}"
+thing_or:
+  any:
+    - ", or "
+# Pieces, not whole sayings: thing_in_group and thing_or build {items}; confirm_any is the {doing} when
+# an app has no confirm_<action> line of its own.
+# One fits, but a word you said isn't in its name ("lawn pest" for Mow Lawn): the persona checks first.
+# {doing} is the app's confirm_<action> line (phrases/<app>.yaml), else confirm_any.
+thing_confirm:
+  any:
+    - "{name}? Say yes and I'll {doing}."
+confirm_any:
+  any:
+    - "do that"
+thing_no:
+  any:
+    - "Okay, I left it alone."
+    - "Alright, nothing changed."
+
+# an app's call failed: nothing was changed, and nothing was made up
+service_error:
+  any:
+    - "Something went wrong reaching that app, so I can't say right now."
+
+# an app said "too many calls" (429) and there's no copy on hand to answer from
+service_busy:
+  any:
+    - "That app has asked me to wait a while. Try again later."

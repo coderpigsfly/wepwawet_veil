@@ -1,0 +1,60 @@
+# vocab/path0.yaml - words for path 0: false wakes and dismissals.
+# After editing: docker compose restart
+
+# Words ignored when deciding if anything real was said.
+# The assistants' names count too: each personality file's name and its heard_as: (flair.py).
+filler_words: [um, umm, uh, uhh, hmm, hm, mm, mhm, er, ah, hey]
+
+# Phrases that mean "go away" when they END what was heard
+# (her name and filler are ignored). Good for false wakes.
+dismiss_phrases:
+  - never mind
+  - nevermind
+  - go back to sleep
+  - back to sleep
+  - forget it
+  - cancel
+  - cancel that
+  - nothing
+  - that's all
+  - im not speaking to you
+  - i'm not speaking to you
+
+# Polite words. Alone they get a short polite line and go nowhere ("good morning",
+# "thank you"); joined to a real sentence they're dropped ("good morning, what's the weather").
+polite_phrases:
+  - good morning
+  - morning
+  - good afternoon
+  - good evening
+  - good night
+  - goodnight
+  - night night
+  - thank you
+  - thank you very much
+  - thanks
+  - thanks a lot
+  - thanks so much
+  - please
+  - hello
+  - hi
+  - hey there
+  - bye
+  - goodbye
+  - see you
+  - you're welcome
+  - okay
+  - ok
+  - alright
+  - cool
+  - great
+  - awesome
+  - perfect
+
+# What she may be called beside a polite phrase ("Good morning, sweetheart"): with one of these
+# and nothing else, it's still polite words only, and she answers in kind. Only counted then:
+# in a real sentence they're kept ("I love you" stays as it is).
+polite_address: [sweetheart, sweetie, honey, darling, dear, love, babe, baby, my love, my dear,
+                 friend, my friend, buddy, beautiful, gorgeous, lovely, my lady, my lord]
+
+

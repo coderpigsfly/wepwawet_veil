@@ -1,0 +1,54 @@
+# personality/combing.yaml - how tools/build_flair.py combs the books for a persona's lines.
+# (Moved out of the code, Oct 13, so it can be changed here or on the Flair page.)
+# An assistant can override any section in personality/sources.yaml under combing:
+# (one persona's topics or speaker words differ from another's).
+#
+# Every list holds words or short phrases, matched as whole words, ignoring case.
+# A * at the end means any ending ("kill*" = kill, kills, killed, killing); -? means an
+# optional hyphen ("good-?bye" = goodbye, good-bye). Put those in quotes. Anything else is
+# taken literally.
+# After editing: python3 tools/build_flair.py mine <assistant> (or Mine on the Tools page)
+
+# A quote is the persona's when one of these verbs names its kind as the speaker ("said the Witch",
+# "Glinda replied"); the kinds are each assistant's speakers: in sources.yaml.
+said_words: [said, cried, replied, answered, exclaimed, called, whispered, laughed, added,
+             continued, returned, asked, shouted, remarked, declared, observed]
+# words allowed between the verb and its kind ("said the good Witch")
+speaker_adjectives: [good, little, old, kind, lovely]
+
+# What makes a usable line: whole, short, kind, and making sense on its own.
+max_words: 9
+# never in a kind assistant's mouth, whatever the book says
+never: ["kill*", die, dies, dead, death, eat, eaten, "devour*", "burn*", "blood*", beat, beaten, "hang*",
+        cut, throat, wicked, "hate*", "curse*", stupid, "fool*", idiot, "devil*", hell, "damn*", god, lord,
+        christ, "slave*", ugly, naughty, "wretch*", "monster*", "starve*", "poison*", "prison*", "punish*",
+        tear, torn, blind, grave, corpse, ghost, "blast*", thou, thee, thy, ye, hast, doth, aroint]
+# story-bound words: a line about "her" or "them" makes no sense on its own
+story_words: [he, she, him, her, his, hers, they, them, their, "it's", its, this one, that one]
+# capitalized words allowed after the first (any other is a story's person or place: "Dorothy")
+allowed_capitals: ["I", "I'll", "I'm", "I've", "I'd"]
+
+# Guesses for each line (you can change them when you review the candidates)
+closer_words: ["good-?bye", farewell, good luck, "bless*", take care, sleep well, good night, good day,
+               peace, safe, luck]
+moods:
+  sorry: [alas, sorry, cannot, "can't", could not, "couldn't", help it, dear me, oh dear, what a pity, pity]
+  warning: [beware, take care, careful, mind, "danger*", look out, be quick, hurry]
+topics:
+  weather: [sky, wind, winds, rain, sun, sunny, storm, "cloud*", snow, cold, warm, weather, cyclone,
+            whirlwind, frost]
+  chores: [work, sweep, broom, clean, "task*", "chore*", busy, done, wash, tidy, quick]
+
+# Ranking (best first): lines said by its kind count most, then interjections (they suit any
+# answer), short lines, and lines seen nearby.
+interjections: [oh, ah, aha, well, dear, my dear, come, now, here, good, gracious, goodness, bless,
+                mercy, alas, hush, look, so, "yes", indeed, ho, hey, there, why, splendid, wonderful,
+                very well, of course]
+score:
+  said_by_her_kind: 3
+  nearby: 1
+  interjection: 2
+  short: 1
+  short_words: 4
+
+

@@ -1,0 +1,22 @@
+name: Feature request
+description: "An idea to make Wepwawet Veil better"
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "What you're trying to do"
+      description: "The problem or need, in your own words."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: "Your idea"
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: "Anything else"
+      description: "Other ways you've tried, links, examples."

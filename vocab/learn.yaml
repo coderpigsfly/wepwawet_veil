@@ -1,0 +1,110 @@
+# vocab/learn.yaml - the learn level: asking about the turn before.
+# After editing: docker compose restart
+
+# "Who answered that?" -> which engine answered the turn before
+who_answered:
+  - who answered that
+  - what answered that
+  - who answered
+  - what answered
+  - who said that
+  - who was that
+  # how speech-to-text has heard it (Oct 11: "W answer that?")
+  - who answer that
+  - w answer that
+  - w answered that
+
+# "What did you hear?" -> the transcription HA gave her for the turn before
+what_heard:
+  - what did you hear
+  - what did you just hear
+  - what did you hear me say
+  - what did i say
+
+# "Record that as a misunderstanding" -> saves the turn just asked about (kind from the
+# question asked). "Misunderstanding" is the main word (Oct 10): speech-to-text kept hearing
+# "miss" as "myth". The older "miss" wordings still work.
+# words that may come before the record command ("No, record that as a misunderstanding")
+record_leads: ["no", nope, actually, okay, ok]
+
+record_miss:
+  - record that as a misunderstanding
+  - record it as a misunderstanding
+  - record a misunderstanding
+  - that was a misunderstanding
+  - that's a misunderstanding
+  - that is a misunderstanding
+  - log that as a misunderstanding
+  - save that as a misunderstanding
+  - mark that as a misunderstanding
+  - misunderstanding
+  - record that as a miss
+  - record that as a mistake
+  - record that
+  - record it
+  - log that as a miss
+  - log that
+  - save that as a miss
+  - mark that as a miss
+  - that was a miss
+  # speech-to-text often hears "miss" as "myth" or "mist": "record as a" takes any last word
+  - record as a
+  - record as
+  - that was a myth
+  - that was a mist
+  - that's a myth
+  - that is a myth
+  - that's a mist
+  - that is a mist
+  - that's a miss
+  - that is a miss
+
+# "That should have been weather" -> a note on the miss; she never acts on it
+should_be:
+  - that should have been
+  - it should have been
+  - should have been
+  - that was supposed to be
+  - it was supposed to be
+  # how speech-to-text often writes it
+  - that should've been
+  - it should've been
+  - should've been
+  - that should of been
+  - should of been
+  - that shoulda been
+  # speech-to-text sometimes drops "been" ("That should have ensures"); only at the start
+  - that should have
+  - it should have
+  - that should've
+
+# How she names each engine in "Who answered that?". Everything answered at home is the
+# intent router (the exact service is still kept in the turn record for the miss log).
+engines:
+  gemini: Gemini
+  bank: The intent router's bank     # "Who answered that?" after the bank has its own line (phrases/router.yaml learn_bank)
+  weather_brain: The intent router
+  donetick: The intent router
+
+# ---------- reviewing the misses (tools/misses.py) ----------
+# What the words in a "should have been" note mean for the router (note words -> a path)
+note_paths:
+  gemini: gemini
+  offshore: gemini
+  the internet: gemini
+  ask around: ask
+  asked first: ask
+  asked: ask
+  false wake: "0"
+  nothing: "0"
+  fragment: "0"
+  didn't catch: "0"
+  polite: "0"
+  learn: learn
+
+# How speech-to-text tends to hear a topic's name in a note (add what your misses show)
+note_heard_as:
+  chores: [short, shorts, shores, chore, chorus, shore, ensures, sures]
+  weather: [whether, feather]
+
+

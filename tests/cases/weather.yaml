@@ -1,0 +1,171 @@
+# tests/cases/weather.yaml - the weather topic and the weather brain.
+# Each case: name, say, optional history (earlier turns: you, her, you, her...),
+# optional pending: / memory: / turns: (stand-ins; tests never see the router's real state),
+# and expect: path (0, A, B, C, gemini, tool, learn), topic, action, kind, and in --live runs
+# status, reason, speech_has. known: "why" marks a documented gap (KNOWN, or FIXED once it passes).
+# requires: the services (settings.yaml) this file needs; without them regress.py skips it.
+
+requires:
+- weather_brain
+cases:
+- name: umbrella on saturday
+  say: Do I need an umbrella on Saturday?
+  expect:
+    path: A
+    topic: weather
+    status: answered
+- name: misheard umbrella still weather
+  say: Do I mean an umbrella on Saturday?
+  expect:
+    path: A
+    topic: weather
+- name: jacket tomorrow
+  say: Should I wear a jacket tomorrow?
+  expect:
+    path: A
+    topic: weather
+    status: answered
+- name: next week is honestly out of reach
+  say: Will it rain next week?
+  expect:
+    path: A
+    topic: weather
+    status: out_of_reach
+    reason: too_far
+- name: london is a place the brain doesn't know
+  say: What's the weather in London tomorrow?
+  expect:
+    path: A
+    topic: weather
+    status: out_of_reach
+    reason: place
+- name: is it hot alone is held by the guard
+  say: Is it hot?
+  expect:
+    path: gemini
+- name: whether is not weather
+  say: Whether you did the dishes or not
+  expect: {path: ask}
+- name: when sunrise
+  say: when sunrise
+  expect:
+    path: A
+    topic: weather
+- name: sun set said as two words (speech-to-text often splits it)
+  say: When does the sun set?
+  expect:
+    path: A
+    topic: weather
+- name: sun set after a question about another place is its own question, not a follow-up
+  say: When's the sun set?
+  history:
+  - What's the weather in London?
+  - I only keep an eye on the sky right here, not London.
+  expect:
+    path: A
+    topic: weather
+- name: sun rise as two words
+  say: When does the sun rise tomorrow?
+  expect:
+    path: A
+    topic: weather
+- name: set without the sun isn't weather
+  say: Did you set the table?
+  expect:
+    path: gemini
+- name: when is sunset tomorrow
+  say: When is sunset tomorrow?
+  expect:
+    path: A
+    topic: weather
+- name: when is it getting dark
+  say: When's it getting dark out?
+  expect:
+    path: A
+    topic: weather
+- name: when will it get light tomorrow
+  say: When will it get light tomorrow?
+  expect:
+    path: A
+    topic: weather
+- name: what about sunday after weather
+  history:
+  - What's the forecast for Saturday?
+  - Saturday will be mostly cloudy...
+  say: What about Sunday?
+  expect:
+    path: B
+    topic: weather
+    status: answered
+- name: sun follow-up
+  history:
+  - When is sunset tomorrow?
+  - The sun sets at 6:30 tomorrow.
+  say: And Saturday?
+  expect:
+    path: B
+    topic: weather
+- name: weather after gemini asked a question
+  history:
+  - Good morning
+  - Good morning! Is there any mischief I can help you with today?
+  say: What's the weather today?
+  expect:
+    path: A
+    topic: weather
+- name: a new question drops her question
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - Spray weeds
+    - Remember School Keys
+  say: Should I wear a jacket tomorrow?
+  expect:
+    path: A
+    topic: weather
+- name: a long sentence starting with yes is a new request
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - Spray weeds
+    - Remember School Keys
+  say: Yes but what's the weather going to be tomorrow
+  expect:
+    path: A
+    topic: weather
+- name: an unrelated question drops anything else
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 1
+    name: clean the gutters
+    noun: chore
+    filled: {}
+    fields:
+      due_date:
+        type: date
+        kind: extra
+        words:
+        - due date
+        offer: a due date
+  say: What's the weather tomorrow?
+  expect:
+    path: A
+    topic: weather
+- name: good morning plus the weather is weather
+  say: Good morning, what's the weather tomorrow?
+  expect:
+    path: A
+    topic: weather
+
+# recorded by voice 2026-10-13 13:27 as a mishearing; you said it should have been What's the weather tomorrow
+- name: 'miss: What''s the weather to morrow?'
+  say: What's the weather to morrow?
+  expect:
+    path: A
+    topic: weather
+
+

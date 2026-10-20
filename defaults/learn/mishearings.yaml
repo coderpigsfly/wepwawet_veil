@@ -1,0 +1,10 @@
+# learn/mishearings.yaml - what speech-to-text heard, under what you really meant.
+#   meant: what you really said (null: not given yet)
+#   heard: each way speech-to-text heard it, with how many times (count)
+#   taken: true once the words tool has taken that one into the words
+# Written by the router (Misheard on Transactions, "Record that as a misunderstanding", the
+# Misses page). Never cut for size: a line stays until you drop it.
+# This is the starting copy (defaults/learn/mishearings.yaml): your household's own stay in
+# learn/mishearings.yaml.
+
+mishearings: []

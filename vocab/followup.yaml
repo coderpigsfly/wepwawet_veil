@@ -1,0 +1,15 @@
+# vocab/followup.yaml - words that begin a follow-up to the last topic.
+# A follow-up must start with one of these, or be short (followup_max_words in settings.yaml).
+# After editing: docker compose restart
+
+cue_starts:
+  - what about
+  - how about
+  - and what about
+  - and how about
+  - and
+  - also
+  - then
+  - okay what about
+  - ok what about
+  - what's it like

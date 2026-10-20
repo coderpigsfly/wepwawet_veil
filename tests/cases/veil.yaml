@@ -1,0 +1,150 @@
+# tests/cases/veil.yaml - who spoke (Oread), names in her replies, and the firewall.
+# Every case brings its own stand-ins: speaker: (what Oread would say: speaker, label, score)
+# and firewall: (a firewall.yaml to test), so nothing here needs Oread running or a rule on.
+# expect: may also hold name_sure (the voice ID sure enough for a name) and say_name_as (Name Sparkle's names).
+# assistant: which voice device asks (default iris).
+
+requires: []
+cases:
+
+# ---------- who spoke, and saying a name ----------
+- name: a known voice with a high score may hear its name
+  say: what's the weather tomorrow
+  speaker: {speaker: Sam, label: known, score: 0.91}
+  expect:
+    path: A
+    topic: weather
+    name_sure: true
+- name: a maybe voice never hears a name
+  say: what's the weather tomorrow
+  speaker: {speaker: Sam, label: maybe, score: 0.71}
+  expect:
+    path: A
+    name_sure: false
+- name: a voice the voice ID calls known is sure, whatever its score (its own per-device threshold decides, Oct 15)
+  say: what's the weather tomorrow
+  speaker: {speaker: Beth, label: known, score: 0.62}
+  expect:
+    name_sure: true
+- name: beth sure enough for a name
+  say: what's the weather tomorrow
+  speaker: {speaker: beth, label: known, score: 0.88}
+  expect:
+    name_sure: true
+
+# ---------- the firewall ----------
+- name: firewall off blocks nothing
+  say: open the garage door
+  speaker: {label: unknown, score: 0.2}
+  firewall: {enabled: false, rules: [{name: kids, people: [unknown], devices: [garage door]}]}
+  expect:
+    path: gemini
+- name: an unknown voice may not work the garage door
+  say: open the garage door
+  speaker: {label: unknown, score: 0.2}
+  firewall: {enabled: true, rules: [{name: kids, people: [unknown], devices: [garage door]}]}
+  expect:
+    path: blocked
+    kind: firewall
+- name: a known voice may work the garage door
+  say: open the garage door
+  speaker: {speaker: Sam, label: known, score: 0.9}
+  firewall: {enabled: true, rules: [{name: kids, people: [unknown], devices: [garage door]}]}
+  expect:
+    path: gemini
+- name: a rule's own message is what she says
+  say: open the garage
+  speaker: {label: unknown, score: 0.2}
+  firewall: {enabled: true, rules: [{people: [unknown], commands: [open the garage], message: "Ask a grown-up, please."}]}
+  expect:
+    path: blocked
+    speech_has: Ask a grown-up
+- name: a person blocked from one voice device
+  say: what's the weather tomorrow
+  speaker: {speaker: beth, label: known, score: 0.9}
+  firewall: {enabled: true, rules: [{people: [beth], voice_devices: [iris]}]}
+  expect:
+    path: blocked
+- name: the same person on another voice device is fine
+  assistant: felix
+  say: what's the weather tomorrow
+  speaker: {speaker: beth, label: known, score: 0.9}
+  firewall: {enabled: true, rules: [{people: [beth], voice_devices: [iris]}]}
+  expect:
+    path: A
+- name: a rule limited to one assistant
+  assistant: felix
+  say: open the garage door
+  speaker: {label: unknown, score: 0.2}
+  firewall: {enabled: true, rules: [{people: [unknown], assistants: [iris], devices: [garage door]}]}
+  expect:
+    path: gemini
+- name: a topic action can be blocked
+  say: add take out the trash to my chores
+  speaker: {label: unknown, score: 0.3}
+  firewall: {enabled: true, rules: [{people: [unknown], topics: [chores.add]}]}
+  expect:
+    path: blocked
+- name: reading chores is still fine when only adding is blocked
+  say: what chores do I have today
+  speaker: {label: unknown, score: 0.3}
+  firewall: {enabled: true, rules: [{people: [unknown], topics: [chores.add]}]}
+  expect:
+    path: A
+    topic: chores
+- name: nothing to gemini for an unknown voice
+  say: tell me a joke about cats
+  speaker: {label: unknown, score: 0.3}
+  firewall: {enabled: true, rules: [{people: [unknown], gemini: true}]}
+  expect:
+    path: blocked
+- name: anyone means everyone
+  say: open the garage door
+  speaker: {speaker: Sam, label: known, score: 0.95}
+  firewall: {enabled: true, rules: [{people: [anyone], devices: [garage door]}]}
+  expect:
+    path: blocked
+- name: false wakes are never blocked
+  say: P.
+  speaker: {label: unknown, score: 0.1}
+  firewall: {enabled: true, rules: [{people: [anyone], gemini: true, voice_devices: [iris]}]}
+  expect:
+    path: '0'
+- name: whole words only, a garden door isn't the garage door
+  say: what does a new garden door cost
+  speaker: {label: unknown, score: 0.2}
+  firewall: {enabled: true, rules: [{people: [unknown], devices: [garage door]}]}
+  expect:
+    path: gemini
+
+
+
+# brain fleas (learn/fleas.yaml, the starting copy's): answered at home before the Off-Platform Bank
+- name: who is talking is a brain flea
+  say: Who is talking?
+  expect:
+    path: flea
+    action: device_who_is_speaking_to_you
+- name: what brain fleas do you have reads the fleas (Oct 18)
+  say: What brain fleas do you have?
+  expect:
+    path: flea
+    action: list_fleas
+- name: telling a fact with a flea's key word isn't asking it (Oct 18)
+  say: Brainfully, we only get our pizza at Jade House in Douglasville.
+  expect:
+    path: ask
+- name: who's speaking to you is the same flea
+  say: hey, who's speaking to you
+  expect:
+    path: flea
+    action: device_who_is_speaking_to_you
+- name: a voice add of a brain flea
+  say: Add a brain flea, we only buy pizza from Sal's.
+  expect:
+    path: flea
+    action: add_flea
+- name: a question that only starts like a flea isn't one
+  say: who am i supposed to call for a ride to school
+  expect:
+    path: gemini

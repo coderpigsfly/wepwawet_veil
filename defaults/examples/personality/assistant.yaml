@@ -1,0 +1,26 @@
+# personality/assistant.yaml - an example assistant's flair. Read by flair.py.
+# An example (defaults/examples/personality/): make one file per assistant, named after the first
+# word of her instructions in Home Assistant ("Assistant Personality" -> assistant.yaml), and
+# delete this one once you have your own. Your assistants' files are yours: git never ships
+# or touches anything in personality/.
+# After editing: docker compose restart
+#
+#   rate:          share of her answers at home that get a flourish (0.4 = 4 of every 10,
+#                  dealt like a shuffled deck, so no lucky streaks)
+#   max_in_a_row:  never more flourished answers than this back to back (0 = no limit)
+#   heard_as:      how speech-to-text hears her name, besides the name itself; her name and
+#                  these count as filler (like "um") when deciding if anything real was said
+#
+# Each flourish:
+#   text:    what she adds (a whole little sentence; never a question)
+#   slot:    opener (before the answer), closer (after it), aside (only where a phrase line
+#            has a hand-placed [[aside]])
+#   topics:  [any], or the topics it suits (weather, chores, router)
+#   mood:    [plain] (the default), warning (a freeze, a storm), sorry (she couldn't do it)
+# Lines from public-domain books go through tools/build_flair.py (personality/sources.yaml).
+
+heard_as: []     # how speech-to-text hears her name, if it gets it wrong
+rate: 0.3
+max_in_a_row: 1
+
+flourishes: []     # her lines go here: each with text, slot, topics and mood (above)

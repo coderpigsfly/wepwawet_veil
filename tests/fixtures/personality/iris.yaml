@@ -1,0 +1,13 @@
+# tests/fixtures/personality/iris.yaml - a stand-in assistant for the tests (plain lines).
+rate: 0.6
+max_in_a_row: 2
+
+flourishes:
+  - text: "Test opener line."
+    placeholder: true
+    slot: opener
+    topics: [any]
+  - text: "Test closer line."
+    placeholder: true
+    slot: closer
+    topics: [any]

@@ -1,0 +1,99 @@
+# connectors/litcal.yaml - the voice map for Liturgical calendar (an app we didn't write; the build reads it).
+# Made on the Integrations page (Oct 18, 2026). Fill it in, then Tools, Maintenance, build.
+# For each voice action:
+#   api:        the app's command (method and path, as listed in its spec: the Commands tab)
+#   learn_from: dataset intents whose sentences teach how people say this action
+#   words:      your own words, for actions the datasets don't cover (kept short)
+#   objects:    nouns that decide the action outright
+#   needs:      spoken needs: details the action uses (required: she asks; default: used and said; optional)
+# Only actions listed here can be spoken. The app's own quirks live in connectors/litcal.py
+# (its helper, written for this app's API), its lines in phrases/litcal.yaml.
+
+service: litcal
+topic: feasts
+default_action: list
+
+# the defaults are settings: services: litcal: options: in settings.yaml
+defaults: {}
+match_min: 0.6 # share of an item's words that must be said to count as that item (the Voice map tab)
+
+actions:
+  list:
+    api: "GET /calendar/nation/{calendar_id}/{year}"
+    learn_from: {}
+    words: [what feasts, which feasts, feast days, holy days]
+    objects: []
+    needs: {}
+
+# the words its helper uses to clean up what was said (each list shows on the Integrations card)
+language:
+  alike:
+    our lady: mary
+    blessed virgin mary: mary
+    the virgin mary: mary
+    virgin mary: mary
+    blessed mother: mary
+    mother of god: mary
+    mother of jesus: mary
+    all saints day: all saints
+    all souls day: all souls
+  nearby:
+    - mary
+    - joseph
+  never_in_names:
+    - the
+    - of
+    - a
+    - an
+    - feast
+    - feasts
+    - day
+    - is
+    - when
+    - what
+rules:
+  when_feast:
+    words: [when is, when's, what day is, what date is]
+    steps:
+      - call: "GET /calendar/nation/{calendar_id}/{year}"
+      - search: {ignore: [the, feast, feasts, of, day, is, "on", a, holy, solemnity, this, year]}
+      - match: {act: 60, ask: 30, extra_words: ignore}
+      - confirm: {}
+      - response: {lines: ["{item} is {date}."], fields: {date: date}, past_lines: ["{item} was {date}."]}
+  holy_day:
+    words: [holy day of obligation, a holy day, day of obligation]
+    steps:
+      - call: "GET /calendar/nation/{calendar_id}/{year}"
+      - search: {ignore: [is, the, a, an, feast, of, day, this, year, it]}
+      - match: {act: 60, ask: 30, extra_words: ignore}
+      - confirm: {}
+      - response: {lines: ["Yes, {item} is a holy day of obligation, {date}."], fields: {date: date, holy: holy_day_of_obligation}, empty_lines: ["No, {item} isn't a holy day of obligation."]}
+  next_feast:
+    words: [what's the next feast, what is the next feast, when is the next feast, next feast]
+    steps:
+      - call: "GET /calendar/nation/{calendar_id}/{year}"
+      - by_date: {which: next}
+      - response: {lines: ["The next feast day is {date}: {items}."], fields: {date: date}, list: true}
+  next_holy_day:
+    words: [when is the next holy day, what is the next holy day, what's the next holy day, next holy day]
+    steps:
+      - call: "GET /calendar/nation/{calendar_id}/{year}"
+      - filter: {field: holy_day_of_obligation, value: "true"}
+      - by_date: {which: next}
+      - response: {lines: ["The next holy day of obligation is {item}, {date}."], fields: {date: date}}
+  feast_on:
+    words: [whose feast day is, whose feast is, what feast is, what feast day is, what's the feast]
+    steps:
+      - call: "GET /calendar/nation/{calendar_id}/{year}"
+      - by_date: {which: day said, not_found: "There's no feast day {day}."}
+      - response: {lines: ["{day}: {items}."], list: true}
+  days_until:
+    words: [how many days until, how many days till, how many days to, how long until, how long till]
+    steps:
+      - call: "GET /calendar/nation/{calendar_id}/{year}"
+      - search: {ignore: [the, feast, feasts, of, day, is, "on", a, holy, solemnity, this, year]}
+      - match: {act: 60, ask: 30, extra_words: ignore}
+      - confirm: {}
+      - response: {lines: ["{item} is {date_days} days away, {date}."], fields: {date: date}}
+
+

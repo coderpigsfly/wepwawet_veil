@@ -1,0 +1,64 @@
+# connectors/wikipedia.yaml - the voice map for Wikipedia's On this day (an app we didn't write; the build reads it).
+# Made Oct 19, 2026, the second history node (nodes of the same nature: topics: history: then:).
+# Its spec is its feed service's (Swagger 2, YAML, on GitHub); its paths start /{domain}/v1, which its
+# address (https://en.wikipedia.org/api/rest_v1) leaves out: services: wikipedia: spec_prefix.
+
+service: wikipedia
+topic: history
+default_action: wiki_today   # Oct 19: a history question no rule fits reads today's events (the plain list had no lines: "Mm.")
+
+# the defaults are settings: services: wikipedia: options: in settings.yaml
+defaults: {}
+match_min: 0.6
+
+actions:
+  list:
+    api: GET /{domain}/v1/feed/onthisday/selected/{month}/{day}
+    learn_from: {}
+    words: []
+    objects: []
+    needs: {}
+
+language:
+  not_said: [(pictured), (depicted), (* pictured), (* depicted), (left), (right), (center)]
+rules:
+  wiki_today:
+    words: [what happened in history, what happened today, what happened on this day, this day in history, on this day in history]
+    steps:
+      - call: GET /{domain}/v1/feed/onthisday/selected/{month}/{day}
+      - response: {lines: ["On this day in history: {items}."], empty_lines: ["Nothing in history today, it seems."], list: true, line: "{year}: {text}"}
+  wiki_born_today:
+    words: [who was born today, who was born on this day, born today]
+    steps:
+      - call: GET /{domain}/v1/feed/onthisday/births/{month}/{day}
+      - response: {lines: ["Born on this day: {items}."], empty_lines: [Nobody I know of was born today.], list: true, line: "{year}: {text}"}
+  wiki_died_today:
+    words: [who died today, who died on this day, died today]
+    steps:
+      - call: GET /{domain}/v1/feed/onthisday/deaths/{month}/{day}
+      - response: {lines: ["Died on this day: {items}."], empty_lines: [Nobody I know of died on this day.], list: true, line: "{year}: {text}"}
+  wiki_events_on:
+    words: [what happened on, what happened in history on]
+    steps:
+      - call: GET /{domain}/v1/feed/onthisday/selected/{month}/{day}
+      - response: {lines: ["On {day_said} in history: {items}."], empty_lines: ["Nothing I know of happened on {day_said}."], list: true, line: "{year}: {text}"}
+  wiki_born_on:
+    words: [who was born on]
+    steps:
+      - call: GET /{domain}/v1/feed/onthisday/births/{month}/{day}
+      - response: {lines: ["Born on {day_said}: {items}."], empty_lines: ["Nobody I know of was born on {day_said}."], list: true, line: "{year}: {text}"}
+  wiki_died_on:
+    words: [who died on]
+    steps:
+      - call: GET /{domain}/v1/feed/onthisday/deaths/{month}/{day}
+      - response: {lines: ["Died on {day_said}: {items}."], empty_lines: ["Nobody I know of died on {day_said}."], list: true, line: "{year}: {text}"}
+  wiki_holidays:
+    words: [what holiday is today, what holidays are today, is today a holiday, holidays today]
+    steps:
+      - call: GET /{domain}/v1/feed/onthisday/holidays/{month}/{day}
+      - response: {lines: ["Today is {items}."], empty_lines: ["No holiday I know of today."], list: true, line: "{text}"}
+  wiki_fun_fact:
+    words: [tell me something, a fun fact, fun fact]
+    steps:
+      - call: GET /{domain}/v1/feed/onthisday/selected/{month}/{day}
+      - response: {lines: ["In {year}: {text}"], empty_lines: ["Nothing in history today, it seems."], one: random}

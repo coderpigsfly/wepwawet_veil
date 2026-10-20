@@ -1,0 +1,36 @@
+# vocab/requests.yaml - what a request to her looks like (the last check before Gemini).
+# A sentence the house can't answer goes straight to Gemini only if it's shaped like a
+# request: a question, a command, a need, or telling her something. Anything else (statements, overheard speech,
+# speech-to-text inventions) gets "I think I heard ... Want me to ask around?" first.
+# A sentence ending in "?" is always a question. After editing: docker compose restart
+
+# First word that makes it a question
+question_words: [what, "what's", whats, who, "who's", when, where, "where's", why, how, "how's",
+                 which, whose, whom]
+asking_words: [do, does, did, can, could, would, will, should, is, are, was, were, may, shall,
+               have, has, am]
+
+# First word that makes it a command (also any verb in its plain form: "tell", "find"...)
+command_words: [please, define, show, tell, give, find, play, spell, read, draw, pull, look,
+                search, check, explain, translate, convert, remind, set, add, list, name,
+                describe, calculate, skip, mark, move, undo, nudge, finish, complete, turn,
+                start, stop, open, close, lock, unlock, send, call, text, make, help,
+                book, get, buy, purchase, order, reserve, schedule, cancel, recommend, suggest]
+
+# How a need starts
+need_starts: ["i need", "i want", "i'd like", "i would like", "i wanna", "let me know",
+              "help me", "i was wondering", "i'm wondering", "i am wondering", "i wonder",
+              "i'm looking for", "im looking for", "i am looking for", "i am in need",
+              "i am needing", "i'm curious", "i am curious", "i must know", "i'd love",
+              "i would love", "i don't know", "i do not know", "i want to know",
+              "i'm interested", "i am interested", "i was hoping", "i'm trying to",
+              "lets", "let's"]
+
+# Telling her something: a sentence starting with one of these, with a real noun in it
+# ("I have a cat named Jojo", "You are a witch", "My cat is a girl"). Added Oct 11.
+telling_starts: [i, my, we, our, you, your]
+
+# Said to the persona: a sentence starting with one of the telling_starts that has one of these in
+# it ("I love you", "you're funny") is telling it something, and goes straight Off-Platform: nothing
+# at home answers it and there's nothing to ask. Added Oct 15.
+said_to_words: [you, your, "you're", youre, yourself, "you've", "you'll"]

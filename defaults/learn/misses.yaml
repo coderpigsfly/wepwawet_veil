@@ -1,0 +1,10 @@
+# learn/misses.yaml - wrong-part misses you flagged ("Who answered that?", then "Record that as a
+# misunderstanding"), each kind: engine. Mishearings (after "What did you hear?") go to
+# learn/mishearings.yaml instead, under what was really said.
+#   should_be: your note ("That should have been weather"), for the review; never acted on.
+#   count: how many times the same words had the same kind of miss.
+# Written by the router; you can read it, and delete a record once it's dealt with.
+# This is the starting copy (defaults/learn/misses.yaml): your household's own misses stay in
+# learn/misses.yaml, which git never touches.
+
+misses: []

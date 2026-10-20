@@ -1,0 +1,994 @@
+{
+ "read_from": "http://192.168.1.20:2021/swagger/doc.json",
+ "title": "Donetick Swagger API",
+ "accepted": "2026-10-14 07:34",
+ "commands": [
+  {
+   "api": "GET /chores",
+   "summary": "Get all chores",
+   "requires": [],
+   "returns": [
+    "assignStrategy",
+    "assignedTo",
+    "assignees",
+    "attachments",
+    "circleId",
+    "completionWindow",
+    "createdAt",
+    "createdBy",
+    "description",
+    "frequency",
+    "frequencyMetadata",
+    "frequencyType",
+    "id",
+    "isActive",
+    "isPrivate",
+    "isRolling",
+    "labelsV2",
+    "name",
+    "nextDueDate",
+    "notification",
+    "notificationMetadata",
+    "points",
+    "priority",
+    "project",
+    "projectId",
+    "requireApproval",
+    "status",
+    "subTasks",
+    "syncVersion",
+    "thingChore",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "PUT /chores",
+   "summary": "Edit an existing chore",
+   "requires": [
+    "body: assignStrategy",
+    "body: frequencyType",
+    "body: name"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /chores",
+   "summary": "Create a new chore",
+   "requires": [
+    "body: assignStrategy",
+    "body: frequencyType",
+    "body: name"
+   ],
+   "returns": []
+  },
+  {
+   "api": "GET /chores/archived",
+   "summary": "Get archived chores",
+   "requires": [],
+   "returns": [
+    "assignStrategy",
+    "assignedTo",
+    "assignees",
+    "attachments",
+    "circleId",
+    "completionWindow",
+    "createdAt",
+    "createdBy",
+    "description",
+    "frequency",
+    "frequencyMetadata",
+    "frequencyType",
+    "id",
+    "isActive",
+    "isPrivate",
+    "isRolling",
+    "labelsV2",
+    "name",
+    "nextDueDate",
+    "notification",
+    "notificationMetadata",
+    "points",
+    "priority",
+    "project",
+    "projectId",
+    "requireApproval",
+    "status",
+    "subTasks",
+    "syncVersion",
+    "thingChore",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "GET /chores/history",
+   "summary": "Get chores history for user",
+   "requires": [],
+   "returns": [
+    "assignedTo",
+    "choreId",
+    "completedBy",
+    "createdAt",
+    "dueDate",
+    "duration",
+    "id",
+    "notes",
+    "performedAt",
+    "points",
+    "status",
+    "syncVersion",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "GET /chores/{id}",
+   "summary": "Get a specific chore",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "assignStrategy",
+    "assignedTo",
+    "assignees",
+    "attachments",
+    "circleId",
+    "completionWindow",
+    "createdAt",
+    "createdBy",
+    "description",
+    "frequency",
+    "frequencyMetadata",
+    "frequencyType",
+    "id",
+    "isActive",
+    "isPrivate",
+    "isRolling",
+    "labelsV2",
+    "name",
+    "nextDueDate",
+    "notification",
+    "notificationMetadata",
+    "points",
+    "priority",
+    "project",
+    "projectId",
+    "requireApproval",
+    "status",
+    "subTasks",
+    "syncVersion",
+    "thingChore",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "DELETE /chores/{id}",
+   "summary": "Delete a chore",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /chores/{id}/approve",
+   "summary": "Approve a chore completion",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "assignStrategy",
+    "assignedTo",
+    "assignees",
+    "attachments",
+    "circleId",
+    "completionWindow",
+    "createdAt",
+    "createdBy",
+    "description",
+    "frequency",
+    "frequencyMetadata",
+    "frequencyType",
+    "id",
+    "isActive",
+    "isPrivate",
+    "isRolling",
+    "labelsV2",
+    "name",
+    "nextDueDate",
+    "notification",
+    "notificationMetadata",
+    "points",
+    "priority",
+    "project",
+    "projectId",
+    "requireApproval",
+    "status",
+    "subTasks",
+    "syncVersion",
+    "thingChore",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "PUT /chores/{id}/archive",
+   "summary": "Archive a chore",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /chores/{id}/assignee",
+   "summary": "Update chore assignee",
+   "requires": [
+    "path: id",
+    "body: assignee",
+    "body: updatedAt"
+   ],
+   "returns": [
+    "assignStrategy",
+    "assignedTo",
+    "assignees",
+    "attachments",
+    "circleId",
+    "completionWindow",
+    "createdAt",
+    "createdBy",
+    "description",
+    "frequency",
+    "frequencyMetadata",
+    "frequencyType",
+    "id",
+    "isActive",
+    "isPrivate",
+    "isRolling",
+    "labelsV2",
+    "name",
+    "nextDueDate",
+    "notification",
+    "notificationMetadata",
+    "points",
+    "priority",
+    "project",
+    "projectId",
+    "requireApproval",
+    "status",
+    "subTasks",
+    "syncVersion",
+    "thingChore",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "GET /chores/{id}/details",
+   "summary": "Get chore details",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /chores/{id}/do",
+   "summary": "Complete a chore",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "assignStrategy",
+    "assignedTo",
+    "assignees",
+    "attachments",
+    "circleId",
+    "completionWindow",
+    "createdAt",
+    "createdBy",
+    "description",
+    "frequency",
+    "frequencyMetadata",
+    "frequencyType",
+    "id",
+    "isActive",
+    "isPrivate",
+    "isRolling",
+    "labelsV2",
+    "name",
+    "nextDueDate",
+    "notification",
+    "notificationMetadata",
+    "points",
+    "priority",
+    "project",
+    "projectId",
+    "requireApproval",
+    "status",
+    "subTasks",
+    "syncVersion",
+    "thingChore",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "PUT /chores/{id}/dueDate",
+   "summary": "Update chore due date",
+   "requires": [
+    "path: id",
+    "body: updatedAt"
+   ],
+   "returns": [
+    "assignStrategy",
+    "assignedTo",
+    "assignees",
+    "attachments",
+    "circleId",
+    "completionWindow",
+    "createdAt",
+    "createdBy",
+    "description",
+    "frequency",
+    "frequencyMetadata",
+    "frequencyType",
+    "id",
+    "isActive",
+    "isPrivate",
+    "isRolling",
+    "labelsV2",
+    "name",
+    "nextDueDate",
+    "notification",
+    "notificationMetadata",
+    "points",
+    "priority",
+    "project",
+    "projectId",
+    "requireApproval",
+    "status",
+    "subTasks",
+    "syncVersion",
+    "thingChore",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "GET /chores/{id}/history",
+   "summary": "Get chore history",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "assignedTo",
+    "choreId",
+    "completedBy",
+    "createdAt",
+    "dueDate",
+    "duration",
+    "id",
+    "notes",
+    "performedAt",
+    "points",
+    "status",
+    "syncVersion",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "PUT /chores/{id}/history/{history_id}",
+   "summary": "Modify chore history entry",
+   "requires": [
+    "path: id",
+    "path: history_id",
+    "body"
+   ],
+   "returns": [
+    "assignedTo",
+    "choreId",
+    "completedBy",
+    "createdAt",
+    "dueDate",
+    "duration",
+    "id",
+    "notes",
+    "performedAt",
+    "points",
+    "status",
+    "syncVersion",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "DELETE /chores/{id}/history/{history_id}",
+   "summary": "Delete chore history entry",
+   "requires": [
+    "path: id",
+    "path: history_id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /chores/{id}/nudge",
+   "summary": "Send a nudge notification",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /chores/{id}/pause",
+   "summary": "Pause a chore timer",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /chores/{id}/priority",
+   "summary": "Update chore priority",
+   "requires": [
+    "path: id",
+    "body: priority"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /chores/{id}/reject",
+   "summary": "Reject a chore completion",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /chores/{id}/skip",
+   "summary": "Skip a chore",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "assignStrategy",
+    "assignedTo",
+    "assignees",
+    "attachments",
+    "circleId",
+    "completionWindow",
+    "createdAt",
+    "createdBy",
+    "description",
+    "frequency",
+    "frequencyMetadata",
+    "frequencyType",
+    "id",
+    "isActive",
+    "isPrivate",
+    "isRolling",
+    "labelsV2",
+    "name",
+    "nextDueDate",
+    "notification",
+    "notificationMetadata",
+    "points",
+    "priority",
+    "project",
+    "projectId",
+    "requireApproval",
+    "status",
+    "subTasks",
+    "syncVersion",
+    "thingChore",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "PUT /chores/{id}/start",
+   "summary": "Start a chore timer",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /chores/{id}/status",
+   "summary": "Update chore status",
+   "requires": [
+    "path: id",
+    "body: status",
+    "body: updatedAt"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /chores/{id}/subtask",
+   "summary": "Update subtask completion status",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": []
+  },
+  {
+   "api": "GET /chores/{id}/timer",
+   "summary": "Get chore time sessions",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "choreHistoryId",
+    "choreId",
+    "duration",
+    "endTime",
+    "id",
+    "pauseLog",
+    "startTime",
+    "status",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "PUT /chores/{id}/timer",
+   "summary": "Update chore timer duration",
+   "requires": [
+    "path: id",
+    "body: duration",
+    "body: updatedAt"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /chores/{id}/timer/reset",
+   "summary": "Reset chore timer",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /chores/{id}/timer/{session_id}",
+   "summary": "Update a time session",
+   "requires": [
+    "path: id",
+    "path: session_id",
+    "body"
+   ],
+   "returns": [
+    "choreHistoryId",
+    "choreId",
+    "duration",
+    "endTime",
+    "id",
+    "pauseLog",
+    "startTime",
+    "status",
+    "updatedAt",
+    "updatedBy"
+   ]
+  },
+  {
+   "api": "DELETE /chores/{id}/timer/{session_id}",
+   "summary": "Delete a time session",
+   "requires": [
+    "path: id",
+    "path: session_id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /chores/{id}/unarchive",
+   "summary": "Unarchive a chore",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /chores/{id}/undo",
+   "summary": "Undo a chore action",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "GET /circles",
+   "summary": "Get user circles",
+   "requires": [],
+   "returns": [
+    "created_at",
+    "created_by",
+    "disabled",
+    "expiredAt",
+    "id",
+    "invite_code",
+    "name",
+    "subscriptionStatus",
+    "updated_at",
+    "webhook_url"
+   ]
+  },
+  {
+   "api": "POST /circles/join",
+   "summary": "Request to join a circle",
+   "requires": [
+    "query: invite_code"
+   ],
+   "returns": []
+  },
+  {
+   "api": "DELETE /circles/leave",
+   "summary": "Leave a circle",
+   "requires": [
+    "query: circle_id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "GET /circles/members",
+   "summary": "Get circle members",
+   "requires": [],
+   "returns": [
+    "circleId",
+    "createdAt",
+    "displayName",
+    "id",
+    "image",
+    "isActive",
+    "points",
+    "pointsRedeemed",
+    "role",
+    "updatedAt",
+    "userId",
+    "username"
+   ]
+  },
+  {
+   "api": "GET /circles/members/requests",
+   "summary": "Get pending join requests",
+   "requires": [],
+   "returns": [
+    "circleId",
+    "createdAt",
+    "displayName",
+    "id",
+    "image",
+    "isActive",
+    "points",
+    "pointsRedeemed",
+    "role",
+    "updatedAt",
+    "userId",
+    "username"
+   ]
+  },
+  {
+   "api": "PUT /circles/members/requests/accept",
+   "summary": "Accept a join request",
+   "requires": [
+    "query: requestId"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /circles/members/role",
+   "summary": "Change member role",
+   "requires": [
+    "body"
+   ],
+   "returns": []
+  },
+  {
+   "api": "DELETE /circles/{id}/members/delete",
+   "summary": "Delete a circle member",
+   "requires": [
+    "path: id",
+    "query: member_id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /circles/{id}/members/points/redeem",
+   "summary": "Redeem member points",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": []
+  },
+  {
+   "api": "GET /filters",
+   "summary": "Get all filters",
+   "requires": [],
+   "returns": [
+    "circleId",
+    "color",
+    "conditions",
+    "createdAt",
+    "createdBy",
+    "description",
+    "icon",
+    "id",
+    "isPinned",
+    "name",
+    "operator",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "POST /filters",
+   "summary": "Create a new filter",
+   "requires": [
+    "body: conditions",
+    "body: name"
+   ],
+   "returns": [
+    "circleId",
+    "color",
+    "conditions",
+    "createdAt",
+    "createdBy",
+    "description",
+    "icon",
+    "id",
+    "isPinned",
+    "name",
+    "operator",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "GET /filters/by-usage",
+   "summary": "Get filters by usage",
+   "requires": [],
+   "returns": [
+    "circleId",
+    "color",
+    "conditions",
+    "createdAt",
+    "createdBy",
+    "description",
+    "icon",
+    "id",
+    "isPinned",
+    "name",
+    "operator",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "GET /filters/pinned",
+   "summary": "Get pinned filters",
+   "requires": [],
+   "returns": [
+    "circleId",
+    "color",
+    "conditions",
+    "createdAt",
+    "createdBy",
+    "description",
+    "icon",
+    "id",
+    "isPinned",
+    "name",
+    "operator",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "GET /filters/{id}",
+   "summary": "Get filter by ID",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "circleId",
+    "color",
+    "conditions",
+    "createdAt",
+    "createdBy",
+    "description",
+    "icon",
+    "id",
+    "isPinned",
+    "name",
+    "operator",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "PUT /filters/{id}",
+   "summary": "Update a filter",
+   "requires": [
+    "path: id",
+    "body: conditions",
+    "body: name"
+   ],
+   "returns": [
+    "circleId",
+    "color",
+    "conditions",
+    "createdAt",
+    "createdBy",
+    "description",
+    "icon",
+    "id",
+    "isPinned",
+    "name",
+    "operator",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "DELETE /filters/{id}",
+   "summary": "Delete a filter",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "POST /filters/{id}/toggle-pin",
+   "summary": "Toggle filter pin status",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "GET /projects",
+   "summary": "Get all projects",
+   "requires": [],
+   "returns": [
+    "circleId",
+    "color",
+    "createdAt",
+    "created_by",
+    "description",
+    "icon",
+    "id",
+    "isDefault",
+    "isPrivate",
+    "name",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "POST /projects",
+   "summary": "Create a new project",
+   "requires": [
+    "body: name"
+   ],
+   "returns": [
+    "circleId",
+    "color",
+    "createdAt",
+    "created_by",
+    "description",
+    "icon",
+    "id",
+    "isDefault",
+    "isPrivate",
+    "name",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "PUT /projects/{id}",
+   "summary": "Update a project",
+   "requires": [
+    "path: id",
+    "body: name"
+   ],
+   "returns": [
+    "circleId",
+    "color",
+    "createdAt",
+    "created_by",
+    "description",
+    "icon",
+    "id",
+    "isDefault",
+    "isPrivate",
+    "name",
+    "updatedAt"
+   ]
+  },
+  {
+   "api": "DELETE /projects/{id}",
+   "summary": "Delete a project",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "GET /sync/changes",
+   "summary": "Get sync changes",
+   "requires": [],
+   "returns": []
+  },
+  {
+   "api": "GET /things",
+   "summary": "Get all things",
+   "requires": [],
+   "returns": []
+  },
+  {
+   "api": "PUT /things",
+   "summary": "Update a thing",
+   "requires": [
+    "body: name",
+    "body: type"
+   ],
+   "returns": [
+    "circleId",
+    "createdAt",
+    "id",
+    "name",
+    "state",
+    "thingChores",
+    "type",
+    "updatedAt",
+    "userID"
+   ]
+  },
+  {
+   "api": "POST /things",
+   "summary": "Create a new thing",
+   "requires": [
+    "body: name",
+    "body: type"
+   ],
+   "returns": [
+    "circleId",
+    "createdAt",
+    "id",
+    "name",
+    "state",
+    "thingChores",
+    "type",
+    "updatedAt",
+    "userID"
+   ]
+  },
+  {
+   "api": "DELETE /things/{id}",
+   "summary": "Delete a thing",
+   "requires": [
+    "path: id"
+   ],
+   "returns": []
+  },
+  {
+   "api": "GET /things/{id}/history",
+   "summary": "Get thing history",
+   "requires": [
+    "path: id",
+    "query: offset"
+   ],
+   "returns": []
+  },
+  {
+   "api": "PUT /things/{id}/state",
+   "summary": "Update thing state",
+   "requires": [
+    "path: id",
+    "query: value"
+   ],
+   "returns": [
+    "circleId",
+    "createdAt",
+    "id",
+    "name",
+    "state",
+    "thingChores",
+    "type",
+    "updatedAt",
+    "userID"
+   ]
+  }
+ ]
+}

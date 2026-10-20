@@ -1,0 +1,44 @@
+# frontend/home_assistant.yaml - the router's own words for devices and what can be done to them,
+# with Home Assistant's names behind them. The Firewall page shows the words on the left; firewall.yaml
+# keeps Home Assistant's names (what Veil Guard Service sends). Another front end gets a sibling
+# file (frontend/<its integration name>.yaml) and the rules people wrote stay the same.
+# Read by veil/frontend.py. Add a line here when a device kind or a command isn't listed.
+
+# kinds of device: the router's word -> Home Assistant's domain
+kinds:
+  locks: lock
+  doors, blinds and garage doors: cover
+  thermostats: climate
+  lights: light
+  switches and plugs: switch
+  fans: fan
+  speakers and TVs: media_player
+  the alarm: alarm_control_panel
+  vacuums: vacuum
+  water valves: valve
+  sprinklers and other timers: timer
+  scenes: scene
+  scripts: script
+
+# what can be done: the router's words -> Home Assistant's command (and, after a colon, the kind it
+# means on). A command with no kind covers every device; one with a kind covers only that kind.
+actions:
+  lock: "HassTurnOn:lock"
+  unlock: "HassTurnOff:lock"
+  open: "HassTurnOn:cover"
+  close: "HassTurnOff:cover"
+  open or close partway: HassSetPosition
+  turn on: HassTurnOn
+  turn off: HassTurnOff
+  toggle: HassToggle
+  set the temperature: HassClimateSetTemperature
+  set a light's brightness or colour: HassLightSet
+  start the vacuum: HassVacuumStart
+  send the vacuum home: HassVacuumReturnToBase
+  change the volume: HassSetVolume
+  pause or play: HassMediaPause
+  start a timer: HassStartTimer
+  cancel a timer: HassCancelTimer
+  broadcast to every speaker: HassBroadcast
+  add to the shopping list: HassShoppingListAddItem
+  add to a list: HassListAddItem

@@ -1,0 +1,498 @@
+# settings.yaml - knobs for Wepwawet Veil, the house router (numbers, switches, timeouts),
+# plus the topics it handles, the people in the house, where services live, the engines and
+# models it uses, integrations (Oread, the weather brain), and security.
+# Word lists live in vocab/, spoken lines in phrases/, voice maps in connectors/, the firewall
+# in firewall.yaml, datasets in tools/sources.yaml, flair in personality/.
+# Most of this can be changed on the pages (port 8771); comments here survive their edits.
+# After editing: docker compose restart (and rerun the build tool for topic changes)
+
+# ---------- the house ----------
+# The house's clock, for the router and every app: today, tomorrow and Saturday, the due dates
+# sent to apps, the Stats days. A timezone name like America/New_York. (Where the house is lives in
+# the app that needs it: the weather brain keeps its own place and forecast grid.)
+house:
+  timezone: America/New_York
+
+# ---------- End Device Settings ----------
+# How each device's requests are heard, and everything the router carries from one request to the
+# next. Path 0 is a false wake, path B a follow-up ("what about Sunday?"), path C an answer to the
+# router's own question ("yes" to "Want to hear the rest?").
+
+# Path 0: a request this many letters long or shorter (after the filler words and the device's name are
+# taken out) is a false wake: a short sleepy line answers it, never a question, and nothing leaves
+# the house. 1 catches "P." and "A."; 2 would also catch "My." Raise it if noise still reaches Gemini.
+false_wake_max_letters: 1
+
+# Path 0: an echo. A weak device (a Voice PE) can hear her own voice through its open mic and send
+# her words back as a request, round and round. A request of echo_min_words or more, with at least
+# echo_overlap of its word pairs in her last answer on that device, in the same order, or bringing
+# back echo_overlap of her answer's own words (misheard, room talk on the end), within
+# echo_seconds, isn't answered (a real request borrows a few of her words, not their order):
+# silence (so no question reopens the mic). Transactions shows it as an echo. Raise echo_overlap
+# if a real request is ever taken for one. A short yes or no to her waiting question ("Read the
+# rest.") is tried as its answer first, never as an echo.
+echo_overlap: 0.6
+echo_seconds: 30
+echo_min_words: 3
+# Her words brought back (misheard, room talk on the end) count only when what was heard is at
+# most echo_cover_longest times as long as her answer or its sentence: a longer request that
+# borrows most of a short answer's words ("We only buy Chinese food at Jade House" after "We
+# only buy pizza at sales.") is a request, not an echo.
+echo_cover_longest: 2
+# The question she was waiting on stays through an echo (Oct 18: her list came back, the question
+# went with it, and "Continue." had nothing to answer); the person answers it with the wake word.
+# false: an echo drops it.
+echo_keeps_question: true
+
+# A tree is a topic and the app that answers it (chores: Donetick). Once a request is in one (the
+# topic was sure of it), it stays home: when the app has no answer, or the sentence's own verb is
+# none of the app's actions ("delete the path"), she says the tree's own line when it has one, else
+# phrases/router.yaml stay_home with {tree} (the topic's spoken name), instead of going Off-Platform.
+# An app that says "not mine" (the weather brain on "dark color") still lets it go on.
+# false: it goes Off-Platform as before.
+tree_stays_home: true
+
+# Path B: a request with no topic of its own counts as a follow-up only if it starts with a cue
+# (vocab/followup.yaml: what about, and, also...) or is this many words or fewer. Raise it and more
+# short requests ride on the last topic; lower it and fewer do. "I love you" is 3 words.
+followup_max_words: 4
+
+# Path B: how many earlier requests in the front end's message history are searched for the last
+# topic. A topic found there counts only when the router's own last topic at home (kept
+# context_window_minutes) is the same one; with none found there, the router's own is used alone.
+followup_lookback: 3
+
+# Path B and C: minutes. The last topic answered at home is the context for a follow-up this long,
+# and a question the router asked waits this long for its answer. 2 = two minutes; then a bare
+# "what about Sunday" goes Off-Platform and the question is dropped.
+context_window_minutes: 2
+
+# Minutes the thing she last named ("rename that to ...") and the list she last read ("mark number 3
+# done") are kept, past the context window: for the person who said it when Oread is sure, else the device.
+last_item_minutes: 30
+
+# Path C: an answer to the router's question ("yes", "no thanks") must be this many words or fewer; longer is
+# taken as a new request. The answer to "anything else for this chore?" has its own, longer limit.
+answer_max_words: 4
+
+# Minutes. After an Off-Platform answer, a whole sentence said within this long goes straight back
+# Off-Platform (it's part of that conversation: no "Want me to ask around?"). False wakes in between
+# don't break it. 0 = every sentence passes the gate on its own.
+gemini_conversation_minutes: 2
+
+# How many false wakes can come between an answer and your question about it. Each device keeps
+# its last few requests (false wakes included); "Who answered that?", "What did you hear?" and the
+# Off-Platform conversation look back past false wakes to the last real one. Older requests are on
+# Transactions.
+turns_kept: 3
+
+# ---------- General API Settings ----------
+# How the router handles every app the same way, whatever app it is.
+
+# A list read aloud (chores, projects, any app's list): this many are read, then the question "Want to
+# hear the rest?". 5 = five at a time.
+read_list_max: 5
+
+# Spoken needs the router hears itself, each with the kind of detail it is (person or date). When a
+# voice map marks one of these required and it wasn't said, the router asks for it ("When?")
+# before calling the app (need_<name> in phrases/router.yaml). Other needs are the app's own.
+heard_needs: {who: person, when: date}
+
+# ---------- learn level ----------
+# The most records kept in each of learn/misses.yaml (wrong-part misses) and learn/mishearings.yaml
+# (heard lines): past it, the oldest go first. Both only collect; nothing in them changes a decision.
+miss_log_max: 500
+
+# How many full copies of requests are kept in captures/, the newest (tools/replay.py reads them, to
+# replay a request exactly as the front end sent it). Each is about 30-60 KB. 0 = no copies are made.
+capture_keep: 0
+
+# ---------- personality: flair and names ----------
+# Flair: how often, and with what, lives in each device's own file, personality/<device>.yaml
+# (Persona Flair). A rate above 0 is the switch; 0, or no file, answers plain.
+
+# Saying the person's name now and then. Each persona's own rate and max_in_a_row (personality/
+# <persona>.yaml names:, on Name Sparkle) say how often; a rate above 0 is the switch, and its own
+# calls: are the names it uses first. How sure is the voice ID's own call per device (labels: its
+# "known"); a persona may ask for a score too (its names: min_score). Here: which labels count,
+# on which paths, where the name goes, and the shared names (calls:) every persona can use.
+names_in_replies:
+  labels: [known]
+  paths: [A, B, C]
+  end_share: 0.35          # how often the name goes at the end ("..., Owner.") instead of in front
+  # where the names come from: an integration with a people list (Oread), picked on Name Sparkle
+  voice_id_from: ""
+  # the shared names: what any persona may call each voice ({its voice ID name: [names]}), Name Sparkle
+  calls: {}
+
+# ---------- engines and models ----------
+# Nothing about models is written into the code: they're named here.
+
+language:
+  spacy_model: en_core_web_sm     # sentence diagramming; installed in the image (docker-compose.yml SPACY_MODEL)
+router:
+  check_app_versions_at_start: true   # read each app's spec once at start-up; a new version is flagged on Integrations
+  twin_seconds: 3                   # the same words from another device this soon (both woke on one person): left to the first
+  app_answer_max_kb: 8192          # an app's answer is read at most this big (a huge or endless one is refused as it comes)
+  spec_max_kb: 8192                # and a spec, or a part of one
+  outside_answer_note: "(answered at home, from an app on the internet)"   # her answers from an app on the internet, as the conversation going Off-Platform holds them (the app's own text never goes out)
+  off_platform_heard: true        # the Off-Platform model writes first how it understood the request (a HEARD: line, never spoken): one it cleaned up into something answered at home is answered here, and kept as a mishearing (Misses)
+  heard_tag: "HEARD:"
+  heard_instruction: "Before anything else, write one line that starts with HEARD: and then the user's last request as you understood it: the whole request, every detail kept, as a full sentence, only with misheard words corrected (it came through speech to text). Things this house answers itself, so a request that sounds like one is likely about it: {home}. Then a new line, then your answer as usual. Never mention the HEARD line."   # {home}: each topic answered at home and a few of its words
+  check_app_versions_every_hours: 24  # and then once a day: a spec read within this is skipped (an app with a call limit spends no call on each restart)
+  add_name_max_words: 8           # longest name taken, said in the add or answering "what's it called?" (longer: she asks)
+  off_platform_tool_rounds: 1     # times one request may go back and forth with the cloud model for actions; at it, its tools are taken away (words only); past it, she asks to hear it again
+  quiet_paths: [/v1/models, /health, /firewall/summary] # routine check-ins left out of the log
+  user_agent: WepwawetVeil/1.0 (household voice router)   # the router's name on every call out (some apps refuse a call without one)
+
+# ---------- integrations ----------
+# The weather brain and Donetick are services (below: enabled: true / false).
+# Oread: speech-to-text plus who spoke. With it on, the router asks Oread who said each request,
+# for names in the persona's replies and the firewall (firewall.yaml).
+#   source:           oread (Oread's API) or home_assistant (the sensor Oread sets there)
+#   url:              Oread's address (https://<server>:10311)
+#   token:            the name of its API token in the vault (Security page) or .env
+#   verify_tls:       false, or the path of Oread's ca.crt
+#   timeout:          seconds to wait; no answer means nobody known
+#   max_age_seconds:  Oread's newest clip must be this fresh to be this request
+#   min_word_overlap: and its words must match this much of what the router heard
+#   devices:          assistant -> Oread device name, where they differ (iris: iris)
+integrations:
+  # LiteLLM: the way Off-Platform (any OpenAI-compatible endpoint works; LiteLLM is the tested one,
+  # rotating free-tier Gemini models). Its address is OFF_PLATFORM_URL in .env; everything else about talking
+  # to it is here (its Integrations tab). spec: is its own description of its commands, read on its
+  # Commands tab, so an update to LiteLLM shows there like any app's.
+  litellm:
+    title: LiteLLM
+    spec: http://192.168.1.20:4000/openapi.json
+    fallback_model: gemini-lite       # the LiteLLM model sent anything not answered at home (its own list says which models that tries)
+    timeout: 60                   # seconds to wait for LiteLLM's answer
+    key: OFF_PLATFORM_KEY         # the name of its key: the vault first (Security, Grantors), then .env
+    model_name: house-router      # the name the router gives itself in /v1/models: LiteLLM's config must use it
+    own_time_header: x-litellm-overhead-duration-ms   # LiteLLM's own time in each answer (Stats: LiteLLM itself)
+    model_header: x-litellm-model-name                # the model that really answered (the log)
+    fallbacks_header: x-litellm-attempted-fallbacks   # how many models it tried first (the log)
+  # Oread: who spoke. source: wyoming (the agreed way) puts the router in the audio path:
+  # in Home Assistant, point each device's Wyoming speech-to-text at the router's listen port
+  # instead of Oread's; the router passes everything through to Oread and reads who spoke from
+  # Oread's answer. Other sources: oread (Oread's API, needs url and an oread_token) or
+  # home_assistant (Oread's sensor in Home Assistant). Port changes take a restart.
+  oread:
+    enabled: false
+    source: wyoming
+    wyoming:
+      host: 192.168.1.20           # Oread's address
+      connect_timeout: 3
+      devices:                    # assistant: router's port (published in docker-compose.yml) -> Oread's port
+        iris: {listen: 10413, oread: 10313}
+        felix: {listen: 10412, oread: 10312}
+      # seconds: words Oread heard that reach neither the router nor Veil Guard Service by then were
+      # answered by Home Assistant itself (its own commands, the weather...): logged as that, so
+      # Transactions and Stats count every request heard on these ports
+      home_assistant_answered_after: 8
+      # true: the mishearings marked Use it (learn/swaps.yaml) are fixed in Oread's words before
+      # Home Assistant gets them, so its own sentences match too; false: passed on as heard
+      fix_mishearings: true
+    url: https://192.168.1.20:10311
+    spec: https://192.168.1.20:10311/openapi.json   # its API document, with its x-wepwawet section (read with its token)
+    token: OREAD_TOKEN
+    verify_tls: false
+    timeout: 0.8
+    max_age_seconds: 20
+    her_voices: []                # the voice ID's profiles of the assistants' own voices: what they say is an echo
+    min_word_overlap: 0.5
+    devices: {}
+  # Home Assistant: its address and token (only for oread source: home_assistant), and which
+  # assistant each satellite is, for the firewall on Home Assistant's own commands (Veil Guard Service).
+  # satellites: device id, assist_satellite entity, or device name -> assistant. Not needed when
+  # the assistant's name is in the satellite's name ("Iris tablet").
+  home_assistant:
+    url: ""                       # http://<ha>:8123
+    token: HA_TOKEN
+    satellites: {}
+    # The way back (Stats): a few seconds after an answer heard through the audio path, the router
+    # reads Home Assistant's own record of that run (Settings, Voice assistants, Debug) for when it
+    # was done with the answer, which the router can't see itself. Needs url and token. 0 = off.
+    time_way_back_seconds: 6
+
+# ---------- people ----------
+# The people grid (the People page; veil/people.py): one row per person, a column per attached app.
+#   apps:  the app columns, after wepwawet (the router's own name, optional) and called (what people
+#          call them out loud): any integration (a service, oread, home_assistant)
+#   rows:  {wepwawet: Owner, called: [..], oread: [Owner, Sam], donetick: [Owner]}
+# Inside the router any name in a row is the same person (the firewall, who may change brain fleas).
+# An app asks for its own column through its own door (GET /people/<app>; a door whose program is it).
+people:
+  apps: []
+  rows: []
+
+# ---------- topics ----------
+# Every topic has the same keys, even when empty.
+#   service:          which entry in services: answers this topic
+#   seed:             words that belong to this topic: they find its dataset labels, and they
+#                     are pinned (strong doors that count fully, whatever the data measured)
+#   always_tentative: doors that always need backup, whatever they measure
+#   pinned:           extra pinned words that aren't seeds: a household's own way of saying
+#                     things (counted fully; no rebuild needed, just a restart)
+#   spoken:           the tree's name when she says it ("Donny is always sleeping"; stay_home's {tree})
+topics:
+  weather:
+    service: weather_brain
+    spoken: the weather
+    seed: []
+    always_tentative: [temperature, hot, warm, cold]
+    # Sun words: the brain answers these itself (sun times, no forecast). Loose ones
+    # like "dark" or "get light" also catch "dark color" - the brain replies
+    # not_mine for those and they go on to Gemini.
+    pinned: [sunrise, sunset, sun set, sun rise, sundown, sunup, daylight, daybreak, first light,
+             sun come up, sun comes up, sun coming up, sun go down, sun goes down, sun going down,
+             dark, get light, gets light, getting light, light out, light outside]
+  chores:
+    service: donetick
+    spoken: the chore list
+    seed: [chore, chores, todo, task, tasks, list, calendar, reminder, reminders, project, projects]
+    always_tentative: []
+    pinned: []
+
+# ---------- services ----------
+# Every service has the same keys, even when empty.
+#   enabled: false -> switched off (its topics too); on the Integrations page
+#   kind:    contract -> speaks our /ask door (status reply) directly
+#            openapi  -> described by a Swagger/OpenAPI file; the build reads its commands
+#   url:     where to call it
+#   spec:    its Swagger/OpenAPI file (openapi only)
+#   timeout: seconds; no answer in time -> fall back to Gemini
+#   phrases: which phrases/ file holds its spoken lines (default: its own name)
+#   options: knobs only this service needs (also on its Integrations card, Options)
+#   title:   how the pages name it (optional; else its name)
+# Secrets (API tokens) live in the vault (Security page) or .env, never here; secret: is the name.
+services:
+  weather_brain:
+    enabled: true
+    kind: contract
+    url: http://192.168.1.20:8765/ask
+    spec: http://192.168.1.20:8765/openapi.json   # its API document, with its x-wepwawet section
+    secret: ""                     # none needed
+    timeout: 8
+    options: {}
+  donetick:
+    enabled: true
+    kind: openapi
+    url: http://192.168.1.20:2021/api/v1
+    spec: http://192.168.1.20:2021/swagger/doc.json
+    secret: DONETICK_TOKEN         # the .env entry holding its token
+    timeout: 8
+    cache_refresh_seconds: 60  # how often the router reads its open chores and people again, to decide quickly (a change always reads fresh first)
+    phrases: chores
+    options:
+      nag_max: 3           # most nags a new chore gets (Donetick reminders after the due time)
+      default_chore_time: "09:00"   # a chore's due time when a day is said with no time
+      remind_when_timed: true       # a chore given a time is announced at that time unless told not to ("don't remind me")
+      extras_win_while_asking: true # a patch: while "anything else?" waits, "put a nag every ten minutes" answers it
+    # Lists: the app's own lists the router uses (the Defaults tab), each a card you name:
+    #   from: the command that lists them; id / name: the fields that are an item's id and name
+    #   house: people -> each is one of the voices the voice ID knows (map: {its id: voice, or "" for nobody})
+    #   names (people): other names each voice is heard by here ({Owner: [sam, me]}: "for Sam")
+    #   default: the one used when none is said; me (people): default (the default voice) or
+    #            speaker (whoever the voice ID is sure spoke)
+    # The voice map's fields name the list they fill (connectors/donetick.yaml: list:).
+    lists:
+      people: {from: GET /circles/members, id: userId, name: displayName, house: people, default: Owner, me: default,
+               names: {Owner: [sam, me, myself], Beth: []}}
+      project: {from: GET /projects, id: id, name: name, default: House}
+
+
+# ---------- security ----------
+# Permitted addresses (single 192.168.1.50 or ranges 192.168.1.0/24). An empty list means the
+# local network only (private, loopback and Tailscale addresses), never the internet.
+#   inbound_allowed:  who may call the chat door, port 8770 (LiteLLM, the tools)
+#   admin_allowed:    who may open the pages, port 8771
+#   outbound_allowed: where the router may call out to (LiteLLM, services, Oread)
+#   chat_token_required:  true -> the chat door also needs an API token (set it as LiteLLM's api_key)
+#   tools_token_required: true -> /explain and /learn/drop need one (ROUTER_TOKEN for the tools)
+#   guard_token_required: true -> /firewall/check needs one (Veil Guard Service's token: in Home Assistant)
+security:
+  inbound_allowed: []
+  admin_allowed: []
+  outbound_allowed: []
+  chat_token_required: false
+  tools_token_required: false
+  guard_token_required: false
+  refused_warn_minutes: 60      # Integrations warns when an address was refused this recently
+                                #   (a program at a new address, like Home Assistant after a power cut)
+  password_min_length: 10       # for the pages' accounts (8 at least)
+  lock_after_failures: 5        # wrong passwords before a name is locked
+  lock_minutes: 15              # how long it stays locked
+  session_idle_hours: 12        # signed out after this long without using the pages
+  session_max_days: 30          # signed out after this long, used or not
+  # The router's doors that can ask for an API token (the Security page, API keys, where they're
+  # locked and opened, and new ones added). Add one when a new program calls the router:
+  #   name: {description: what comes through it, who: who calls it, paths: [the router's paths
+  #   it covers; one ending in * covers everything under it], role: the least role a token needs,
+  #   program: the integration that calls it, locked: true -> a token is needed}. Without
+  #   locked:, the older <name>_token_required above.
+  doors:
+    chat:
+      description: Home Assistant's requests, brought by LiteLLM
+      who: LiteLLM (its api_key for the house-router model)
+      paths: [/v1/chat/completions]
+      role: viewer
+      program: litellm            # the integration that calls it (shown on its Integrations card)
+    tools:
+      description: "the command-line tools: what the router would decide, and dropping misses"
+      who: the tools on myserver (ROUTER_TOKEN)
+      paths: [/explain, /learn/drop]
+      role: reviewer
+    guard:
+      description: Veil Guard Service asks the firewall before Home Assistant's own commands
+      who: "Veil Guard Service (its token: in Home Assistant's secrets.yaml)"
+      paths: [/firewall/check, /firewall/summary]
+      role: viewer
+      program: home_assistant
+    oread:
+      description: Oread pulls the mishearings (its Mishearings page), to look up the clips it heard them in, and its column of the people grid
+      who: "Oread (its key: in Oread's vault as wepwawet)"
+      paths: [/learn/mishearings, /people/oread]
+      role: viewer
+      locked: true
+      program: oread
+
+# The pages: https://<server>:8771/ (tls: auto makes a self-signed certificate in data/tls/;
+# or give cert: and key: paths; off -> plain http, only on a network you trust).
+web:
+  enabled: true
+  port: 8771
+  tls: auto
+  tls_names: [192.168.1.20, myserver]    # names and addresses the self-signed certificate covers
+
+# ---------- transactions, the Off-Platform bank and savings ----------
+# The activity log and the Off-Platform bank (data/veil.db), for the Transactions and
+# Off-Platform bank pages. keep_days / keep_rows: how much activity is kept (in use at once when
+# changed on a page). The bank counts each identical request (per personality) that had to go
+# Off-Platform, with the answers that came back; trim_days: requests heard only once, not added,
+# are trimmed after this many days (0 = never); bank_top: how many results the bank page shows.
+# answer_from_bank: your formula, for a request you added to the bank (off until you turn it on):
+#   N = its Off-Platform trips - 1,  T = bank_answers_kept,  Q = N / T (at most 100%)
+#   with Q >= U (bank_use_from) the bank answers it Q of the time, at random, with one of the
+#   words kept for it (never a device command: those are only counted, Oct 14).
+activity:
+  enabled: true
+  keep_days: 14
+  keep_rows: 20000
+  bank_answers_kept: 5          # T: Off-Platform answers kept per saying (one setting for all); 0 = none kept (the bank still counts)
+  bank_use_from: 0.2              # U: the bank may answer once Q reaches this (0.2 = 20%)
+  trim_days: 30
+  bank_top: 25
+  bank_similar: 0.8               # an added saying also answers words this near to it (share of their words, little words left out; 0: the same words only)
+  answer_from_bank: false
+
+# The Savings page: trips to the cloud model that answering at home saved, and their tokens.
+# A calculation, not a meter: each request kept at home counts as tokens_per_request (the Savings
+# page's Rules tab); the page also shows each request's own measured size (about 4 characters a
+# token: the front end sends the assistant's instructions, the devices and 40-odd tools every time).
+savings:
+  tokens_per_request: 3000
+
+# ---------- stats ----------
+# The router notes its own CPU and memory every sample_seconds, kept hour by hour for keep_days
+# (CPU as a share of one core: 150% = one and a half cores). A route is flagged "slower than
+# usual" when today's typical time is slower_than_usual times its 30-day typical, once today has
+# slow_min_requests requests. The 30 days come from one summary per route per day, kept for
+# keep_days too, so they outlast the activity log's own keep_days. top_cpu: how many requests the
+# CPU list shows, over top_cpu_days.
+# internet_check: is the internet the slow part? After a request on one of routes, the router
+# times one reply from servers (a ping; a DNS lookup of lookup_name when it can't ping), at most
+# once every cooldown_minutes, after the answer has gone. Stats calls the internet slower when a
+# check is slower times the usual check (servers must be in security: outbound_allowed). Only after
+# a request whose outside hop took min_outside_ms or more: quicker, the app answered from its own
+# memory (the weather brain's kept forecast, 30-100 ms) and no internet was in it.
+stats:
+  sample_seconds: 60
+  keep_days: 30
+  slower_than_usual: 1.5
+  slow_min_requests: 3
+  top_cpu: 10
+  top_cpu_days: 7
+  internet_check:
+    enabled: true
+    servers: ["1.1.1.1", "8.8.8.8"]
+    routes: [off_platform]
+    cooldown_minutes: 5
+    timeout_ms: 1000
+    lookup_name: example.com
+    slower: 2.0
+    min_outside_ms: 200
+
+# ---------- seed topics: the keyword build and how sure the router must be ----------
+# tools/build_scores.py (Tools, Build the keyword tiers) reads the datasets and writes topics/,
+# scores/ and actions/; the router reads those. A change to a build knob takes a build, then a
+# restart. Shares are from 0 to 1 (0.90 = 90% of the sentences); counts are sentences.
+
+# Path A: how sure the router must be that a request is a topic before an app at home answers it.
+# 0.85 = 85%. Lower it and more requests stay home, with more wrong guesses; raise it and more go
+# Off-Platform. Not a build knob: a restart is enough.
+confidence_local: 0.85
+# A sentence longer than this (words) whose only topic word is one door ("...We were talking about
+# marriage.") isn't sure of the topic: talk in the room, not a request. A topic's own seed or pinned
+# word (Seed Topics) is still enough ("add a chore to ... and get them running"). 0 = off.
+lone_door_max_words: 12
+
+# A word seen fewer times than this in the datasets has no share of its own yet: it borrows its
+# group's average. Raise it to trust only well-seen words.
+min_seen: 3
+
+# A word that means the topic at least this share of the time is a strong door: on its own it
+# opens the path at full strength ("weather"). 0.90 = it's the topic in 9 of every 10 sentences.
+door_strong_min: 0.90
+
+# At least this share: a near-strong door, which opens the path on its own a little less surely
+# ("umbrella").
+door_near_min: 0.80
+
+# At least this share to be a door at all. Below it a word can only add to a topic that's already
+# opened, never open it.
+door_min: 0.70
+
+# A word must appear in at least this many of the topic's sentences to become a door, so a word
+# seen 3 times in 3 sentences ("hat") never opens a topic.
+door_min_hits: 10
+
+# A seed word (the topic's own words, Seed Topics) needs this many sightings before it can claim a
+# dataset's label for its topic.
+seed_min: 5
+
+# A seed word claims every dataset label holding at least this share of its uses, not only the top
+# one (so "calendar", split across labels, still claims them). 0.25 = a quarter of its uses.
+seed_share: 0.25
+
+# A topic with fewer sentences than this in the datasets gets a "thin data" warning from the build:
+# its numbers are guesses. Add a dataset rather than lower it.
+thin_min: 300
+
+# A labeled value (a slot: "tomorrow", "kitchen") must appear this many times to join a word group.
+slot_min: 2
+
+# The most values kept per word group (the most common first).
+slot_max: 60
+
+# An action's verb (add, skip, what's) must appear in at least this many sentences to be measured;
+# rarer verbs come only from the words you type in the voice map.
+verb_min_hits: 25
+
+# The most measured verbs kept per action (the most common first).
+verb_max: 15
+
+# A word found inside labeled slots at least this share of the time is a detail (a noun: the thing,
+# the day), never a verb. 0.50 = half the time.
+detail_min: 0.50
+
+# Words you typed into an app's voice map have no measured share, so each counts this strongly when
+# the router picks which action a request means. 0.90 = as strong as a word seen meaning it 90% of
+# the time. Raise it and your words win more often over the dataset's. Never enough by itself to
+# change anything in an app: only measured verbs can do that. Not a build knob: a restart is enough.
+own_words_share: 0.90
+
+# When a request names a thing ("add a task to the house projects": projects) and also says an
+# action that changes something, the action wins if the router is at least this sure of it.
+# 0.85 = 85%. Below it the thing decides (it lists the projects). Not a build knob.
+verb_beats_object: 0.85

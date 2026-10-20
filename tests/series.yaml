@@ -1,0 +1,125 @@
+# tests/series.yaml - the follow-up series (series.py) against a fake app.
+# Runs anywhere, no router:  python3 tools/test_series.py
+# Each conversation: name, item (the name just created), filled (already said up front),
+# then turns: say, and expect:
+#   says: words her line must contain      done: true -> the series has ended
+#   filled: {field: read-back}  fields filled after this turn (only those listed are checked)
+#   dropped: true -> not an answer (the router would handle the words as a new request)
+# Wording comes from phrases/router.yaml (the first line of each section).
+# "now" is Saturday, October 10, 2026, 6:00 am.
+
+now: "2026-10-10T06:00:00"
+noun: chore
+
+# A fake app with Donetick-like fields (only the map matters, not the app).
+fields:
+  name:         {type: text,       kind: required}
+  due_date:     {type: date,       kind: extra, words: [due date, date], offer: a due date}
+  due_time:     {type: time,       kind: extra, words: [due time, time], offer: a due time, only_if: due_date}
+  repeat:       {type: recurrence, kind: extra, words: [repeat, repeats, repeating, recurring], offer: repeat, readback: "repeats {say}"}
+  alert:        {type: duration,   kind: extra, words: [alert, alarm, warn me], offer: an alert, readback: "alert {say}", only_if: due_time}
+  nag:          {type: yesno,      kind: extra, words: [nag, nags, nagging], offer: a nag, readback: "with nags", only_if: alert}
+  who:          {type: person,     kind: default}
+
+conversations:
+- name: the design example
+  item: clean the gutters
+  turns:
+  - start: true
+    expect: {says: "Added clean the gutters. Is there anything else for this chore? I can add a due date, or repeat."}
+  - say: "Yes, repeat every Tuesday at 7 pm."
+    expect: {says: "Clean the gutters, due Tuesday at 7 pm, repeats every Tuesday. I can also add an alert. Anything else?", filled: {repeat: every Tuesday, due_time: 7 pm, due_date: Tuesday}}
+  - say: "No."
+    expect: {says: "Okay", done: true}
+
+- name: one at a time until nothing is left
+  item: water the plants
+  turns:
+  - start: true
+    expect: {says: "I can add a due date, or repeat"}
+  - say: "due tomorrow"
+    expect: {says: "Water the plants, due tomorrow. I can also add a due time, or repeat", filled: {due_date: tomorrow}}
+  - say: "at 8 in the morning"
+    expect: {says: "at 8 am", filled: {due_time: 8 am}}
+  - say: "alert me an hour before and nag me"
+    expect: {says: "alert an hour before, with nags", filled: {alert: an hour before, nag: nag}}
+  - say: "every day"
+    expect: {says: "Water the plants, due tomorrow at 8 am, repeats every day, alert an hour before, with nags.", done: true, filled: {repeat: every day}}
+
+- name: bare yes lists what's open
+  item: feed the chickens
+  turns:
+  - start: true
+  - say: "yes"
+    expect: {says: "Did you say you wanted to add something? Here's what I can add: a due date, or repeat"}
+  - say: "yeah, Friday"
+    expect: {filled: {due_date: Friday}}
+
+- name: a yes she can't use is re-offered
+  item: feed the chickens
+  turns:
+  - start: true
+  - say: "yes, purple"
+    expect: {says: "I'm sorry, I didn't understand that. Could you repeat? I can add a due date, or repeat"}
+  - say: "yes repeat every tuesbay"
+    expect: {says: "Could you repeat?"}
+  - say: "repeat every Tuesday"
+    expect: {filled: {repeat: every Tuesday, due_date: Tuesday}}
+
+- name: other ways to stop
+  item: sweep the porch
+  turns:
+  - start: true
+  - say: "forget that"
+    expect: {says: "Okay", done: true}
+
+- name: you misheard stops it
+  item: sweep the porch
+  turns:
+  - start: true
+  - say: "you misheard"
+    expect: {done: true}
+
+- name: no nag is a value, not a stop
+  item: take out the trash
+  filled: {due_date: tomorrow, due_time: 7 pm, alert: an hour before}
+  turns:
+  - start: true
+    expect: {says: "I can add repeat, or a nag"}
+  - say: "no nag, repeat every week"
+    expect: {filled: {repeat: every week, nag: no nag}, done: true}
+
+- name: an unrelated question drops it
+  item: sweep the porch
+  turns:
+  - start: true
+  - say: "what's the weather tomorrow"
+    expect: {dropped: true}
+
+- name: an alert before there's a due time isn't taken
+  item: sweep the porch
+  turns:
+  - start: true
+  - say: "yes, alert me an hour before"
+    expect: {says: "Could you repeat?"}
+
+- name: everything said up front leaves nothing to offer
+  item: pay the bills
+  filled: {due_date: Friday, due_time: noon, repeat: every month, alert: a day before, nag: nag}
+  turns:
+  - start: true
+    expect: {says: "Added pay the bills.", done: true}
+
+- name: a time with no day means today (Oct 15)
+  item: call the plumber
+  turns:
+  - start: true
+  - say: "at 4:30"
+    expect: {filled: {due_date: today, due_time: "4:30 pm"}}
+
+- name: a time already past today means tomorrow (Oct 15)
+  item: feed the chickens
+  turns:
+  - start: true
+  - say: "at 5 in the morning"
+    expect: {filled: {due_date: tomorrow, due_time: 5 am}}

@@ -1,0 +1,36 @@
+Wepwawet Veil (house-router)
+Copyright 2026 coderpigsfly
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party data
+----------------
+The files in scores/ are word statistics generated from these datasets.
+The datasets themselves are not included in this repository.
+
+- Amazon MASSIVE 1.1 (https://github.com/alexa/massive)
+  Copyright Amazon.com, Inc. or its affiliates. Licensed under CC BY 4.0.
+- CLINC150 / oos-eval (https://github.com/clinc/oos-eval)
+  By the CLINC150 authors (Larson et al., 2019). Licensed under
+  Creative Commons Attribution 3.0 Unported.
+- SNIPS NLU benchmark (https://github.com/sonos/nlu-benchmark)
+  Released under CC0 1.0.
+
+Personality phrases are drawn from public-domain books (published before
+1929), read from Project Gutenberg plain-text copies. The titles are listed
+in defaults/examples/personality/sources.yaml (personality/sources.yaml on an
+install).
+
+Third-party software
+--------------------
+Installed when the Docker image is built; not included in this repository.
+
+- FastAPI (MIT)
+- Uvicorn (BSD-3-Clause)
+- HTTPX (BSD-3-Clause)
+- PyYAML (MIT)
+- spaCy and the en_core_web_sm model (MIT)
+- ruamel.yaml (MIT)
+- cryptography (Apache-2.0 or BSD-3-Clause)
+
+The pages' look (veil/web/style.css) is shared with Oread (same author, Apache 2.0).

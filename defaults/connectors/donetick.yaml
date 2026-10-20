@@ -1,0 +1,172 @@
+# connectors/donetick.yaml - the voice map for Donetick (hand-written; the build reads it).
+# For each voice action:
+#   api:        the Donetick command (method and path, as listed in its spec)
+#   learn_from: dataset intents whose sentences teach how people say this action
+#   words:      your own words, for actions the datasets don't cover (kept short)
+#   needs:      spoken needs: the details the action uses (edited on Integrations, Voice map)
+#                 required -> missing means she asks (path C): the router asks for the ones it
+#                             hears itself (settings router: heard_needs: who, when), the helper the rest
+#                 default  -> missing means the default below is used, and said aloud
+#                 optional -> used if given
+# Only actions listed here can be spoken. Delete, archive, timers, history: never by voice.
+never_by_voice: [delete, archive, erase]     # said, she says it's done on Donetick's page (phrases never_by_voice)
+
+service: donetick
+topic: chores
+default_action: list     # no verb heard ("my chores") -> list
+match_min: 0.6           # share of a chore name's words that must be said to count as that chore (the Voice map tab)
+sound_alike: true        # nothing found by the words: try how they sound ("by single hole faucet" for "Buy single
+                         # whole faucet"); a chore found only that way is asked about first ("...? Say yes")
+ask_min: 0.4             # nothing sure: a chore at or above this, or one with every word said, is asked about ("Spray weeds?")
+
+# The defaults are settings, on Donetick's Defaults tab: its lists (people and project, each with its
+# default; who "me" is on the people card) and options (default_chore_time); the timezone is the
+# house's (Settings, The house).
+defaults: {}
+
+actions:
+
+  list:                  # what's due / read everything / what does Beth have
+    api: GET /chores
+    learn_from:
+      massive:  [lists_query, calendar_query]
+      clinc150: [todo_list, reminder, calendar]
+    words: [what, show, tell, read, any, check my list, check the list, check my chores, check the chores, check my tasks]
+    objects: []   # these nouns decide the action outright
+    needs: {who: optional, when: optional}
+
+  projects:              # what projects do I have
+    api: GET /projects
+    learn_from: {}
+    words: [projects, project]
+    objects: [projects, project]   # these nouns decide the action outright
+    needs: {}
+
+  add:                   # add a task to have Beth do the trash tomorrow (stage 3)
+    api: POST /chores
+    learn_from:
+      massive:  [lists_createoradd, calendar_set]
+      clinc150: [todo_list_update, reminder_update, calendar_update]
+    words: [add, put, create, set up, need, remind]
+    objects: []   # these nouns decide the action outright
+    needs: {name: required, when: optional, who: default, project: default, repeat: optional}   # when: the due date is offered after it's added
+    # The follow-up series (series.py): which fields Donetick has, each with a generic type.
+    #   kind: required (asked before creating) | default (used, said aloud) | extra (offered after)
+    #   only_if: offered once that field is filled   direction: before | after (durations)
+    #   offer: how she names it in "I can add ..."   readback: how it reads in the read-back
+    #   default: used when the field is named with no value ("nag me")
+    #   list: the app's list it's filled from (a card on the Defaults tab: its items and its default)
+    fields:
+      name:      {type: text,   kind: required}
+      who:       {type: person, kind: default, list: people}
+      project:   {type: choice, kind: default, words: [project], list: project}
+      due_date:  {type: date,   kind: extra, words: [due date, date], offer: a due date}
+      due_time:  {type: time,   kind: extra, words: [due time, time], offer: a due time, only_if: due_date}
+      repeat:    {type: recurrence, kind: extra, words: [repeat, repeats, repeating, recurring],
+                  offer: repeat, readback: "repeats {say}"}
+      # "remind me" alone means at the due time (Oct 15): a reminder before needs its amount ("10 minutes before")
+      remind_before: {type: duration, kind: extra, direction: before, only_if: due_date,
+                      words: [reminder before, reminder, alert, warn me, warning],
+                      offer: a reminder before, readback: "reminder {say}"}
+      remind_at_due: {type: yesno, kind: extra, only_if: due_date,
+                      words: [at the due time, at due time, when it's due, when its due, on time, remind me, remind],
+                      offer: a reminder when it's due, readback: "reminder when it's due"}
+      nag:       {type: duration, kind: extra, direction: after, only_if: due_date,
+                  words: [nag, nags, nagging, nag me], default: "every 15 minutes",
+                  offer: nags, readback: "nags every {base}"}
+
+  complete:              # mark the trash done / I finished the dishes
+    api: POST /chores/{id}/do
+    learn_from: {}
+    words: [done, finished, completed, check off, mark]
+    needs: {chore: required}
+
+  skip:                  # skip watering the plants / cancel feeding the chickens
+    api: POST /chores/{id}/skip
+    learn_from: {}
+    words: [skip, cancel]
+    objects: []   # these nouns decide the action outright
+    needs: {chore: required}
+
+  move:                  # move the gutters to Saturday
+    api: PUT /chores/{id}/dueDate
+    learn_from: {}
+    words: [move, push, reschedule, postpone, change]
+    objects: []   # these nouns decide the action outright
+    needs: {chore: required, when: required}
+
+  nudge:                 # remind Beth about the trash (the chore already exists)
+    api: POST /chores/{id}/nudge
+    learn_from: {}
+    words: [nudge, poke, remind]
+    objects: []   # these nouns decide the action outright
+    needs: {chore: required, who: optional}
+
+  undo:                  # undo that / take that back
+    api: POST /chores/{id}/undo
+    learn_from: {}
+    words: [undo, take back]
+    objects: []   # these nouns decide the action outright
+    needs: {chore: required}   # the last chore she touched, if none is named
+    # the changes the app's undo really reverses; any other she says she can't undo (undo_names).
+    # Donetick's spec says completions and skips, but it refuses a skip (400, Oct 14): Appendix A
+    # of the user's guide. Add skip back here if Donetick fixes it.
+    reverses: [complete]
+
+# User rules (Integrations, Donetick, User rules): the app's commands chained with the router's own
+# steps (veil/rules.py), reached inside the chores topic. Rename: find the chore by what was said
+# before "to" (a misheard name too; "that" is the chore she just named), check first when the match
+# isn't sure, read it fresh and send it back whole with the new name (Donetick's edit wants the whole
+# chore, with its updatedAt). Rename project: the same for a project, read from the projects list.
+rules:
+  rename:
+    words: [rename, change the name of]
+    steps:
+    - call: GET /chores
+    - search: {until: [to, as], last: true, on_last: [call it, name it, it should be called, it should be, the name should be, change the name to, change its name to]}
+    - match: {act: 85, ask: 45}
+    - confirm: {}
+    - ask: {need: new_name, after: [to, as], question: "What should I call it?"}
+    - fresh_copy: {read: 'GET /chores/{id}', set: {name: new_name}, fill_empty: {assignStrategy: keep_last_assigned}}
+    - call: PUT /chores
+    - response: {lines: ['{item} is now {new_name}.']}
+  # a project named too ("rename the house project to home"): this one, not the chore's rename
+  rename_project:
+    words: [rename, change the name of]
+    objects: [project, projects]
+    steps:
+    - call: GET /projects
+    - search: {until: [to, as], ignore: [project, projects]}
+    - match: {act: 85, ask: 45}
+    - confirm: {}
+    - ask: {need: new_name, after: [to, as], question: "What should I call the project?"}
+    - fresh_copy: {read: GET /projects, set: {name: new_name}}
+    - call: PUT /projects/{id}
+    - response: {lines: ['The project {item} is now {new_name}.']}
+  # "can you find the camera chore?", "when is the trash due?": the chore and when it's due
+  find:
+    words: [find, look up, look for, "where's", where is, "when's", when is, what time, what day, what is the due date, "what's the due date"]
+    steps:
+    - call: GET /chores
+    - search: {ignore: [due, date, "on", of, for, about, chore, chores, task, tasks, can, could, you, me, please, tell], last: true}   # "that chore": the one she last named
+    - match: {act: 60, ask: 20, extra_words: ignore}   # most of its name is enough, a misheard word beside it too ("the cure, get Newton's...")
+    - confirm: {}                   # less ("put up cam" for Put the trash out): she asks first
+    - response: {lines: ['{item} is due {due}.', '{item}, due {due}.'], fields: {due: nextDueDate}, empty_lines: ['{item} has no due date.'],
+                  past_lines: ['{item} was due {due}.', '{item} is overdue: it was due {due}.']}
+
+# ---------- the words Donetick's helper uses (connectors/donetick.py; moved out of the code Oct 13) ----------
+language:
+  # words that never count toward matching a chore's name (the weekdays from vocab/language.yaml too)
+  never_in_names: [a, about, an, and, at, back, change, chore, chores, complete, completed, done, finish, finished, for, i, "i'm", im, in, is, it, list, mark, me, move, my, nudge, of, "on", out, please, poke, postpone, push, remind, reschedule, skip, take, task, tasks, that, the, this, to, today, tomorrow, tonight, undo, up, was]
+  # words that aren't part of a project's name ("the house project")
+  project_plain: [a, and, list, lists, my, of, project, projects, the]
+  # words that mean the person speaking (options: me: in settings.yaml decides who that is)
+  me_words: [me, myself, my, i, mine]
+  # strip_away, Donetick's layer: its own nouns, left off either end of a thing's name ("add clean the
+  # gutters to my LIST"); how people talk is the language's layer (vocab/language.yaml strip_away), and
+  # an action can add its own (actions: <action>: strip_away)
+  strip_away: [chore, chores, task, tasks, todo, "to-do", list, "list's", project, projects, reminder]
+  # how she names a change Donetick can't undo ("Donetick doesn't let me undo an add")
+  undo_names: {add: an add, skip: a skip, move: a move, nudge: a nudge, complete: a completion}
+
+

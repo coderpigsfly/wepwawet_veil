@@ -1,0 +1,538 @@
+# tests/cases/core.yaml - the router itself, needing no service: false wakes, never mind,
+# fragments, polite words, reading lists, her questions, and what goes to Gemini.
+# Each case: name, say, optional history (earlier turns: you, her, you, her...),
+# optional pending: / memory: / turns: (stand-ins; tests never see the router's real state),
+# and expect: path (0, A, B, C, gemini, tool, learn), topic, action, kind, and in --live runs
+# status, reason, speech_has. known: "why" marks a documented gap (KNOWN, or FIXED once it passes).
+# requires: the services (settings.yaml) this file needs; without them regress.py skips it.
+
+requires: []
+cases:
+- name: her own answer heard back is an echo, not answered (Oct 15, a Voice PE hearing itself)
+  assistant: felix
+  turns:
+  - {ago: 13, heard: "Is the side door open?", path: gemini, engine: gemini, answer: "It looks like the side door is currently closed, as the sensor is showing off. I'm afraid I didn't quite catch the rest."}
+  say: It looks like the sound door is currently closed as the sensor is showing off. I'm afraid it didn't.
+  expect:
+    path: '0'
+    kind: echo
+- name: a real answer to her question shares her words but is no echo (Oct 15)
+  assistant: felix
+  turns:
+  - {ago: 15, heard: "No, but he is smelly. Can we keep that on record?", path: gemini, engine: gemini, answer: "I have noted your observation that he is smelly. Would you like me to add that as a chore or a note somewhere in your tasks for safekeeping?"}
+  say: Can you make that a note wherever you want?
+  expect:
+    path: gemini
+- name: her words heard back long after aren't an echo (echo_seconds)
+  assistant: felix
+  turns:
+  - {ago: 120, heard: "Is the side door open?", path: gemini, engine: gemini, answer: "It looks like the side door is currently closed, as the sensor is showing off."}
+  say: It looks like the side door is currently closed as the sensor is showing off.
+  expect:
+    path: ask        # not an echo: an ordinary sentence, so she offers to ask around
+- name: single letter is a false wake
+  say: P.
+  expect:
+    path: '0'
+- name: filler only is a false wake
+  say: um
+  expect:
+    path: '0'
+- name: noise then never mind is dismissed
+  say: the a never mind
+  expect:
+    path: '0'
+- name: never mind with her name
+  say: Never mind, Iris.
+  expect:
+    path: '0'
+- name: yes after gemini asked goes back to gemini
+  history:
+  - Good morning
+  - Good morning! Is there any mischief I can help you with today?
+  say: Yes please
+  expect:
+    path: gemini
+- name: joke
+  say: Tell me a joke
+  expect:
+    path: gemini
+- name: STT hallucination
+  say: Goddamn called on it.
+  expect: {path: ask}
+- name: overheard dictation
+  say: Coming in is different than the expected verbiage of gunte.
+  expect: {path: ask}
+- name: yes reads the rest of the list
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - Spray weeds
+    - Remember School Keys
+  say: Yes please
+  expect:
+    path: C
+    kind: 'yes'
+    topic: chores
+    asks: false
+    speech_has: Spray weeds
+- name: yeah go ahead is a yes
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - Spray weeds
+    - Remember School Keys
+  say: Yeah, go ahead.
+  expect:
+    path: C
+    kind: 'yes'
+- name: no thanks ends the list
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - Spray weeds
+    - Remember School Keys
+  say: No thanks
+  expect:
+    path: C
+    kind: 'no'
+    asks: false
+- name: read the rest answers her question though all its words are hers (Oct 18, not an echo)
+  assistant: felix
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - Spray weeds
+    - Remember School Keys
+  turns:
+  - {ago: 9, heard: "Yes.", path: C, engine: router, answer: "Here are the next few: Put windows out trash, Mow the lawn, and Take the trash out. Plus 2 more. Shall I read the rest?"}
+  say: Read the rest.
+  expect:
+    path: C
+    kind: 'yes'
+- name: a greeting with a name for her is a greeting, not a fragment (Oct 18)
+  say: Good morning, sweetheart.
+  expect:
+    path: '0'
+    kind: polite
+- name: continue is a yes to read the rest (Oct 18)
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - Spray weeds
+    - Remember School Keys
+  say: Continue.
+  expect:
+    path: C
+    kind: 'yes'
+- name: a yes then room talk answers her confirm question (Oct 18)
+  pending:
+    kind: thing
+    mode: confirm
+    topic: chores
+    action: complete
+    said: Mark rotisserie diagram complete
+    choices:
+    - {id: 7, name: Rotisserie diagram}
+  say: Yes. I don't think you're not sure.
+  expect:
+    path: A
+    topic: chores
+    action: complete
+- name: a no then a weather question is the weather, not the no (Oct 18)
+  pending:
+    kind: ask_around
+    said: market complete
+  say: No. What's the weather like tomorrow?
+  expect:
+    topic: weather
+- name: a long rest is read in batches and asks again
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - a1
+    - a2
+    - a3
+    - a4
+    - a5
+    - a6
+    - a7
+  say: Sure
+  expect:
+    path: C
+    kind: 'yes'
+    asks: true
+    speech_has: 2 more
+- name: never mind while she waits is dismissed
+  pending:
+    kind: list_rest
+    topic: chores
+    items:
+    - Spray weeds
+    - Remember School Keys
+  say: Never mind
+  expect:
+    path: '0'
+- name: yes with no question at all is a fragment
+  say: 'Yes'
+  expect:
+    path: '0'
+    kind: fragment
+- name: repeat every tuesday at 7 answers anything else
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 1
+    name: clean the gutters
+    noun: chore
+    filled: {}
+    fields:
+      due_date:
+        type: date
+        kind: extra
+        words:
+        - due date
+        offer: a due date
+      due_time:
+        type: time
+        kind: extra
+        only_if: due_date
+        offer: a due time
+      repeat:
+        type: recurrence
+        kind: extra
+        words:
+        - repeat
+        offer: repeat
+        readback: repeats {say}
+  say: Yes, repeat every Tuesday at 7 pm.
+  expect:
+    path: C
+    kind: series
+    speech_has: at 7 pm, repeats every Tuesday     # not the day: on a Tuesday she rightly says "due today"
+- name: my is a fragment
+  say: My.
+  expect:
+    path: '0'
+    kind: fragment
+- name: EPI is a fragment
+  say: EPI.
+  expect:
+    path: '0'
+    kind: fragment
+- name: good morning alone is polite
+  say: Good morning
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: orning
+- name: morning alone finds the good morning lines
+  say: Morning, Iris.
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: orning
+- name: good evening alone has its own lines
+  say: Good evening
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: ening
+- name: thank you alone is polite
+  say: Thank you.
+  expect:
+    path: '0'
+    kind: polite
+- name: good night plus a real request goes to gemini
+  say: Good night, could you check the security of the house?
+  expect:
+    path: gemini
+- name: joke please has no verb
+  say: Joke please
+  expect:
+    path: '0'
+    kind: fragment
+
+# ---------- the learn level ----------
+# turns: stands in for the router's record of the turn before (state/turns.json)
+- name: who answered that after a gemini answer
+  history: ["Tell me a joke", "Why did the scarecrow win an award? He was outstanding in his field."]
+  turns: [{heard: "Tell me a joke", engine: gemini, answer: "Why did the scarecrow win an award? He was outstanding in his field.", time: 9999999999}]
+  say: "Who answered that?"
+  expect: {path: learn, kind: who, speech_has: "Gemini"}
+- name: who answered that skips a false wake in between (Oct 15)
+  history: ["Tell me a joke", "Why did the scarecrow win an award? He was outstanding in his field.", "P.", "Just stretching."]
+  turns: [{heard: "Tell me a joke", path: gemini, engine: gemini, answer: "Why did the scarecrow win an award? He was outstanding in his field.", time: 9999999999},
+          {heard: "P.", path: "0", engine: router, answer: "Just stretching.", time: 9999999999}]
+  say: "Who answered that?"
+  expect: {path: learn, kind: who, speech_has: "Gemini"}
+- name: what did you hear skips a false wake in between (Oct 15)
+  history: ["Tell me a joke", "Why did the scarecrow win an award? He was outstanding in his field.", "P.", "Just stretching."]
+  turns: [{heard: "Tell me a joke", path: gemini, engine: gemini, answer: "Why did the scarecrow win an award? He was outstanding in his field.", time: 9999999999},
+          {heard: "P.", path: "0", engine: router, answer: "Just stretching.", time: 9999999999}]
+  say: "What did you hear?"
+  expect: {path: learn, kind: heard, speech_has: "Tell me a joke"}
+- name: what did you hear repeats the transcription
+  history: ["Tell me a joke", "Why did the scarecrow win an award? He was outstanding in his field."]
+  turns: [{heard: "Tell me a joke", engine: gemini, answer: "Why did the scarecrow win an award? He was outstanding in his field.", time: 9999999999}]
+  say: "What did you hear?"
+  expect: {path: learn, kind: heard, speech_has: "Tell me a joke"}
+- name: who answered that when she answered herself
+  history: ["Good morning", "Good morning! The cauldron's already bubbling."]
+  turns: [{heard: "Good morning", engine: router, answer: "Good morning! The cauldron's already bubbling.", time: 9999999999}]
+  say: "Who answered that, Iris?"
+  expect: {path: learn, kind: who, speech_has: "intent router"}
+- name: home assistant answered the turn before
+  history: ["Turn on the kitchen lights", "Turned on the lights."]
+  turns: [{heard: "Tell me a joke", engine: gemini, answer: "Why did the scarecrow win an award?", time: 9999999999}]
+  say: "Who answered that?"
+  expect: {path: learn, kind: who, speech_has: "Home Assistant"}
+- name: nothing to ask about
+  say: "What did you hear?"
+  expect: {path: learn, kind: heard, speech_has: "don't remember"}
+- name: asking twice in a row still looks at the real turn
+  history: ["Tell me a joke", "Why did the scarecrow win an award?", "What did you hear?", "I heard: Tell me a joke"]
+  turns: [{heard: "Tell me a joke", engine: gemini, answer: "Why did the scarecrow win an award?", time: 9999999999}]
+  say: "Who answered that?"
+  expect: {path: learn, kind: who, speech_has: "Gemini"}
+- name: a chores answer is the intent router, not donetick
+  history: ["What's on my list?", "You have 5 chores: Spray weeds."]
+  turns: [{heard: "What's on my list?", engine: donetick, answer: "You have 5 chores: Spray weeds.", time: 9999999999}]
+  say: "Who answered that?"
+  expect: {path: learn, kind: who, speech_has: "intent router"}
+# asked: stands in for the learn question just asked and the turn it was about
+- name: record after who answered is an engine miss
+  asked: {kind: who, turn: {heard: "EPI.", engine: gemini, answer: "Speaking in code?"}}
+  say: "Record that as a miss"
+  expect: {path: learn, kind: record, speech_has: "engine miss"}
+- name: record after what did you hear is a mishearing
+  asked: {kind: heard, turn: {heard: "Do I mean an umbrella", engine: weather_brain, answer: "Today will be cloudy."}}
+  say: "Record that as a miss."
+  expect: {path: learn, kind: record, speech_has: "mishearing"}
+- name: record with a note in the same breath
+  asked: {kind: who, turn: {heard: "skip spraying the weeds", engine: gemini, answer: "Done!"}}
+  say: "Record that as a miss, that should have been chores"
+  expect: {path: learn, kind: record, speech_has: "should have been chores"}
+- name: record with nothing asked first
+  say: "Record that as a miss"
+  expect: {path: learn, kind: record, speech_has: "Ask me who answered that"}
+- name: record as a myth is still a record (miss heard as myth)
+  asked: {kind: who, turn: {heard: "Wholl answer back?", engine: gemini}}
+  say: "Record as a myth."
+  expect: {path: learn, kind: record, speech_has: "engine miss"}
+- name: record that as a misunderstanding (the main wording since Oct 10)
+  asked: {kind: who, turn: {heard: "EPI.", engine: gemini, answer: "Speaking in code?"}}
+  say: "Record that as a misunderstanding."
+  expect: {path: learn, kind: record, speech_has: "engine miss"}
+- name: that's a misunderstanding, with a note
+  asked: {kind: heard, turn: {heard: "Do I mean an umbrella", engine: weather_brain}}
+  say: "That's a misunderstanding, that should have been weather."
+  expect: {path: learn, kind: record, speech_has: "should have been weather"}
+- name: that's a myth is a record, not a question for Gemini
+  asked: {kind: heard, turn: {heard: "Do I mean an umbrella", engine: weather_brain}}
+  say: "That's a myth."
+  expect: {path: learn, kind: record, speech_has: "mishearing"}
+- name: a note before recording
+  asked: {kind: who, turn: {heard: "EPI.", engine: gemini}}
+  say: "That should have been a false wake"
+  expect: {path: learn, kind: note, speech_has: "record that as a misunderstanding first"}
+- name: a note after recording
+  asked: {kind: who, saved: true, turn: {heard: "EPI.", engine: gemini}}
+  say: "That should have been a false wake"
+  expect: {path: learn, kind: note, speech_has: "should have been a false wake"}
+- name: should've been is a note too (how speech-to-text writes it)
+  asked: {kind: who, saved: true, turn: {heard: "Did the dragon get his breakfast?", engine: gemini}}
+  say: "That should've been chores."
+  expect: {path: learn, kind: note, speech_has: "chores"}
+- name: a note with "been" dropped by speech-to-text
+  asked: {kind: who, saved: true, turn: {heard: "Did the dragon get his breakfast?", engine: gemini}}
+  say: "That should have ensures."
+  expect: {path: learn, kind: note, speech_has: "ensures"}
+- name: record with a note that lost "been"
+  asked: {kind: who, turn: {heard: "Did the dragon get his breakfast?", engine: gemini}}
+  say: "Record that as a miss that should have ensures."
+  expect: {path: learn, kind: record, speech_has: "ensures"}
+- name: nothing to record when home assistant answered
+  asked: {kind: who, turn: null}
+  say: "Record that"
+  expect: {path: learn, kind: record, speech_has: "nothing of mine"}
+
+# ---------- the gate: shaped like a request, or "Want me to ask around?" ----------
+- name: nonsense from speech-to-text asks first
+  say: "Cook of chew, but you go. cook of chew."
+  expect: {path: ask, speech_has: "Want me to ask around"}
+- name: overheard speech asks first
+  say: "As well as try to respond to it with gy."
+  expect: {path: ask}
+- name: a real question goes straight to gemini
+  say: "What's the top colored car in the US today?"
+  expect: {path: gemini}
+- name: when was dolly parton born goes straight to gemini
+  say: "when was dolly parton born"
+  expect: {path: gemini}
+- name: a command goes straight to gemini
+  say: "please spell doctor"
+  expect: {path: gemini}
+- name: a need goes straight to gemini
+  say: "I need a recipe for sourdough bread"
+  expect: {path: gemini}
+- name: yes to ask around goes to gemini with the original words
+  pending: {kind: ask_around, said: "Cook of chew, but you go."}
+  say: "Yes"
+  expect: {path: gemini, kind: ask_yes}
+- name: no to ask around ends it
+  pending: {kind: ask_around, said: "Cook of chew, but you go."}
+  say: "No thanks"
+  expect: {path: C, kind: "no"}
+- name: a long no to ask around is still a no
+  pending: {kind: ask_around, said: "Cook of chew, but you go."}
+  say: "No, I don't want you to ask around."
+  expect: {path: C, kind: "no"}
+- name: a long yes to ask around is still a yes
+  pending: {kind: ask_around, said: "Cook of chew, but you go."}
+  say: "Yes, please go ask around."
+  expect: {path: gemini, kind: ask_yes}
+- name: no plus a new question after ask around is the new question
+  pending: {kind: ask_around, said: "Cook of chew, but you go."}
+  say: "No, what's the weather tomorrow?"
+  expect: {path: A, topic: weather}
+- name: record that as a miss after ask around is a mishearing
+  pending: {kind: ask_around, said: "Cook of chew, but you go."}
+  asked: {kind: heard, turn: {heard: "Cook of chew, but you go.", engine: router}}
+  say: "No, record that as a miss"
+  expect: {path: learn, kind: record, speech_has: "mishearing"}
+
+# recorded by voice 2026-10-10 14:38 as a mishearing
+- name: 'miss: Record as a myth.'
+  say: Record as a myth.
+  history:
+  - Who answered that?
+  - Gemini answered that.
+  expect:
+    path: learn
+    kind: record
+
+# ---------- the Gemini gate, Oct 11 (from the ask-around log) ----------
+- name: a reply right after Gemini answered goes back to Gemini
+  turns: [{heard: "What is the name of your cat?", path: gemini, engine: gemini, time: 9999999999}]
+  say: "Jojo, the cat is a girl."
+  expect: {path: gemini}
+- name: the same words cold still ask first
+  say: "Jojo, the cat is a girl."
+  expect: {path: ask}
+- name: a false wake doesn't break the Gemini conversation
+  turns: [{heard: "Who's an ass?", path: gemini, engine: gemini, time: 9999999999},
+          {heard: "Asmeralda.", path: "0", engine: router, time: 9999999999}]
+  say: "She's a witch."
+  expect: {path: gemini}
+- name: a Gemini answer long ago is not a conversation
+  turns: [{heard: "What is the name of your cat?", path: gemini, engine: gemini, time: 1}]
+  say: "Jojo, the cat is a girl."
+  expect: {path: ask}
+- name: after her ask around, a reply is not in a Gemini conversation
+  turns: [{heard: "She said, it's not.", path: ask, engine: router, time: 9999999999}]
+  say: "She's a witch."
+  expect: {path: ask}
+- name: telling her something goes to Gemini
+  say: "I have a cat named Jojo."
+  expect: {path: gemini}
+- name: telling her about herself goes to Gemini
+  say: "You are a witch."
+  expect: {path: gemini}
+- name: overheard we need with no real noun is still held
+  say: "We need to look at it."
+  expect: {path: ask}
+
+# recorded by voice 2026-10-10 13:20 as an engine miss
+- name: 'miss: Cook of chew, but you go. cook of chew.'
+  say: Cook of chew, but you go. cook of chew.
+  history:
+  - Record that as a myth.
+  - Saved as a mishearing.
+  expect:
+    path: ask
+    kind: ask_around
+
+# recorded by voice 2026-10-10 13:29 as a mishearing
+- name: 'miss: No.'
+  say: No.
+  history:
+  - Record that as a mis hearingaring.
+  - Saved as an engine miss.
+  expect:
+    path: '0'
+    kind: fragment
+
+# recorded by voice 2026-10-10 14:28 as an engine miss
+- name: 'miss: We need to look at it.'
+  say: We need to look at it.
+  history:
+  - Kukuk chew.
+  - Sorry, I didn't catch that.
+  expect:
+    path: ask
+    kind: ask_around
+
+# recorded by voice 2026-10-10 14:24 as an engine miss
+- name: 'miss: Now, Senate is recurring.'
+  say: Now, Senate is recurring.
+  history:
+  - It's going to be due this afternoon.
+  - I understand, a task for this afternoon. Since you didn't specify a time, I'll set it for 17:00. Shall I save
+    "Change diaper" as a one-time chore for the Owner's tasks for today at 17:00?
+  expect:
+    path: ask
+    kind: ask_around
+
+# recorded by voice 2026-10-10 13:25 as an engine miss
+- name: 'miss: As well as try to respond to it with gy.'
+  say: As well as try to respond to it with gy.
+  history:
+  - Record that as a myth.
+  - Saved as an engine miss.
+  expect:
+    path: ask
+    kind: ask_around
+- name: yes, check with your coven is a yes to ask around (Iris's wording)
+  pending: {kind: ask_around, said: "Cook of chew, but you go."}
+  say: "Yes, check with your coven."
+  expect: {path: gemini, kind: ask_yes}
+- name: no, leave the spell book shut is a no
+  pending: {kind: ask_around, said: "Cook of chew, but you go."}
+  say: "No, don't consult the spell book."
+  expect: {path: C, kind: "no"}
+- name: Iris asks around in her own words
+  say: "Cook of chew, but you go."
+  expect: {path: ask, speech_has: "I think I heard"}
+- name: who we answered that is still who answered that (speech-to-text added a word)
+  turns: [{heard: "Tell me a joke", path: gemini, engine: gemini, answer: "Why did the scarecrow win an award?", time: 9999999999}]
+  say: "Who we answered that?"
+  expect: {path: learn, kind: who, speech_has: "Gemini"}
+- name: what did you just hear is still what did you hear
+  turns: [{heard: "Tell me a joke", path: gemini, engine: gemini, answer: "Why did the scarecrow win an award?", time: 9999999999}]
+  say: "What did you just hear?"
+  expect: {path: learn, kind: heard, speech_has: "Tell me a joke"}
+- name: a real question that starts like a learn command still goes out
+  say: "Who answered the phone in the first telephone call?"
+  expect: {path: gemini}
+- name: W answer that is who answered that (Oct 11 log)
+  turns: [{heard: "How much rain will we get today?", path: A, engine: weather_brain, answer: "Tonight will be rainy.", time: 9999999999}]
+  say: "W answer that?"
+  expect: {path: learn, kind: who, speech_has: "intent router"}
+
+
+- name: said to the persona goes straight Off-Platform (Oct 15, "I love you")
+  say: I love you
+  expect:
+    path: gemini
+- name: a joke goes straight Off-Platform (Oct 15)
+  say: Tell me a joke.
+  expect:
+    path: gemini

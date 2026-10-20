@@ -1,0 +1,45 @@
+name: Bug report
+description: "Something in Wepwawet Veil doesn't work as it should"
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: "What happened"
+      description: "And what you expected instead."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to reproduce"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: "Wepwawet Veil version"
+      description: "On the Account page, or VERSION in veil/version.py."
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: "Front end and devices"
+      description: "Like: Home Assistant 2025.10 with a Voice PE; Oread on or off."
+  - type: input
+    id: models
+    attributes:
+      label: "Off-Platform endpoint"
+      description: "Like: LiteLLM with gemini-lite, or none (answering at home only)."
+  - type: input
+    id: server
+    attributes:
+      label: "Server"
+      description: "CPU, cores, memory, OS (the Stats page shows them)."
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Logs"
+      description: "From `docker compose logs house-router`. Leave out anything private: names, addresses, tokens."
+      render: text

@@ -1,0 +1,23 @@
+# tests/fixtures/personality/candidates/iris.yaml - GENERATED stand-in for the tests.
+candidates:
+- keep: yes
+  text: "Good day to you."
+  slot: closer
+  topics: [any]
+  mood: [plain]
+  from: "A Test Book"
+  found: "Good day to you."
+- keep: yes
+  text: "Well then."
+  slot: opener
+  topics: [any]
+  mood: [plain]
+  from: "A Test Book"
+  found: "Well then."
+- keep: no
+  text: "Oh!"
+  slot: opener
+  topics: [any]
+  mood: [plain]
+  from: "A Test Book"
+  found: "Oh!"

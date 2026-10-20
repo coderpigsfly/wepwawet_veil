@@ -1,0 +1,129 @@
+# tools/tools.yaml - the tools the Tools page can run (inside the router's container, from its
+# folder, exactly as you'd run them on myserver). Read by veil/web.py.
+#
+# Each tool:
+#   label:    what the button says
+#   about:    one line on what it does
+#   run:      the command, as a list; {name} is filled from args: (nothing else is ever run)
+#   args:     each with choices: sources | topics | assistants | misses (filled from the files)
+#             or text (a short word: letters, digits, _ . -), and optional: true
+#   role:     who may run it (administrator unless said)
+#   writes:   folders it changes (after it runs they're handed back to FILE_OWNER)
+#   restart:  true -> the router has to restart to use what it made (the page offers Restart)
+#   group:    where it shows on the page
+#   section:  a heading within the group (Keyword tiers: Maintenance, Utilities); optional
+#   page:     the page it shows on: tools (the default), topics (Seed Topics, Build tab), misses
+#             (Misses, Tools tab), or flair (its own buttons on Persona Flair, not listed on Tools)
+
+tools:
+  build:
+    page: topics
+    group: Keyword tiers
+    section: Maintenance
+    label: Build the keyword tiers
+    about: Every topic in settings.yaml, from the datasets -> topics/, scores/ and actions/
+    run: [python3, tools/build_scores.py, build]
+    writes: [topics, scores, actions]
+    restart: true
+  labels:
+    page: topics
+    group: Keyword tiers
+    section: Maintenance
+    label: Dataset labels
+    about: Every label in every dataset, and which topic claims it
+    run: [python3, tools/build_scores.py, labels]
+  refresh:
+    page: topics
+    group: Keyword tiers
+    section: Utilities
+    label: Download datasets
+    about: Fetch a dataset again from its address (all of them when none is picked)
+    run: [python3, tools/build_scores.py, refresh, "{source}"]
+    args: {source: {choices: sources, optional: true}}
+  datasets:
+    page: topics
+    group: Keyword tiers
+    section: Utilities
+    label: Look at a dataset
+    about: How many sentences and labels a dataset has (pick one for every label)
+    run: [python3, tools/datasets.py, "{source}"]
+    args: {source: {choices: sources, optional: true}}
+  test_scores:
+    page: topics
+    group: Keyword tiers
+    section: Utilities
+    label: Score a topic on the datasets
+    about: How many of a topic's own sentences would be answered at home, and what else would be caught
+    run: [python3, tools/test_scores.py, "{topic}"]
+    args: {topic: {choices: topics}}
+  word_shares:
+    page: topics
+    group: Keyword tiers
+    section: Utilities
+    label: Word shares
+    about: How strongly each word in a topic points to one dataset label
+    run: [python3, tools/word_shares.py, "topics/{topic}.yaml", "{label}", "{source}"]
+    args: {topic: {choices: topics}, label: {text: true}, source: {choices: sources}}
+  regress:
+    group: Tests
+    label: Regression cases
+    about: Every case in tests/cases/ against the running router (calls nothing)
+    run: [python3, tools/regress.py]
+    role: reviewer
+  regress_live:
+    group: Tests
+    label: Regression cases, live
+    about: Also asks the services for answers that change nothing (weather, listing chores)
+    run: [python3, tools/regress.py, --live]
+    role: reviewer
+  shape_test:
+    group: Tests
+    label: Gemini gate test
+    about: The last check before Gemini, on real questions and known nonsense (tools/sources.yaml gate_test)
+    run: [python3, tools/shape_test.py]
+  unit_tests:
+    group: Tests
+    label: Unit tests
+    about: Dates and fields, the follow-up series, flair, and Wepwawet Veil's own parts
+    run: [sh, -c, "python3 tools/test_fields.py && python3 tools/test_series.py && python3 tools/test_flair.py && python3 tools/test_veil.py"]
+    role: reviewer
+  misses:
+    page: misses
+    group: Learn level
+    label: Review the misses
+    about: Every miss you recorded by voice, then and now
+    run: [python3, tools/misses.py]
+    role: reviewer
+  miss_fix:
+    page: misses
+    group: Learn level
+    label: Make a miss a test case
+    about: Writes the case (expecting what the router does today) and takes the miss out of the log
+    run: [python3, tools/misses.py, fix, "{miss}", --yes]
+    args: {miss: {choices: misses}}
+    writes: [tests, learn]
+  miss_drop:
+    page: misses
+    group: Learn level
+    label: Drop a miss
+    about: Just takes it out of the miss log
+    run: [python3, tools/misses.py, drop, "{miss}", --yes]
+    args: {miss: {choices: misses}}
+    role: reviewer
+  flair_refresh:
+    page: flair
+    group: Flair
+    label: Download the books
+    about: The public-domain books in personality/sources.yaml
+    run: [python3, tools/build_flair.py, refresh, "{assistant}"]
+    args: {assistant: {choices: assistants, optional: true}}
+  flair_mine:
+    page: flair
+    group: Flair
+    label: Comb the books
+    about: Propose lines -> personality/candidates/ (your keep choices survive)
+    run: [python3, tools/build_flair.py, mine, "{assistant}"]
+    args: {assistant: {choices: assistants}}
+    writes: [personality]
+
+

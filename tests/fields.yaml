@@ -1,0 +1,152 @@
+# tests/fields.yaml - the generic field types (fields.py), tested on their own.
+# Runs anywhere, no router needed:  python3 tools/test_fields.py
+# Each case: say, and expect:
+#   values: {field: what she'd read back}   (only the fields listed are checked)
+#   empty:  [fields that must NOT be filled]
+#   left:   [words she didn't understand]    (checked exactly when given; [] = understood it all)
+#   named:  [fields named without a value]   yes / no: the answer started with yes or no
+# "now" for every case is Saturday, October 10, 2026, 6:00 am.
+
+now: "2026-10-10T06:00:00"
+
+# Offered fields, as an app's map would declare them (generic types; Donetick-like names).
+fields:
+  due_date: {type: date,       words: [due date, date]}
+  due_time: {type: time,       words: [due time, time]}
+  repeat:   {type: recurrence, words: [repeat, repeats, repeating, recurring]}
+  alert:    {type: duration,   words: [alert, alarm, warn me, warning]}
+  nag:      {type: yesno,      words: [nag, nags, nagging]}
+  who:      {type: person,     words: []}
+  project:  {type: choice,     words: [project]}
+people: {beth: Beth, me: Owner, owner: Owner, sam: Owner}
+choices: [House Projects, Calendar Reminders, Beth's Morning Briefing]
+
+cases:
+# ---------- the example from the design ----------
+- say: "Yes, repeat every Tuesday at 7 pm."
+  expect: {yes: true, values: {repeat: every Tuesday, due_time: 7 pm}, left: []}
+- say: "Yes, repeat every Tuesday at 7 p.m."
+  expect: {values: {repeat: every Tuesday, due_time: 7 pm}, left: []}
+
+# ---------- dates ----------
+- say: "Tuesday"
+  expect: {values: {due_date: Tuesday}, empty: [repeat]}
+- say: "yes, due Tuesday"
+  expect: {yes: true, values: {due_date: Tuesday}, left: []}
+- say: "tomorrow"
+  expect: {values: {due_date: tomorrow}}
+- say: "the day after tomorrow"
+  expect: {values: {due_date: Monday}, left: []}
+- say: "in 3 days"
+  expect: {values: {due_date: Tuesday}, empty: [alert]}
+- say: "in two weeks"
+  expect: {values: {due_date: "Saturday, October 24"}}
+- say: "the 14th"
+  expect: {values: {due_date: Wednesday}}
+- say: "the fourteenth"
+  expect: {values: {due_date: Wednesday}}
+- say: "October 20th"
+  expect: {values: {due_date: "Tuesday, October 20"}}
+- say: "the 5th"
+  expect: {values: {due_date: "Thursday, November 5"}}
+- say: "next Friday"
+  expect: {values: {due_date: Friday}}
+
+# ---------- times ----------
+- say: "at 7"
+  expect: {values: {due_time: 7 am}}
+- say: "at 5"
+  expect: {values: {due_time: 5 pm}}
+- say: "seven thirty in the evening"
+  expect: {values: {due_time: 7:30 pm}, left: []}
+- say: "7:30 am"
+  expect: {values: {due_time: 7:30 am}}
+- say: "noon"
+  expect: {values: {due_time: noon}}
+- say: "quarter past 6"
+  expect: {values: {due_time: 6:15 pm}}
+- say: "Tuesday at 9 in the morning"
+  expect: {values: {due_date: Tuesday, due_time: 9 am}, left: []}
+
+# ---------- repeats ----------
+- say: "every day"
+  expect: {values: {repeat: every day}}
+- say: "daily at 8 pm"
+  expect: {values: {repeat: every day, due_time: 8 pm}}
+- say: "every other week"
+  expect: {values: {repeat: every other week}}
+- say: "every 3 days"
+  expect: {values: {repeat: every 3 days}, empty: [due_date, alert]}
+- say: "every Tuesday and Thursday"
+  expect: {values: {repeat: every Tuesday and Thursday}, empty: [due_date]}
+- say: "on Mondays"
+  expect: {values: {repeat: every Monday}, empty: [due_date]}
+- say: "every weekday"
+  expect: {values: {repeat: every weekday}}
+- say: "once a month"
+  expect: {values: {repeat: every month}}
+
+# ---------- alerts (durations) ----------
+- say: "an alert an hour before"
+  expect: {values: {alert: an hour before}, left: []}
+- say: "yes, alert me 30 minutes before"
+  expect: {values: {alert: half an hour before}, empty: [due_time, who]}
+- say: "warn me half an hour before"
+  expect: {values: {alert: half an hour before}, left: []}
+- say: "two hours ahead"
+  expect: {values: {alert: 2 hours before}, empty: [due_time]}
+
+# ---------- yes/no fields ----------
+- say: "yes, nag me"
+  expect: {values: {nag: nag}, empty: [who], left: []}
+- say: "no nag"
+  expect: {no: true, values: {nag: no nag}}
+- say: "add an alert"
+  expect: {named: [alert], empty: [alert]}
+
+- say: "warn me half an hour before"
+  expect: {empty: [who]}
+- say: "assign it to me"
+  expect: {values: {who: Owner}}
+- say: "for Beth"
+  expect: {values: {who: Beth}, left: []}
+
+# ---------- several at once ----------
+- say: "yes, due Tuesday at 7 pm, alert me an hour before and nag me"
+  expect: {values: {due_date: Tuesday, due_time: 7 pm, alert: an hour before, nag: nag}, empty: [who], left: []}
+- say: "every Saturday at noon for Beth"
+  expect: {values: {repeat: every Saturday, due_time: noon, who: Beth}, left: []}
+- say: "put it in the calendar reminders project"
+  expect: {values: {project: Calendar Reminders}}
+
+# ---------- things she must not understand (she re-offers) ----------
+- say: "yes, purple"
+  expect: {yes: true, values: {}, left: [purple]}
+- say: "yes repeat every tuesbay"
+  expect: {values: {}, named: [repeat], left: [tuesbay]}
+- say: "no"
+  expect: {no: true, values: {}}
+- say: "2 hours"
+  expect: {values: {alert: 2 hours before}, empty: [due_time]}
+
+# ---------- a part of the day with no time sets its own time (vocab/language.yaml part_times) ----------
+- say: "Wednesday morning"
+  expect: {values: {due_date: Wednesday, due_time: 6 am}, left: []}
+- say: "tomorrow evening"
+  expect: {values: {due_date: tomorrow, due_time: 5 pm}, left: []}
+- say: "tonight"
+  expect: {values: {due_date: today, due_time: 5 pm}, left: []}
+- say: "Wednesday at 9 in the morning"
+  expect: {values: {due_date: Wednesday, due_time: 9 am}, left: []}
+- say: "Wednesday afternoon"
+  expect: {values: {due_date: Wednesday}, empty: [due_time]}
+
+# ---------- parts of a unit as an amount (vocab/language.yaml fractions, Oct 15) ----------
+- say: "alert me every half hour"
+  expect: {values: {alert: half an hour before}, left: []}
+- say: "alert me a half hour early"
+  expect: {values: {alert: half an hour before}, left: []}
+- say: "warn me a quarter of an hour before"
+  expect: {values: {alert: 15 minutes before}, left: []}
+- say: "alert me every quarter hour"
+  expect: {values: {alert: 15 minutes before}, left: []}

@@ -1,0 +1,9 @@
+# tests/fixtures/personality/felix.yaml - a second stand-in assistant for the tests (plain lines).
+rate: 0.4
+max_in_a_row: 1
+
+flourishes:
+  - text: "Second assistant opener."
+    placeholder: true
+    slot: opener
+    topics: [any]

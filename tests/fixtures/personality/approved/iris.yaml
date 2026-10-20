@@ -1,0 +1,12 @@
+# tests/fixtures/personality/approved/iris.yaml - GENERATED stand-in for the tests.
+flourishes:
+- text: Good day to you.
+  slot: closer
+  topics: [any]
+  mood: [plain]
+  from: A Test Book
+- text: Well then.
+  slot: opener
+  topics: [any]
+  mood: [plain]
+  from: A Test Book

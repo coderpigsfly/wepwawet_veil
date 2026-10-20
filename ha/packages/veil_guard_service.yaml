@@ -1,0 +1,30 @@
+# /config/packages/veil_guard_service.yaml - Wepwawet Veil's firewall for Home Assistant's own commands.
+# Needs Veil Guard Service (the router's hook in Home Assistant) in /config/custom_components/veil_guard_service (from the router's
+# repo: ha/custom_components/veil_guard_service). Restart Home Assistant after adding or changing this.
+#
+# Before each device command runs (understood by Home Assistant itself, or asked for by Gemini
+# through Assist), the guard asks the router whether a firewall rule stops it. With the firewall
+# off or no rules it doesn't ask at all.
+#
+#   url:           the router's chat door
+#   token:         the guard's API token (the router's Security page, API tokens; role viewer),
+#                  kept in secrets.yaml as veil_guard_service_token. Shown even while the guard
+#                  door is open, so "last used" proves it before you lock the door.
+#   timeout:       seconds to wait for the router
+#   on_no_answer:  allow (the house keeps working) or block (nothing runs unchecked)
+#   skip_intents:  commands never asked about (they only read things)
+
+veil_guard_service:
+  url: http://192.168.1.20:8770
+  token: !secret veil_guard_service_token
+  timeout: 4
+  on_no_answer: allow
+  summary_seconds: 30
+  skip_intents:
+    - HassNevermind
+    - HassGetCurrentTime
+    - HassGetCurrentDate
+    - HassGetWeather
+    - HassGetState
+
+

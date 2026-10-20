@@ -1,0 +1,360 @@
+# Wepwawet Veil: the user's guide
+
+Wepwawet Veil sits between your voice assistants (Iris, Felix) and the cloud. When you
+speak to one of them, the router decides whether the house can answer by itself or whether the
+request has to go Off-Platform, to the cloud model. Everything it can keep at home is faster,
+private, and free.
+
+This guide is for using it. How it's built is in the Coder's guide.
+
+## The routes a request can take
+
+A route is the way a request travels, box by box. Wepwawet Veil is the router; every answer goes
+back the way it came, through LiteLLM to Home Assistant, which speaks it on the device.
+
+**The words** (only when the router is in the audio path, Integrations, Oread):
+
+    Device -> Home Assistant -> Wepwawet Veil (the audio) -> Oread -> Wepwawet Veil -> Home Assistant
+
+Oread turns speech into words and says who spoke. The router passes the audio through and notes
+the speaker and the timings. With Oread on but not in the audio path:
+
+    Device -> Home Assistant -> Oread -> Home Assistant
+
+**Answered at home**, by an app the router knows (the weather, chores, the bakery and so on):
+
+    Device -> Home Assistant -> LiteLLM -> Wepwawet Veil -> the app
+
+**Answered by the router itself**: its own questions, "never mind", and answers from the
+Off-Platform Bank:
+
+    Device -> Home Assistant -> LiteLLM -> Wepwawet Veil
+
+**Off-Platform**: everything the house can't answer:
+
+    Device -> Home Assistant -> LiteLLM -> Wepwawet Veil -> LiteLLM -> the cloud model
+
+**A device command from Off-Platform**: the model asks Home Assistant to act, then a second trip
+for its words:
+
+    Device -> Home Assistant -> LiteLLM -> Wepwawet Veil -> LiteLLM -> the cloud model
+      -> Home Assistant does it -> LiteLLM -> Wepwawet Veil -> LiteLLM -> the cloud model
+
+**Home Assistant's own commands**: understood by Home Assistant itself. With Veil Guard Service
+installed, Home Assistant asks the router's firewall first:
+
+    Device -> Home Assistant -> Wepwawet Veil (Veil Guard Service asks) -> Home Assistant does it
+
+Wepwawet sits between all applications, both in-bound and out-bound: Home Assistant and Oread
+never talk directly. For what Home Assistant answers by itself (the weather from its own weather
+entity, the time), the words still pass through the router on their way back from Oread; when
+Home Assistant sends them on to neither the chat door nor the guard within a few seconds, they
+are counted as **Home Assistant itself**, so every request heard is on the pages.
+
+    Device -> Home Assistant -> Wepwawet Veil (the audio) -> Oread -> Wepwawet Veil
+      -> Home Assistant answers
+
+How many requests take each route, and how long each hop takes, is on the Stats page. On Stats
+and Transactions the routes are called: At home (an app), The router itself, Off-Platform Bank,
+Off-Platform (every trip to the cloud model, including its words after a device command), and
+Home Assistant itself.
+
+## The menu
+
+The menu has a small picture beside each page. Hide it with the arrow at its top (wide screens);
+"Menu" brings it back. On a phone it folds into the bar at the top.
+
+### Watch
+
+- **Transactions**: every request, newest first. Three buttons on each:
+  - **Delete**: it was right and routed right; nothing to learn, so it leaves the log.
+  - **Bank**: a request that went Off-Platform goes into the Off-Platform Bank, so its answer can
+    be given at home next time.
+  - **Misheard**: speech to text got it wrong. Type what was really said (optional; you can type
+    it later); it goes to the Misses page, under what was really said, and counts up each time
+    the same thing is misheard. Those counts are how the router learns which words to catch.
+  Bank asks before it banks. Once you bank a request or mark it misheard, it leaves the list
+  (another asking of the same saying stays until you act on it); the "Handled" choice above the
+  list brings handled ones back.
+- **Off-Platform Bank**: the answers kept from the cloud, per personality. Once a saying has been
+  asked often enough, it's answered from the bank some of the time instead of making the trip.
+  The page explains the formula and its two knobs; a saying's badge says whether the bank
+  answers it yet (point at it for the numbers).
+- **Misses**: what was misheard or misrouted. Each shows what was heard against what was really
+  said, word by word, and whether it would still go wrong today. Both tables sort by First and
+  Last too. The swaps in use are a folded table: heard, swapped for, when added, how often used.
+- **Words understood** (Teach): the words the router understands rather than says, from the
+  vocab/ files (yes and no, fillers, polite words, the learn commands, dates, moods), each list
+  edited as chips and saved on its own; used after a restart.
+- **Every table** sorts by a click on a heading (again to reverse) and can be folded away with its
+  Fold button, remembered in your browser.
+- **Savings**: trips and tokens kept in the house.
+
+### Teach
+
+- **Try it**: type or say something and see where it would go, without doing it.
+- **Seed Topics**: the words that point a request at an app. Topics that already have a service
+  are folded; open one to change it. Services come from Integrations (and settings.yaml).
+- **Brain fleas**: the household's small true facts, answered at home before anything goes
+  Off-Platform ("Who is talking?", "Where do we get pizza?"). "What brain fleas do you have?"
+  reads them, a few at a time. A sentence telling a fact ("we only get our pizza at...") isn't
+  taken as asking a flea. This page, an app's User rules and
+  its Voice map refuse a save made from a copy older than the file (the fleas or rules changed
+  by voice, in the file or on another page since you opened it): reload, then make the change
+  again, so the newer change isn't undone. Each flea has the ways it's asked
+  (`who is {speaking | talking}` for choices) and its steps, built a line at a time like an app's
+  User rules: **Who spoke** (Name Sparkle's name, only when Oread is sure; never a guess) and
+  **Response** (its lines, one each time, its flair added). A way of asking of one or two words is
+  a key: hearing all of it is enough. **Match at** says how closely a sentence must fit. By voice:
+  "Add a brain flea, we only buy pizza from Sal's" (it reads it back first), "Change the pizza
+  flea to ...", "Forget the pizza flea", only for the voices ticked under **who may change fleas
+  by voice**, and only when Oread is sure it's them. A topic still comes first: "When is trash
+  pickup?" is a chores question. Saved fleas work at once, no restart. **Who spoke** names someone
+  only when Oread's score reaches its Sure %; between Hedge and Sure it says it thinks so, and
+  below Hedge it politely gets out of it ("I'd rather not guess"). A flea that says no ("that
+  isn't nice") never answers one that doesn't ("that is nice").
+- **Tools**: Maintenance (rebuilding the word scores) and Utilities.
+- **Misses, Use it**: under a mishearing, each wrong-word difference has a Use it button
+  ("grainsplate → brain flea"). Once used, those heard words are swapped for the right ones before
+  anything is decided, every time, whole words only. **Use a phrase** does the same for a run of
+  words ("who taught you three" → "who taught you that"): only that whole run is swapped, so a
+  common word like "three" is left alone everywhere else. Stop takes either back. Swaps are also
+  made in the words handed back to Home Assistant, so its own sentences and automations match
+  ("Is the watcher running?" reaches your washer automation as "Is the washer running?"). That
+  makes Use it on a common word change it everywhere: "watcher → washer" would turn "Who is the
+  watcher?" into "Who is the washer?". Use a phrase for those ("the watcher running").
+
+### Personality
+
+- **Flair**: the little lines it adds. Approved lines come first (folded), then its own lines
+  (add one, or many at once separated by | or one per line), then lines from its books.
+  - A line's **topic** is the kind of request it fits; **any** fits them all.
+  - Its **place**: **opener** (before the answer), **closer** (after it), **any** (either), or
+    **aside**: only where a reply has a hand-placed [[aside]] mark. Most lines want any.
+- **Name Sparkle**: a tab for each persona (how often it says your name, and its own names for you) and a Shared tab (the names every persona can use).
+
+### System
+
+- **Overview**: the numbers for the last day, where requests were answered over the last week,
+  and what's running.
+- **Stats**: built to find a bottleneck. Pick an assistant at the top to see only its (to
+  compare Felix and Iris). Where the time goes starts with **the router's own hops**, one
+  after another: its hand-off to Oread and back, its deciding, LiteLLM's own time, the model's,
+  the app's, and **back to Home Assistant** (read from Home Assistant's own record of each run a
+  few seconds after the answer; needs its address and token). Brain fleas are their own route,
+  **Wepwawet Musings**. The 30-day usual comes from one summary per route per day, so it reaches
+  back further than the activity log keeps its rows. Then, in this order:
+  - **Is anything slow?** Each route's typical time today, over 7 days and over 30, with its
+    30 days as small bars; a route is flagged "slower than usual" when today is slower than its
+    usual by the amount in settings (stats: slower_than_usual). If one of your apps drags, it
+    shows here first.
+  - **Which leg was slow?** For each route used today, one line naming the slow leg: the
+    router's own work (software), the machine (how busy the whole machine was), the outside
+    hop (the app, or LiteLLM and the model) and, for Off-Platform, the internet, each today
+    against usual. Under it, the slow requests, each with its internet check: "Slow. Internet
+    4x slower than usual (120 ms, usual 30 ms)" means your internet provider; "Internet normal
+    ... LiteLLM or the model was slow" means the far end. The check pings 1.1.1.1 and 8.8.8.8
+    after an Off-Platform request, at most every 5 minutes (stats: internet_check).
+  - **The requests that cost the most CPU** over the last week: the words as heard, how often,
+    the most and typical CPU. **Try it** runs one through the router again; **Copy** takes the
+    words so you can say or type them while debugging.
+  - **What the router costs to run**: CPU and memory now, over the last hour, day, week and
+    month (like Oread's Stats), and CPU hour by hour for the week.
+  - **By period** (pick it there; everything below follows it): the numbers, **Where the time
+    goes** (each hop of each route: speaking, Oread, Home Assistant in, the router deciding,
+    LiteLLM itself, the app or the model, the router in all, and the router's CPU; and **Sent
+    again**, the same request coming in a second time while it was still being answered, which
+    is answered once and the answer sent to both), where requests were answered, by assistant,
+    and a day. For the way back to Home Assistant and its text to speech, which the router can't
+    see, run tools/ha_timings.py (the coders' guide).
+  Point at any bar, slice or line for its number; every number is also written in a table.
+  **What the router is holding now** is here too (each device's waiting question, last topic and
+  turns). Every box folds by its heading, and the page remembers which you folded.
+- **Every table**: drag a heading's right edge to make a column wider or narrower; double-click
+  the edge to put it back. Widths are remembered in your browser. A table wider than the page has
+  a scrollbar above it as well as below.
+
+### Connect and protect
+
+- **Integrations**: Home Assistant, Oread, LiteLLM and the apps. When an address was refused in the
+  last hour (security: refused_warn_minutes, 60), a warning at the top says which, how often, and
+  which address used that door before: a program back at a new address after a power cut. Permit
+  it on Security, or give it its old address back. Every one has the same tabs, in
+  the order you'd add an app. An app marked **Wepwawet compliant** (Oread, the weather brain)
+  says in its own description which tabs apply; the others show grayed out:
+  - **Connection**: on or off, its address, Test.
+  - **URL / ports**: where it is, its spec's address, the key the router sends it, and the
+    doors it uses to ask the router.
+    Home Assistant is set up differently, but to the router it's one more program asking and
+    being answered. Oread asks through the **oread door**: it pulls the mishearings (with the
+    clip each was heard in) for its own Mishearings page. Make its token on Security, API keys
+    (tied to the oread door) and put it in Oread's vault as wepwawet; Oread's Mishearings page
+    has a box for it, and for the router's address.
+  - **Commands**: the app's own commands, read from its spec. Read it again after the app is
+    updated: each change is marked (ADD), (Modified) or (Deleted), and nothing changes until you
+    accept. It also shows the app's version as its own spec gives it: the version its commands
+    were accepted at, and the version it runs now (from the latest read). A new version waits for
+    Accept even when the commands look the same, since an update can change what a command does,
+    and the Integrations list flags it. The router also reads each app's spec once when it starts
+    (Settings: check app versions at start), so a new version shows without you pressing anything.
+    An app whose spec names no version is compared by its commands alone.
+  - **Voice map**: its match min at the top (how much of a name must be said; sound_alike: true in
+    the voice map's file also tries how the words sound, "by single hole faucet" for "Buy single
+    whole faucet", and asks before acting), then what can be
+    said to it, one folded card per action. Each action is a word of your own, the command it
+    calls, the words that pick it, what the app requires for that command, and the **spoken
+    needs**: required (it asks if you didn't say it, like "When?"), optional, or default (the
+    app's option fills it in).
+  - **User rules**: for what one command can't do alone, like renaming a chore whose name was
+    misheard. A rule chains the app's own commands with the router's steps (Search, Match,
+    Confirm, Ask, Fresh copy, Say), one line per step, each with its own settings; point at a step
+    to see what it does. Match has your two percentages: at or above Act (85) it acts; between Ask
+    (45) and Act it asks "I believe I heard you say ... Is that right?"; below Ask it says it
+    couldn't find it. A rule stays inside its topic: say a chores word ("Rename the chore mow
+    lawn to cut the grass"), or right after it reads a chore back, "Rename that to ...". Donetick
+    comes with **rename** and **rename_project** ("Rename the house project to home") and **find**
+    ("Can you find the camera chore?", "When is the trash due?", "What time is it due?", "What's the
+    due date on that chore?": the chore and when it's due; not sure which chore, it asks first).
+    **Response** can say the matched item's own fields: under fields, a name and the item's field
+    (due: nextDueDate) puts it in a line as {due}, a date said as a day and time ("tomorrow at
+    1 pm"); empty lines are said instead when one of them is empty ("{item} has no due date.").
+    Save, then restart.
+  - **ask_min** (Donetick 0.4, in its voice map): when no chore is sure, one that scores at least
+    this, or has every word you said, is asked about ("Spray weeds? Say yes") instead of "couldn't
+    find". **never_by_voice** (delete, archive, erase): said, it says it's done on the app's own
+    page.
+  - **Clean-up words**: the app's own lists. Its **strip_away** is the app's layer of the words
+    left off either end of a thing's name ("add clean the gutters to my LIST"): how people talk
+    ("I need to", "please") is shared by every app (vocab/language.yaml strip_away), the app adds
+    its own nouns, and an action can add more (its voice map entry's strip_away).
+  - **Defaults**: **What it offers** (a compliant app's switches, like Oread's **who spoke**
+    and how it comes), its **Lists**, each a card you name (people, project...): where its items
+    come from and its **default**. The people card also says who each of the app's people is in
+    the house (so a voice Oread knows lands on the right person) and who "me" means. Then its
+    knobs (like Donetick's default chore time, and **remind_when_timed**: a chore given a time is
+    announced at that time unless you say "don't remind me"; and **extras_win_while_asking**, a
+    stopgap: while it asks "anything else?", "put a nag every ten minutes" is an answer about the
+    chore just added, not a new chore), typed or picked from what an app answers. A time said with
+    no day means today (tomorrow if it has passed); "every half hour" and "a quarter of an hour"
+    are understood as amounts.
+  - **Getting ready**, always last: each step of adding it, done or not.
+  - **Add an app** (at the bottom of the list): first add its key on Security (Grantors, Add a
+    key); then pick the key here and the app takes its name. It starts switched off. The steps
+    are in the Coder's guide, "Adding an app we didn't write".
+- **People**: one row per person, a column per attached app (Add a column), plus Wepwawet (the
+  router's own name, optional) and Called (what people call them out loud). Names in a cell are
+  separated by commas. Inside the router any name in a row is the same person: the firewall and
+  who may change brain fleas match on all of them, so Oread's "Sam" profile counts as Owner. An
+  app asks for its own column only (Oread through its door: GET /people/oread).
+- **Firewall**: rules about who may do what. With Oread off, every voice is "unknown", so rules
+  for anyone or unknown are the ones that apply. A device name that no Home Assistant device has
+  (a misspelling stops nothing) is warned of at the top, read with Home Assistant's token. A rule's people match any name in that person's
+  row on the People page.
+- **Security**:
+  - **Users**: people who sign in, and the sign-in rules.
+  - **API keys and vault**, with a choice at the top:
+    - **Grantees**: programs the router made a token for. Each door (the router's addresses a
+      program calls) is one line: Locked, what it is and who calls it, its token, when the token
+      was last used, and Revoke (or Make its token). Lock a door only after "last used" shows
+      the program used its token. **Add a door** when a new program needs to call the router.
+    - **Grantors**: programs the router needs a key from (LiteLLM, Donetick...): where each key
+      comes from and whether it's in the vault, with Set, Replace and Delete. **Add a key** is
+      the first step of adding an app.
+  - **Addresses**: which machines may reach the router (empty means the local network only),
+    the machines recently let in (with an Add button) and the ones refused.
+  - **Audit**: who changed what.
+- **Settings**: **The house** first (its timezone, picked from the standard list, and its
+  location, shared by every app), then the
+  settings that have no page of their own, grouped in sections, each with what
+  it does (End Device Settings has the **echo** guard: when a device like the Voice PE hears its own
+  voice and sends its words back, it stays silent instead of answering itself, so the loop
+  stops; Transactions shows it as an echo. It's caught by its words in the same order, or by most
+  of its answer's words coming back, even misheard and with talk from the room on the end. The
+  question it was waiting on stays through an echo, **echo_keeps_question**, so you can still
+  answer it with the wake word; and a short yes or no to it, like "Read the rest.", is always
+  your answer, never an echo, even when every word of it is its own; a request more than twice as
+  long as its answer isn't an echo of it, **echo_cover_longest**).
+  **add_name_max_words** (8) is the longest name it takes, said in the add or as the answer to
+  "what's it called?": longer is talk, and it asks for the name. **lone_door_max_words** (12): a
+  longer sentence whose only topic word is one door ("...we were talking about marriage") isn't
+  sure of the topic; a topic's seed words ("chore", "list") are still enough. Type in **Find a setting** to narrow them. Save lights up once you change a value. A
+  line at the top links the pages that keep the rest.
+  When an update ships something new in the starting copies (below), **New in the starting
+  copies** at the top lists it, with **Add** or **Not for us**.
+
+### You
+
+- **Account**: your password, light or dark, and the colour scheme (five, each with three
+  colours). These are kept in this browser only.
+- **Guides**: this guide, the Coder's guide, the Design document (in a development copy) and the README.
+
+## When it isn't sure which one you mean
+
+When you change something by voice (mark a chore done, skip it, move it, nudge someone), it
+matches what you said against the app's own list, read fresh at that moment:
+
+- **Every word you said is in one name:** it does it, and says its name back.
+- **Two fit equally** (Mow Lawn and Mow the lawn): it asks "Do you mean Mow the lawn in Voice
+  Tech, or Mow Lawn in House?", the default project's first. Answer with a word only one has
+  ("the house one") or by order ("the first one"). Anything else, and it leaves both alone.
+- **One fits, but you said a word it doesn't have** (often a mishearing, like "lawn pest"): it
+  checks first, "Mow Lawn? Say yes and I'll check it off.", and does it only on a yes.
+
+## Your household's files, and the examples
+
+Everything the pages save is your household's own: the settings, the firewall, each app's voice
+map, the keyword files, the datasets list, your recorded misses, and your assistants' personality
+and flair. A public release never carries yours: it ships the starting copies below instead.
+
+A fresh install starts from **starting copies** (in defaults/), which are examples from one
+household: the topics (weather, chores), Donetick's voice map, settings with that house's
+addresses, an empty firewall, and an example assistant. **Change them to fit your house, and
+delete what you don't use**: a topic you don't want on Seed Topics, an app on Integrations, the
+example assistant once you've made your own.
+
+When a release ships something new in a starting copy (a new setting, a new pinned word), it
+doesn't land in your files by itself. Settings, **New in the starting copies**, lists each one:
+**Add** puts it into your file (your comments kept; most take effect after a restart), **Not for
+us** hides it for good. Values you've changed are never listed: yours win.
+
+Your assistants' personality is never shared at all: no starting copy but the example.
+
+## Appendix A: adding an app that isn't Wepwawet compliant (Donetick as the example)
+
+An app that doesn't describe itself to the router (no `x-wepwawet` section in its spec) still
+works: every tab stays open and you fill them in yourself. Donetick, the chores app, is the
+example here. The full routine is in the Coder's guide, "Adding an app we didn't write".
+
+1. **Its key:** Security, API keys and vault, Grantors, **Add a key** (for Donetick, its
+   secret key, made on Donetick's own settings page).
+2. **Add an app** on Integrations: pick the key (the app takes its name) and the topic it
+   answers (chores). It starts switched off.
+3. **Commands:** Read its spec. Every command the app has is saved with what it requires.
+4. **Voice map:** one card per thing you can say (list, add, complete, skip, move, nudge,
+   undo), each calling one of its commands, with the words that pick it and its spoken needs.
+   **User rules:** rename, which finds the chore even when its name was misheard.
+5. **Clean-up words** and **Defaults** (its people and projects as list cards, who "me" is,
+   its default chore time).
+6. **Getting ready:** work down the checklist, then switch it on.
+
+### The app's own flaws: noted, not worked around
+
+The router never patches over a gap in someone else's software. When the app can't do
+something, it says so plainly and points you to the app's own page. Donetick's, found while
+testing (Oct 2026):
+
+- **Undo works only for a completion.** Donetick's spec says its undo reverses the last
+  completion *or skip* within 5 minutes, but asked to undo a skip made seconds earlier it
+  answers 400 Bad Request. It has no undo for a move, a nudge or a new chore at all. So the
+  voice map's undo card says `reverses: [complete]`; for anything else it says "Donetick
+  doesn't let me undo a skip. Please change it on Donetick's web page." If Donetick fixes it,
+  add `skip` back to that list; no code changes.
+- **A change needs the chore's `updatedAt`.** Moving a chore (and changing its status,
+  assignee or timer) is refused unless the chore's last-updated time is sent with it. The
+  router reads the chore fresh just before the change.
+- **The address needs its last slash.** Creating a chore at `/chores` is redirected to
+  `/chores/` and nothing is made; the router uses `/chores/`, and counts any redirect as a
+  failure, so it never says "Added" unless Donetick returns the new chore.
+- **An edit must send the whole chore back,** labels included (`labelsV2`), or Donetick fails.
+- **Skipping a one-time chore archives it.** That's Donetick's design: a skip moves a
+  repeating chore to its next time, but closes a chore that never repeats.

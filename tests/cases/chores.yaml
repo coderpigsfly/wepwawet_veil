@@ -1,0 +1,512 @@
+# tests/cases/chores.yaml - the chores topic and Donetick.
+# Each case: name, say, optional history (earlier turns: you, her, you, her...),
+# optional pending: / memory: / turns: (stand-ins; tests never see the router's real state),
+# and expect: path (0, A, B, C, gemini, tool, learn), topic, action, kind, and in --live runs
+# status, reason, speech_has. known: "why" marks a documented gap (KNOWN, or FIXED once it passes).
+# requires: the services (settings.yaml) this file needs; without them regress.py skips it.
+
+requires:
+- donetick
+cases:
+- name: what's on my list
+  say: What's on my list?
+  expect:
+    path: A
+    topic: chores
+    action: list
+    status: answered
+- name: beth's chores
+  say: What chores does Beth have?
+  expect:
+    path: A
+    topic: chores
+    action: list
+    status: answered
+    speech_has: Beth
+- name: projects is not a chore list
+  say: What projects do I have?
+  expect:
+    path: A
+    topic: chores
+    action: projects
+    status: answered
+- name: add a task to the house projects is an add, not a projects list
+  say: Add a task to the house projects.
+  expect:
+    path: A
+    topic: chores
+    action: add
+- name: what projects do I have is still a projects list
+  say: What projects are there?
+  expect:
+    topic: chores
+    action: projects
+- name: a project's chores without the word project
+  say: Read me my house tasks.
+  expect:
+    path: A
+    topic: chores
+    action: list
+    status: answered
+    speech_has: in House
+- name: add a task to clean the gutters (task is pinned to chores)
+  say: Add a task to clean the gutters
+  expect:
+    path: A
+    topic: chores
+    action: add
+- name: add to my task list
+  say: Add clean the bathroom to my task list
+  expect:
+    path: A
+    topic: chores
+    action: add
+- name: math is not a chore
+  say: What is the remainder when five hundred and twenty one is divided by three?
+  expect:
+    path: gemini
+- name: did in a question must not complete anything
+  say: Did I do the dishes?
+  expect:
+    path: gemini
+- name: mark the chicken feed done after the list
+  history:
+  - What's on my list?
+  - 'You have 7 chores: put in the smoke detectors, Check chicken feed, Clean the oven, Spray weeds, and Remember School Keys.'
+  say: Mark check chicken feed done
+  expect:
+    path: B
+    topic: chores
+    action: complete
+- name: finished the oven after the list
+  history:
+  - What's on my list?
+  - 'You have 7 chores: put in the smoke detectors, Check chicken feed, Clean the oven, Spray weeds, and Remember School Keys.'
+  say: I finished cleaning the oven
+  expect:
+    path: B
+    topic: chores
+    action: complete
+- name: skip spraying the weeds after the list
+  history:
+  - What's on my list?
+  - 'You have 7 chores: put in the smoke detectors, Check chicken feed, Clean the oven, Spray weeds, and Remember School Keys.'
+  say: Skip spraying the weeds
+  expect:
+    path: B
+    topic: chores
+    action: skip
+- name: move the smoke detectors after the list
+  history:
+  - What's on my list?
+  - 'You have 7 chores: put in the smoke detectors, Check chicken feed, Clean the oven, Spray weeds, and Remember School Keys.'
+  say: Move the smoke detectors to Saturday
+  expect:
+    path: B
+    topic: chores
+    action: move
+- name: a similar chore name must not turn an add into a nudge
+  say: Add clean the bathroom to my task list
+  expect:
+    path: A
+    topic: chores
+    action: add
+- name: a change word inside the name doesn't beat the opening verb
+  say: Put change diaper on dad's todo list
+  expect:
+    path: A
+    topic: chores
+    action: add
+- name: the opening verb wins with her name first
+  say: Iris, put change diaper on my to do list
+  expect:
+    path: A
+    topic: chores
+    action: add
+- name: skip a thing no app has, cold, goes to gemini
+  say: Skip painting the garage fence
+  expect:
+    path: gemini
+- name: i'm done changes nothing
+  history:
+  - What's on my list?
+  - 'You have 7 chores: put in the smoke detectors, Check chicken feed, Clean the oven, Spray weeds, and Remember School Keys.'
+  say: I'm done
+  expect: {path: ask}
+- name: cold change with a chores word
+  say: Mark the spray weeds chore done
+  expect:
+    path: A
+    topic: chores
+    action: complete
+- name: change verb for a chore that doesn't exist answers honestly
+  history:
+  - What's on my list?
+  - 'You have 7 chores: put in the smoke detectors, Check chicken feed, Clean the oven, Spray weeds, and Remember School Keys.'
+  say: Skip watering the test plant
+  expect:
+    path: B
+    topic: chores
+    action: skip
+- name: a day answers her "when?" (a required spoken need)
+  pending:
+    kind: need
+    need: when
+    topic: chores
+    action: move
+    said: move the gutters
+  say: Saturday
+  expect:
+    path: C
+    kind: need
+    action: move
+- name: never mind drops her "when?"
+  pending:
+    kind: need
+    need: when
+    topic: chores
+    action: move
+    said: move the gutters
+  say: never mind
+  expect:
+    path: '0'
+- name: a new request with its own action word isn't an answer to "anything else?" (voice script line 6)
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 1
+    name: Take the trash out
+    noun: chore
+    filled: {repeat: {every: 1, unit: week, days: [1], say: every Tuesday}}
+    fields:
+      due_date: {type: date, kind: extra, words: [due date], offer: a due date}
+      due_time: {type: time, kind: extra, only_if: due_date, offer: a due time}
+      remind_before: {type: duration, kind: extra, direction: before, words: [reminder before, reminder], offer: a reminder before}
+      remind_at_due: {type: yesno, kind: extra, only_if: due_date, words: [when it's due, on time, remind me, remind], offer: a reminder when it's due}
+  say: Remind me to call the plumber tomorrow at three.
+  expect:
+    path: A
+    action: add
+- name: "remind me an hour before still answers anything else"
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 1
+    name: Take the trash out
+    noun: chore
+    filled: {repeat: {every: 1, unit: week, days: [1], say: every Tuesday}}
+    fields:
+      due_date: {type: date, kind: extra, words: [due date], offer: a due date}
+      due_time: {type: time, kind: extra, only_if: due_date, offer: a due time}
+      remind_before: {type: duration, kind: extra, direction: before, words: [reminder before, reminder], offer: a reminder before}
+      remind_at_due: {type: yesno, kind: extra, only_if: due_date, words: [when it's due, on time, remind me, remind], offer: a reminder when it's due}
+  say: Remind me an hour before.
+  expect:
+    path: C
+    kind: series
+- name: "an extra on the chore just added answers anything else, even opening with put (Oct 15 patch)"
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 1
+    name: Sam is the mayor of Envil for you, in Voice Tech
+    noun: chore
+    filled: {due_date: {date: "2026-10-15", say: today}, due_time: {hour: 16, minute: 30, say: "4:30 pm"}}
+    fields:
+      due_date: {type: date, kind: extra, words: [due date], offer: a due date}
+      due_time: {type: time, kind: extra, only_if: due_date, offer: a due time}
+      remind_before: {type: duration, kind: extra, direction: before, only_if: due_date, words: [reminder before, reminder], offer: a reminder before}
+      remind_at_due: {type: yesno, kind: extra, only_if: due_date, words: [when it's due, on time, remind me, remind], offer: a reminder when it's due}
+      nag: {type: duration, kind: extra, direction: after, only_if: due_date, words: [nag, nags, nagging, nag me], default: "every 15 minutes", offer: nags}
+  say: Put a reminder every 10 minutes on the chore, Sam is the mayor of Envil.
+  expect:
+    path: C
+    kind: series
+- name: "naming the chore again and a nag answers anything else (Oct 15)"
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 1
+    name: Sam is the mayor of Envil for you, in Voice Tech
+    noun: chore
+    filled: {due_date: {date: "2026-10-15", say: today}, due_time: {hour: 16, minute: 30, say: "4:30 pm"}}
+    fields:
+      due_date: {type: date, kind: extra, words: [due date], offer: a due date}
+      due_time: {type: time, kind: extra, only_if: due_date, offer: a due time}
+      remind_before: {type: duration, kind: extra, direction: before, only_if: due_date, words: [reminder before, reminder], offer: a reminder before}
+      remind_at_due: {type: yesno, kind: extra, only_if: due_date, words: [when it's due, on time, remind me, remind], offer: a reminder when it's due}
+      nag: {type: duration, kind: extra, direction: after, only_if: due_date, words: [nag, nags, nagging, nag me], default: "every 15 minutes", offer: nags}
+  say: The chore Sam is the mayor of Enville. Put a nag every ten minutes.
+  expect:
+    path: C
+    kind: series
+- name: "put with an extra but another chore's name is still a new chore (Oct 15 patch)"
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 1
+    name: Sam is the mayor of Envil for you, in Voice Tech
+    noun: chore
+    filled: {due_date: {date: "2026-10-15", say: today}, due_time: {hour: 16, minute: 30, say: "4:30 pm"}}
+    fields:
+      due_date: {type: date, kind: extra, words: [due date], offer: a due date}
+      due_time: {type: time, kind: extra, only_if: due_date, offer: a due time}
+      remind_before: {type: duration, kind: extra, direction: before, only_if: due_date, words: [reminder before, reminder], offer: a reminder before}
+      remind_at_due: {type: yesno, kind: extra, only_if: due_date, words: [when it's due, on time, remind me, remind], offer: a reminder when it's due}
+      nag: {type: duration, kind: extra, direction: after, only_if: due_date, words: [nag, nags, nagging, nag me], default: "every 15 minutes", offer: nags}
+  say: Put a reminder on the chore paint the back fence tomorrow.
+  expect:
+    path: A
+    action: add
+- name: a name answers what should I call it
+  pending:
+    kind: add_name
+    topic: chores
+    said: Add a task to the house projects
+  say: router test
+  expect:
+    path: C
+    kind: add_name
+
+# recorded by voice 2026-10-13 16:54 as a mishearing; you said it should have been CCan you add a task to Sam's list to mow the lawn on Thursday at one o'clock?an you add a
+- name: 'miss: Can you add a task to Sam''s list to move along on'
+  say: Can you add a task to Sam's list to move along on Thursday at one o'clock?
+  expect:
+    path: A
+    topic: chores
+    action: add
+
+
+- name: which one? answered by a word only one has (its project)
+  pending:
+    kind: thing
+    mode: which
+    topic: chores
+    action: complete
+    said: I finished mowing the lawn
+    choices: [{id: 8, name: Mow the lawn, group: Voice Tech}, {id: 1, name: Mow Lawn, group: House}]
+  say: the house one
+  expect:
+    path: A
+    topic: chores
+    action: complete
+- name: which one? answered by order
+  pending:
+    kind: thing
+    mode: which
+    topic: chores
+    action: complete
+    said: I finished mowing the lawn
+    choices: [{id: 8, name: Mow the lawn, group: Voice Tech}, {id: 1, name: Mow Lawn, group: House}]
+  say: the first one
+  expect:
+    path: A
+    action: complete
+- name: which one? left unanswered by something else
+  pending:
+    kind: thing
+    mode: which
+    topic: chores
+    action: complete
+    said: I finished mowing the lawn
+    choices: [{id: 8, name: Mow the lawn, group: Voice Tech}, {id: 1, name: Mow Lawn, group: House}]
+  say: what's the weather tomorrow
+  expect:
+    path: A
+    topic: weather
+- name: check first answered yes
+  pending:
+    kind: thing
+    mode: confirm
+    topic: chores
+    action: complete
+    said: I finished mowing a lawn pest
+    choices: [{id: 1, name: Mow Lawn, group: House}]
+  say: "yes"
+  expect:
+    path: A
+    action: complete
+- name: check first answered no changes nothing
+  pending:
+    kind: thing
+    mode: confirm
+    topic: chores
+    action: complete
+    said: I finished mowing a lawn pest
+    choices: [{id: 1, name: Mow Lawn, group: House}]
+  say: "no"
+  expect:
+    path: C
+    kind: "no"
+- name: a sentence that isn't a follow-up doesn't keep the chores topic, and goes straight Off-Platform (Oct 15, "I love you")
+  say: I love you
+  memory: {topic: chores, said: what's on my list}
+  expect:
+    path: gemini
+    topic: None
+
+# User rules (Donetick's rename): reached inside the chores tree only, by a topic word or as a follow-up
+# in the chores context; her questions in the rule are path C
+- name: rename a chore by a user rule, with a chores word
+  say: rename the chore mow lawn to cut the grass
+  expect:
+    path: A
+    topic: chores
+    action: rename
+- name: rename a misheard chore by a user rule
+  say: Rename the task mo lawn test to cut the grass.
+  expect:
+    path: A
+    topic: chores
+    action: rename
+- name: a rule's words by their stems (Oread heard renamed)
+  say: Renamed the chore mow lawn to cut the grass.
+  expect:
+    path: A
+    topic: chores
+    action: rename
+- name: a rule's longer opening wins over a shorter word
+  say: change the name of the chore mow lawn to cut grass
+  expect:
+    path: A
+    topic: chores
+    action: rename
+- name: a rename with no chores word and no chores context stays out of chores
+  say: rename the living room light to lamp
+  expect:
+    topic: null
+- name: rename that, right after she named a chore, stays in chores
+  say: rename that to get a massage
+  memory: {topic: chores, said: add a chore get a passage}
+  expect:
+    path: B
+    topic: chores
+    action: rename
+- name: rename that, past the context window, is the chore she last named (last_item_minutes)
+  say: rename that to get a massage
+  memory: {last_chore: {id: 5, name: get a passage, action: add, topic: chores}}
+  expect:
+    path: B
+    topic: chores
+    action: rename
+- name: call it, past the context window, is the chore she last named
+  say: Call it get a massage.
+  memory: {last_chore: {id: 5, name: get a passage, action: add, topic: chores}}
+  expect:
+    path: B
+    topic: chores
+    action: rename
+- name: rename that with nothing named lately isn't chores
+  say: rename that to blue
+  expect:
+    topic: null
+- name: rename a named chore, past the window, isn't about the last one
+  say: rename the living room light to lamp
+  memory: {last_chore: {id: 5, name: get a passage, action: add, topic: chores}}
+  expect:
+    topic: null
+- name: "a correction while anything else waits: No, rename it to ... (Oct 18)"
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 116
+    name: By for you, in Voice Tech
+    noun: chore
+    filled: {}
+    fields:
+      due_date: {type: date, kind: extra, words: [due date], offer: a due date}
+  memory: {topic: chores, said: add a task to my list by, last_chore: {id: 116, name: By, action: add, topic: chores}}
+  say: No, rename it to buy single hole faucet.
+  expect:
+    path: B
+    topic: chores
+    action: rename
+- name: "a correction: That's wrong. It should be ... (Oct 18)"
+  memory: {topic: chores, said: add a task to my list by, last_chore: {id: 116, name: By, action: add, topic: chores}}
+  say: That's wrong. It should be buy single hole faucet.
+  expect:
+    path: B
+    topic: chores
+    action: rename
+- name: "call it ... while anything else waits (Oct 18)"
+  pending:
+    kind: series
+    topic: chores
+    service: donetick
+    chore_id: 116
+    name: By for you, in Voice Tech
+    noun: chore
+    filled: {}
+    fields:
+      due_date: {type: date, kind: extra, words: [due date], offer: a due date}
+  memory: {topic: chores, said: add a task to my list by, last_chore: {id: 116, name: By, action: add, topic: chores}}
+  say: Call it buy single hole faucet.
+  expect:
+    path: B
+    topic: chores
+    action: rename
+- name: mark number 3 done, right after she read the list
+  memory: {topic: chores, said: what's on my list}
+  say: Mark number 3 done.
+  expect:
+    path: B
+    topic: chores
+    action: complete
+- name: mark the third one done, right after she read the list
+  memory: {topic: chores, said: what's on my list}
+  say: Mark the third one done.
+  expect:
+    path: B
+    topic: chores
+    action: complete
+- name: rename a project is its own rule
+  say: rename the house project to home
+  expect:
+    path: A
+    topic: chores
+    action: rename_project
+- name: yes to a rule's check goes on with the rule
+  pending:
+    kind: rule
+    mode: confirm
+    topic: chores
+    action: rename
+    said: rename mo lawn test to cut the grass
+    state: {said: rename mo lawn test to cut the grass, at: 4, values: {}, item: {id: 1, name: Mow Lawn, group: null}}
+  say: "yes"
+  expect:
+    path: A
+    topic: chores
+    action: rename
+- name: no to a rule's check stops it
+  pending:
+    kind: rule
+    mode: confirm
+    topic: chores
+    action: rename
+    said: rename mo lawn test to cut the grass
+    state: {said: rename mo lawn test to cut the grass, at: 4, values: {}, item: {id: 1, name: Mow Lawn, group: null}}
+  say: "no"
+  expect:
+    path: C
+    kind: "no"
+- name: a rule's question answered with the new name
+  pending:
+    kind: rule
+    mode: ask
+    need: new_name
+    topic: chores
+    action: rename
+    said: rename mow lawn
+    state: {said: rename mow lawn, at: 4, values: {}, item: {id: 1, name: Mow Lawn, group: null}}
+  say: cut the grass
+  expect:
+    path: A
+    topic: chores
+    action: rename

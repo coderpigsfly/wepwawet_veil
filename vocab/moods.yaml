@@ -1,0 +1,43 @@
+# vocab/moods.yaml - words that set the mood of a line she's about to say (flair.py).
+# A line holding any of these words is that mood; warning is checked first. Everything
+# else is plain. Warning and sorry lines only get flourishes tagged for that mood.
+# After editing: docker compose restart
+
+warning:
+  - freeze
+  - freezing
+  - frost
+  - storm
+  - storms
+  - thunderstorm
+  - thunderstorms
+  - severe
+  - warning
+  - advisory
+  - ice
+  - icy
+  - blizzard
+  - heavy rain
+  - heavy snow
+  - flood
+  - flooding
+  - tornado
+  - hurricane
+  - high winds
+  - heat wave
+
+sorry:
+  - sorry
+  - couldn't
+  - can't
+  - cannot
+  - didn't
+  - doesn't let me
+  - wouldn't
+  - something went wrong
+  - only sees
+  - only reaches
+  - not something i know
+  - i don't know
+
+

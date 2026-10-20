@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Wepwawet Veil">
+  <!-- a jackal's head (Wepwawet, opener of the ways) before a forked path -->
+  <rect width="64" height="64" rx="14" fill="#1F6F6B"/>
+  <path d="M14 54 L32 36 L50 54" fill="none" stroke="#DCEBE9" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 36 L32 54" fill="none" stroke="#DCEBE9" stroke-width="4" stroke-linecap="round"/>
+  <path d="M22 10 L27 22 L37 22 L42 10 L44 26 C44 31 38 34 32 34 C26 34 20 31 20 26 Z" fill="#FFFFFF"/>
+  <circle cx="28" cy="26" r="1.8" fill="#1F6F6B"/>
+  <circle cx="36" cy="26" r="1.8" fill="#1F6F6B"/>
+</svg>

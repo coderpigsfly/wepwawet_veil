@@ -1,0 +1,75 @@
+# vocab/answers.yaml - short answers to the persona's own questions (path C).
+# A request counts as an answer only if it is short (answer_max_words in settings.yaml)
+# and is, or starts with, one of these. Anything else drops the question and is
+# handled as a new request. The keys are quoted: bare yes/no mean true/false in YAML.
+# After editing: docker compose restart
+
+"yes":
+  - "yes"
+  - "yeah"
+  - "yep"
+  - "yup"
+  - "sure"
+  - "okay"
+  - "ok"
+  - "please"
+  - "go ahead"
+  - "go on"
+  - "keep going"
+  - "continue"
+  - "carry on"
+  - "keep reading"
+  - "read on"
+  - "read them"
+  - "read it"
+  - "read the rest"
+  - "the rest"
+  - "all of them"
+  - "more"
+  - "absolutely"
+  - "of course"
+
+"no":
+  - "no"
+  - "nope"
+  - "nah"
+  - "no thanks"
+  - "no thank you"
+  - "that's enough"
+  - "that's fine"
+  - "i'm good"
+  - "im good"
+  - "stop"
+  - "skip it"
+
+
+# Answers that end the follow-up series ("anything else?") for any app.
+# Plain "no" is already a stop; these are the other ways people say it.
+"stop":
+  - "no"
+  - "no thanks"
+  - "no thank you"
+  - "nope"
+  - "nah"
+  - "that's all"
+  - "that's it"
+  - "nothing else"
+  - "nothing"
+  - "forget that"
+  - "forget it"
+  - "you misheard"
+  - "you heard wrong"
+  - "i'm done"
+  - "im done"
+  - "we're done"
+  - "all set"
+  - "i'm good"
+  - "that's fine"
+
+# A longer yes or no to "Want me to ask around?" counts when it talks about the asking
+# ("Yes, check with your coven", "No, don't ask around"). Include the words each assistant
+# uses for asking in phrases/router.yaml ask_around (Iris: coven, spell book, cauldron).
+about_asking: [ask, asking, check, checking, consult, look, coven, spell book, spellbook,
+               cauldron, crystal ball]
+
+

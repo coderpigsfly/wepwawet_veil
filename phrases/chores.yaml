@@ -1,0 +1,97 @@
+# phrases/chores.yaml - what the persona says for chores (Donetick).
+# Blanks in {braces} are filled in by connectors/donetick.py; {items} is filled in by the
+# router, which reads lists aloud (phrases/router.yaml). Never questions here. After editing: docker compose restart
+
+list_none:
+  any:
+    - "Nothing on the list{scope}."
+    - "All clear{scope}. Nothing to do."
+
+list_some:
+  any:
+    - "You have {count} {noun}{scope}: {items}."
+    - "{count} {noun}{scope}: {items}."
+
+projects:
+  any:
+    - "You have {count} projects: {items}."
+
+projects_none:
+  any:
+    - "There aren't any projects yet."
+
+done:
+  any:
+    - "Done. {name} is checked off."
+    - "{name}, checked off."
+
+skipped:
+  any:
+    - "Skipped {name} this time."
+    - "Okay, {name} is skipped for now."
+
+moved:
+  any:
+    - "Moved {name} to {day}."
+    - "{name} is now due {day}."
+
+nudged:
+  any:
+    - "I nudged {who} about {name}."
+
+undone:
+  any:
+    - "Undone. {name} is back the way it was."
+
+no_match:
+  any:
+    - "I couldn't find a chore like that, so I didn't change anything."
+
+tie:
+  any:
+    - "That matches more than one chore: {items}. Say the one you mean and I'll take care of it."
+
+move_no_day:
+  any:
+    - "Tell me the day too, like move it to Saturday."
+
+undo_nothing:
+  any:
+    - "There's nothing I can undo right now."
+service_error:
+  any:
+    - "Something went wrong talking to Donetick, so I didn't change anything."
+
+
+
+undo_unsupported:
+  any:
+    - "Donetick doesn't let me undo {what}. Please change it on Donetick's web page."
+
+undo_too_late:
+  any:
+    - "Donetick wouldn't let me undo that. You can change it on Donetick's web page."
+
+
+
+# ---------- adding (stage 3) ----------
+# QUESTION: the chore needs a name before it can be created (asked by the router, path C)
+add_need_name:
+  any:
+    - "What should I call the chore?"
+
+
+
+# what the persona would do, in its check-first question ("Mow Lawn? Say yes and I'll check it off.")
+confirm_complete:
+  any:
+    - "check it off"
+confirm_skip:
+  any:
+    - "skip it this time"
+confirm_move:
+  any:
+    - "move it"
+confirm_nudge:
+  any:
+    - "send the nudge"

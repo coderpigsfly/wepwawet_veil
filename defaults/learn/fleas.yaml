@@ -1,0 +1,52 @@
+# learn/fleas.yaml - brain fleas: the household's small true facts (the Brain fleas page).
+# Each: words (the ways it's asked; {a | b} for choices) and steps (veil/rules.py). A flea is
+# answered at home, after the topics and before the Off-Platform Bank; her flair is added.
+#   match_at:    how closely a sentence must fit a flea's words for her to answer with it (0 to 1)
+#   changers:    who may add, change or forget fleas by voice (voice ID names), Oread sure of them
+#   never_count: words that never count toward a fit
+match_at: 0.8
+changers: []
+never_count: [a, an, the, please, can, could, would, you, want, need, to]   # "can you add a brain flea" opens with its words
+fleas:
+  device_who_is_speaking_to_you:
+    title: who is speaking
+    words: ["who is {speaking | talking} {to you | }", "who's {speaking | talking} {to you | }", "who am i", "who is this"]
+    steps:
+    - who_spoke: {}
+    - response: {lines: ["That is you, {speaker}.", "You're {speaker}.", "It's {speaker} talking."]}
+  # changing fleas by voice (system: true -> never listed, changed or forgotten by voice themselves)
+  add_flea:
+    system: true
+    words: ["{i | } {add | at | had | create | make | new | remember} {a | } brain flea", "{i | } remember that"]   # at, had: "add" as speech to text hears it
+    steps:
+    - ask: {need: fact, after: [flea, that], question: "What should I remember?"}
+    - confirm: {always: true, question: "I'll remember: {fact}. Right?"}
+    - call: POST /fleas
+    - response: {lines: [Got it., "I'll remember that."]}
+  change_flea:
+    system: true
+    words: [change flea, update flea]
+    steps:
+    - call: GET /fleas
+    - search: {until: [to], ignore: [change, update, brain, flea, fleas, about]}
+    - match: {act: 100, ask: 30}
+    - confirm: {always: true, question: "Change the flea about {item}?"}
+    - ask: {need: fact, after: [to], question: "What should it say now?"}
+    - call: PUT /fleas/{id}
+    - response: {lines: [Changed., "Done, I'll remember it that way."]}
+  forget_flea:
+    system: true
+    words: [forget flea, delete flea, remove flea]
+    steps:
+    - call: GET /fleas
+    - search: {ignore: [forget, delete, remove, brain, flea, fleas, about, the]}
+    - match: {act: 100, ask: 30}
+    - confirm: {always: true, question: "Forget the flea about {item}?"}
+    - call: DELETE /fleas/{id}
+    - response: {lines: [Forgotten., "It's gone."]}
+  list_fleas:
+    system: true
+    words: ["what brain fleas do you {have | know | remember}", "{list | read} {me | } {the | my | your | } brain fleas", "what do you remember"]
+    steps:
+    - call: GET /fleas
+    - response: {list: true, lines: ["I remember {items}."], empty_lines: ["I don't remember anything yet."]}
