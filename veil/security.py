@@ -504,11 +504,12 @@ class Tokens:
                      "last_used": t["last_used"], "door": t.get("door")} for n, t in sorted(self._file.items.items())]
 
     def check(self, token):
-        """{name, role} if the token is permitted, else None."""
+        """{name, role, door} if the token is permitted, else None. door: the one door it was made
+        for (Grantees), or None for a token tied to none."""
         if not token:
             return None
         if hmac.compare_digest(token, INTERNAL):
-            return {"name": "the Tools page", "role": "administrator"}
+            return {"name": "the Tools page", "role": "administrator", "door": None, "internal": True}
         fp = _fingerprint(token)
         with self._lock:
             self._file.reload()
@@ -519,7 +520,7 @@ class Tokens:
                         info["last_used"] = _now()
                         self._last_write[name] = now
                         self._file.write()
-                    return {"name": name, "role": info.get("role", "administrator")}
+                    return {"name": name, "role": info.get("role", "administrator"), "door": info.get("door")}
         return None
 
 

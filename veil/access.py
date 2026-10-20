@@ -43,18 +43,35 @@ LISTS = ("inbound_allowed", "admin_allowed", "outbound_allowed")
 LOCAL_WORD = "local"
 # a name in the going-out list (litcal.johnromanodorazio.com): calls to that name are permitted,
 # whatever addresses it has today (an app on the internet may move, or answer from many)
-NAME = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$", re.I)
+# A one-word name (a Docker service like litellm, a machine on the home network) counts too.
+NAME = re.compile(r"^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$", re.I)
+
+
+def is_name(entry):
+    """A host name, not an address, a range or local."""
+    e = str(entry).strip()
+    return bool(NAME.match(e)) and e.lower() != LOCAL_WORD and _ip(e) is None
 
 
 def names(entries):
     """The host names in a list (only the going-out list may have them)."""
-    return {str(e).strip().lower() for e in entries or [] if NAME.match(str(e).strip())}
+    return {str(e).strip().lower() for e in entries or [] if is_name(e)}
+
+
+def cuts_off_the_house(outbound):
+    """A going-out list of names only (no local, no address) permits no machine at home: LiteLLM,
+    Home Assistant and Oread would all be refused. The message to say so, or None."""
+    entries = [str(e).strip() for e in outbound or [] if str(e).strip()]
+    if entries and all(is_name(e) for e in entries):
+        return ("A going-out list of names only leaves out the whole local network (LiteLLM, Home Assistant, "
+                "Oread): add local, or their addresses, too")
+    return None
 
 
 def parse(entries, names_ok=False):
     networks = []
     for entry in entries or []:
-        if names_ok and NAME.match(str(entry).strip()):
+        if names_ok and is_name(entry):
             continue
         if str(entry).strip().lower() == LOCAL_WORD:
             networks.extend(LOCAL)
@@ -87,9 +104,10 @@ class Access:
 
     def load(self, security):
         security = security or {}
-        self.entries = {k: [str(e) for e in (security.get(k) or [])] for k in LISTS}
-        self.networks = {k: parse(v, names_ok=k == "outbound_allowed") for k, v in self.entries.items()}
-        self.names = names(self.entries["outbound_allowed"])
+        entries = {k: [str(e) for e in (security.get(k) or [])] for k in LISTS}
+        networks = {k: parse(v, names_ok=k == "outbound_allowed") for k, v in entries.items()}
+        # all or nothing: a bad entry leaves the lists in use as they were
+        self.entries, self.networks, self.names = entries, networks, names(entries["outbound_allowed"])
 
     def allowed(self, which, address, what=""):
         ip = _ip(address)
@@ -129,18 +147,22 @@ class Access:
         try:
             addrs = sorted({ai[4][0] for ai in socket.getaddrinfo(host, None)})
         except OSError:
-            addrs = []
+            return []                # not kept: a lookup that failed once (a hiccup, a container starting) is tried again
         self._dns[host] = (addrs, time.monotonic())
         return addrs
+
+    def permits_host(self, host, what=""):
+        """May the router call this host (a name in the going-out list, or every address it has)?"""
+        if str(host).lower() in self.names:
+            self._seen("outbound_allowed", str(host).lower(), what)
+            return True
+        addrs = [host] if _ip(host) else self._resolve(host)
+        return bool(addrs) and all(self.allowed("outbound_allowed", a, what) for a in addrs)
 
     def check_outbound(self, url):
         """Raise VeilError if the router may not call this address."""
         host = urlparse(str(url)).hostname or ""
-        if host.lower() in self.names:
-            self._seen("outbound_allowed", host.lower(), str(url).split("?")[0])
-            return
-        addrs = [host] if _ip(host) else self._resolve(host)
-        if addrs and all(self.allowed("outbound_allowed", a, str(url).split("?")[0]) for a in addrs):
+        if self.permits_host(host, str(url).split("?")[0]):
             return
         self.note("outbound_allowed", host, str(url).split("?")[0])
         raise VeilError(f"Calls to {host} aren't permitted (security: outbound_allowed)", 403)

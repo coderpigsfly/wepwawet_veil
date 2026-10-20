@@ -169,6 +169,17 @@ def main():
     check("persona words: each assistant's name and its heard_as, lowercase; sources.yaml isn't an assistant",
           flair.persona_words(d) == {"iris", "irus", "eyeris", "felix"}, sorted(flair.persona_words(d)))
     check("persona words: no folder, none", flair.persona_words(os.path.join(d, "none")) == set())
+    # Oct 20: heard_as cleaned as the router compares words; one written without brackets is one name,
+    # not its letters; a file that isn't key: value lines is left out, never a crash at start
+    d2 = tempfile.mkdtemp()
+    for name, text in (("esme", "heard_as: jeannie\n"), ("ada", "heard_as: [\"Es May.\", \"Esmé\"]\n"), ("odd", "- a list\n")):
+        with open(os.path.join(d2, name + ".yaml"), "w") as f:
+            f.write(text)
+    got = flair.persona_words(d2)
+    check("persona words: a string heard_as is one name, entries cleaned word by word",
+          got == {"esme", "jeannie", "ada", "es", "may", "esm", "odd"} and "a" not in got, sorted(got))
+    check("persona words: a personality file that isn't key: value lines doesn't stop the start",
+          "odd" not in flair.Flair(d2).names(), flair.Flair(d2).names())
 
     print(f"\n{sum(checks)} of {len(checks)} pass")
 

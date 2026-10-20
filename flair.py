@@ -22,11 +22,16 @@
 # and sorry lines only get flourishes tagged for that mood, so "Poof!" never lands on a
 # freeze warning or a failed save.
 
+import logging
 import os
 import random
 import re
 
 import yaml
+
+from veil import util
+
+log = logging.getLogger("router")
 
 # files in personality/ that aren't an assistant: where her lines come from, how the books are combed
 NOT_PERSONALITIES = ("sources", "combing")
@@ -41,7 +46,12 @@ def persona_words(folder):
             if name.endswith((".yaml", ".yml")) and not name.startswith(NOT_PERSONALITIES):
                 words.add(name.rsplit(".", 1)[0].lower())
                 with open(os.path.join(folder, name)) as fh:
-                    words |= {str(w).lower() for w in (yaml.safe_load(fh) or {}).get("heard_as") or []}
+                    doc = yaml.safe_load(fh)
+                heard = doc.get("heard_as") if isinstance(doc, dict) else None
+                if isinstance(heard, str):       # one name written without the list's brackets
+                    heard = [heard]
+                # each as the router compares words (util.words: "Esmé." is "esm"), a word at a time
+                words |= {w for h in heard or [] if isinstance(h, str) for w in util.words(h).split()}
     return words
 SLOT = re.compile(r"\s*\[\[\s*(\w+)\s*\]\]\s*")
 SLOTS = ("opener", "aside", "closer")
@@ -174,6 +184,9 @@ class Flair:
                     who = name.rsplit(".", 1)[0].lower()
                     with open(os.path.join(folder, name)) as fh:
                         spec = yaml.safe_load(fh) or {}
+                    if not isinstance(spec, dict):
+                        log.warning("  ! personality/%s isn't a personality (not key: value lines): left out", name)
+                        continue
                     # lines you approved from the books (tools/build_flair.py approve <who>)
                     book = os.path.join(folder, "approved", name)
                     if os.path.exists(book):

@@ -38,13 +38,13 @@ STEPS = {
     "search": {"title": "Search", "about": "Scores every item of the list the last command answered against what "
                "was said: the words said, without the rule's own words, up to the first of the Until words.",
                "params": [{"name": "field", "kind": "text", "default": "name", "about": "the item's field to compare (its name)"},
-                          {"name": "group", "kind": "text", "default": "", "about": "the item's field that groups it, named when she asks which (a project)"},
+                          {"name": "group", "kind": "text", "default": "", "about": "the item's field that groups it, named when it asks which (a project)"},
                           {"name": "until", "kind": "words", "default": [], "about": "the words where the item's name ends (\"to\" in rename X to Y)"},
                           {"name": "ignore", "kind": "words", "default": [], "about": "words that are never part of the name (\"project\" in the house project)"},
-                          {"name": "last", "kind": "yesno", "default": False, "about": "\"that\" or \"it\" means the item she last named here (the one she read back)"},
-                          {"name": "on_last", "kind": "words", "default": [], "about": "openings that mean the item she last named, what follows being the rest (\"call it ...\", \"it should be ...\"; with Last)"}]},
+                          {"name": "last", "kind": "yesno", "default": False, "about": "\"that\" or \"it\" means the item it last named here (the one it read back)"},
+                          {"name": "on_last", "kind": "words", "default": [], "about": "openings that mean the item it last named, what follows being the rest (\"call it ...\", \"it should be ...\"; with Last)"}]},
     "match": {"title": "Match", "about": "Picks from what Search found. At or above Act it's the item; between Ask and Act "
-              "it's the item if you say yes (the next Confirm asks); below Ask she says she didn't find it.",
+              "it's the item if you say yes (the next Confirm asks); below Ask it says it didn't find it.",
               "params": [{"name": "act", "kind": "number", "default": 85, "about": "% match to act on the item"},
                          {"name": "ask", "kind": "number", "default": 45, "about": "% match to ask about it first"},
                          {"name": "ties", "kind": "choice", "choices": ["ask", "first"], "default": "ask",
@@ -53,17 +53,17 @@ STEPS = {
                           "about": "% the best of several names holding every word said must lead the next by, to be taken without asking which"},
                          {"name": "extra_words", "kind": "choice", "choices": ["ask", "ignore"], "default": "ask",
                           "about": "a word you said that the item lacks: ask first even above Act, or ignore it"},
-                         {"name": "not_found", "kind": "text", "default": "", "about": "what she says below Ask (empty: her own line)"}]},
+                         {"name": "not_found", "kind": "text", "default": "", "about": "what it says below Ask (empty: its own line)"}]},
     "confirm": {"title": "Confirm", "about": "\"I believe I heard you say ...\", then waits for yes or no: yes goes on "
                 "with the rule, no stops it with the No line. Asks only when Match wasn't sure, unless Always.",
                 "params": [{"name": "always", "kind": "yesno", "default": False, "about": "ask even when Match was sure"},
-                           {"name": "question", "kind": "text", "default": "", "about": "her question, {item} for the item (empty: her own line)"},
-                           {"name": "no", "kind": "text", "default": "", "about": "what she says on no (empty: her own line)"}]},
+                           {"name": "question", "kind": "text", "default": "", "about": "its question, {item} for the item (empty: its own line)"},
+                           {"name": "no", "kind": "text", "default": "", "about": "what it says on no (empty: its own line)"}]},
     "ask": {"title": "Ask", "about": "A detail the rule needs (the new name): the words said after one of the After "
-            "words, else she asks and your answer is the value. Later steps use it by its name.",
+            "words, else it asks and your answer is the value. Later steps use it by its name.",
             "params": [{"name": "need", "kind": "text", "default": "", "about": "the value's name (new_name)"},
                        {"name": "after", "kind": "words", "default": [], "about": "words after which it was said (\"to\")"},
-                       {"name": "question", "kind": "text", "default": "", "about": "her question (empty: her own line)"}]},
+                       {"name": "question", "kind": "text", "default": "", "about": "its question (empty: its own line)"}]},
     "fresh_copy": {"title": "Fresh copy", "about": "Reads the item as it is now and keeps a copy with the changes, for "
                    "an app whose change command wants the whole item back (and its current values, like updatedAt). "
                    "The next Call sends it.",
@@ -71,14 +71,14 @@ STEPS = {
                               {"name": "set", "kind": "fields", "default": {}, "about": "field: the value heard that goes in it"},
                               {"name": "fill_empty", "kind": "fields", "default": {}, "about": "field: what goes in it when it's empty"}]},
     "who_spoke": {"title": "Who spoke (Name Sparkle)", "about": "Who is speaking, in {speaker}, weighed by Oread's score: "
-                  "at or above Sure it's their name; between Hedge and Sure she says she thinks so (a Hedge line); below "
+                  "at or above Sure it's their name; between Hedge and Sure it says it thinks so (a Hedge line); below "
                   "Hedge, or with Oread not sure, a polite way out (an Unsure line) and the rule stops: never a name.",
                   "params": [{"name": "sure", "kind": "number", "default": 70, "about": "% of Oread's score to say who it is"},
-                             {"name": "hedge", "kind": "number", "default": 60, "about": "% to say she thinks so (below it: a way out)"},
+                             {"name": "hedge", "kind": "number", "default": 60, "about": "% to say it thinks so (below it: a way out)"},
                              {"name": "name", "kind": "choice", "choices": ["own", "nickname"], "default": "own",
                               "about": "their own name (the voice ID's), or one of Name Sparkle's nicknames"},
-                             {"name": "hedge_lines", "kind": "lines", "default": [], "about": "between Hedge and Sure: {speaker} for who she thinks (empty: her own lines)"},
-                             {"name": "unsure", "kind": "lines", "default": [], "about": "the polite ways out (empty: her own lines)"}]},
+                             {"name": "hedge_lines", "kind": "lines", "default": [], "about": "between Hedge and Sure: {speaker} for who it thinks (empty: its own lines)"},
+                             {"name": "unsure", "kind": "lines", "default": [], "about": "the polite ways out (empty: its own lines)"}]},
     "filter": {"title": "Filter", "about": "Keeps only the things of the last list whose field has the value "
                "(holy_day_of_obligation: true): the rest are left out for the steps after.",
                "params": [{"name": "field", "kind": "text", "default": "", "about": "the things' field to look at"},
@@ -91,11 +91,11 @@ STEPS = {
                            {"name": "field", "kind": "text", "default": "",
                             "about": "the things' date field (empty: the first field every one has as a date)"},
                            {"name": "not_found", "kind": "text", "default": "",
-                            "about": "what she says when none is next or none is on that day ({day}; empty: her own line)"}]},
-    "response": {"title": "Response", "about": "What she says when the rule is done, one of its lines each time (her flair "
+                            "about": "what it says when none is next or none is on that day ({day}; empty: its own line)"}]},
+    "response": {"title": "Response", "about": "What it says when the rule is done, one of its lines each time (its flair "
                  "added): {item} is the item, {speaker} who spoke, and any value by its name; a date field's "
                  "{name_days} is the days from today to it (\"Easter is {date_days} days away\").",
-                 "params": [{"name": "lines", "kind": "lines", "default": [], "about": "the lines she may say (empty: her own line)"},
+                 "params": [{"name": "lines", "kind": "lines", "default": [], "about": "the lines it may say (empty: its own line)"},
                             {"name": "fields", "kind": "fields", "default": {},
                              "about": "name: one of the matched item's own fields, said as {name} (due: nextDueDate); a date is said as a day and time"},
                             {"name": "empty_lines", "kind": "lines", "default": [],

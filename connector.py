@@ -29,7 +29,24 @@ WHEN_WORDS = {str(w).lower() for k in ("weekdays", "months", "parts_of_day", "no
               for w in (_LANG.get(k) or [])} | {str(w).lower() for w in (_LANG.get("repeat_words") or {})}
 WHEN_LEAD = {str(w).lower() for k in ("every_words", "date_lead") for w in (_LANG.get(k) or [])}
 _P0 = config.load_yaml(config.path("vocab", "path0.yaml")) if os.path.exists(config.path("vocab", "path0.yaml")) else {}
-FILLER = {str(w).lower() for w in (_P0.get("filler_words") or [])} | flair.persona_words(config.path("personality"))               # spoken needs the router hears itself: {need: person | date}
+# the assistants' names as heard: filler for deciding, but in a thing's name only an assistant spoken
+# to is left off ("Iris, add feed Felix" -> Feed felix; without_address), never one inside the name
+NAMES = flair.persona_words(config.path("personality"))
+FILLER = {str(w).lower() for w in (_P0.get("filler_words") or [])} | NAMES
+
+
+def without_address(said):
+    """What was said without the assistant it was said to: an assistant's name opening the sentence
+    ("Iris, add ..."), or closing it after a comma ("... the cat, Iris")."""
+    import re
+    parts = re.findall(r"\S+", said or "")
+    plain = lambda w: re.sub(r"[^\w']", "", w).lower()
+    while parts and plain(parts[0]) in NAMES:
+        parts.pop(0)
+    if len(parts) > 1 and plain(parts[-1]) in NAMES and parts[-2].endswith(","):
+        parts.pop()
+        parts[-1] = parts[-1].rstrip(",")
+    return " ".join(parts)               # spoken needs the router hears itself: {need: person | date}
 YOURS_SHARE = float(config.knob(_S, "own_words_share", 0.90))         # your own words in a voice map count this strongly
 OBJECT_YIELDS_TO = float(config.knob(_S, "verb_beats_object", 0.85))  # a change verb this sure beats an object noun
 NAME_MAX_WORDS = int((_S.get("router") or {}).get("add_name_max_words", 8))   # longer is talk, not a name
@@ -455,13 +472,14 @@ class Connector:
         Longer than router: add_name_max_words, it's no name (empty: she asks for it)."""
         from veil import spoken, lists
         a = (self.map.get("actions") or {}).get(action) or {}
+        said = without_address(said)
         lead = set(STRIP_AWAY) | self.strip_away(action)
         for w in list((a.get("verbs") or {}).keys()) + list(a.get("objects") or []) + list(self.topic_words):
             lead.update(str(w).lower().split())
         svc = (self.settings.get("services") or {}).get(self.name) or {}
         stop = set(self.topic_words) | {str(k).lower() for k in lists.cards(svc)}
         thing = spoken.thing(said, lead=lead, people=set(self.people), stop_nouns=stop, naming=NAMING_WORDS,
-                             filler=FILLER, when_words=WHEN_WORDS, when_lead=WHEN_LEAD)
+                             filler=FILLER - NAMES, when_words=WHEN_WORDS, when_lead=WHEN_LEAD)
         if len(thing.split()) > NAME_MAX_WORDS:     # room talk or her own words coming back: she asks instead
             log.info("  %s: '%s' is %d words, longer than add_name_max_words (%d): not a name",
                      self.name, thing, len(thing.split()), NAME_MAX_WORDS)

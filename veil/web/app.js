@@ -2145,7 +2145,7 @@ async function candidatesCard(who, reload) {
     head.replaceChildren(sortHead(BOOK_COLUMNS, state, redraw));
     const shown = state.sort ? [...cands].sort((x, y) => cmp(lineKey(x, state.sort), lineKey(y, state.sort), state.desc)) : cands;
     body.replaceChildren(...(shown.length ? shown.slice(0, limit).map(rowFor)
-      : [h("tr", {}, h("td", { colspan: String(BOOK_COLUMNS.length), class: "empty-state" }, "Empty. Comb the books on the Tools page to fill it again (lines already taken are left out)."))]));
+      : [h("tr", {}, h("td", { colspan: String(BOOK_COLUMNS.length), class: "empty-state" }, "Empty. Comb the books (Phrases tab) to fill it again (lines already taken are left out)."))]));
     more.hidden = shown.length <= limit;
     more.textContent = `Show more (${shown.length - limit} left)`;
   }
@@ -3837,7 +3837,7 @@ async function grantorsPart() {
 
 // An address or a range (IPv4 or IPv6, with an optional /bits), or why not. The router checks again on Save.
 function addressError(w, namesOk) {
-  const name = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+  const name = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
   if (namesOk && name.test(w)) return null;
   const v4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}(\/([0-9]|[12]\d|3[0-2]))?$/;
   const v6 = /^[0-9a-fA-F:]+:[0-9a-fA-F:]*(\/\d{1,3})?$/;

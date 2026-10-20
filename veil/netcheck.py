@@ -81,7 +81,7 @@ class Checker:
         """One check now: the fastest reply over the servers permitted (blocking; a thread)."""
         best, method = None, "not permitted"
         for server in self.servers:
-            if not access.ACCESS.allowed("outbound_allowed", server, "the internet check"):
+            if not access.ACCESS.permits_host(server, "the internet check"):
                 access.ACCESS.note("outbound_allowed", server, "the internet check")
                 continue
             ms, method = self._one(server)

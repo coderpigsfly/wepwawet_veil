@@ -370,6 +370,16 @@ def heard(messages):
     return ""
 
 
+def named_persona(messages):
+    """Do the instructions open with "<Name> Personality", the way the router's assistants are named?"""
+    for m in messages or []:
+        if m.get("role") == "system":
+            lines = text_of(m.get("content")).strip().splitlines()
+            words = lines[0].split() if lines else []
+            return len(words) >= 2 and words[1].lower().startswith("personality")
+    return False
+
+
 def assistant_name(messages):
     """First word of the instructions' first line: 'Iris Personality' -> iris."""
     for m in messages or []:
@@ -391,6 +401,18 @@ def without_filler(text):
     (PERSONA_WORDS) and the name of the one this request is for."""
     filler = set(VOCAB.get("path0", {}).get("filler_words", [])) | PERSONA_WORDS | {ADDRESSED.get()}
     return [w for w in clean(text).split() if w not in filler]
+
+
+def name_words(text):
+    """The words of a name said on its own ("what's it called?"): filler taken out anywhere, and the
+    name of the assistant being answered only when it opens the answer ("Iris, feed the cat"); any
+    other assistant's name is part of the name ("felix vet visit", "feed felix")."""
+    names = PERSONA_WORDS | {ADDRESSED.get()}
+    filler = set(VOCAB.get("path0", {}).get("filler_words", [])) - names
+    words = [w for w in clean(text).split() if w not in filler]
+    while words and ADDRESSED.get() and words[0] == ADDRESSED.get():
+        words.pop(0)
+    return words
 
 
 # ---------- path 0: false wakes and dismissals ----------
@@ -1091,7 +1113,10 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
     d = {"said": said, "assistant": assistant_name(messages), "path": "gemini",
          "topic": None, "score": None, "action": None, "action_words": [],
          "context": [], "ranked": [], "why": []}
-    ADDRESSED.set("" if d["assistant"] == "unknown" else d["assistant"])   # her own name, said to her, is filler like "um"
+    # her own name, said to her, is filler like "um": only a real name, an assistant with a personality
+    # file or instructions opening "<Name> Personality" (Home Assistant's default ones open "You are...",
+    # and "you" is no name)
+    ADDRESSED.set(d["assistant"] if d["assistant"] in FLAIR.names() or named_persona(messages) else "")
 
     if messages and messages[-1].get("role") != "user":
         d["path"] = "tool"
@@ -1253,7 +1278,7 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         order = dict(lang.get("ones") or {}, **(lang.get("ordinals") or {}))
         state, stop = rules.resume(p, said, answer_kind,
                                    lambda a, c: match.pick(a, c, conn.never_words() if conn else (), order),
-                                   without_filler(said), ADD_NAME_MAX_WORDS)
+                                   name_words(said), ADD_NAME_MAX_WORDS)
         if stop:
             d.update(path="C", kind="no", topic=p.get("topic"), pending=p)
             step(d, "question", f"no to the rule {p.get('action')}'s question: it stops")
@@ -1439,15 +1464,31 @@ VERBS = {"VERB", "AUX"}
 NOUNS = {"NOUN", "PROPN", "PRON"}
 
 
+def _polite_split(said):
+    """(the polite phrases heard, the words left): each phrase matched as whole words, longest
+    first, as often as it's said ("bye bye", "thank you thank you"), before filler is taken out,
+    so a phrase holding a filler word ("hey there") still counts; then filler and the assistants'
+    names come out of what's left."""
+    names = PERSONA_WORDS | {ADDRESSED.get()}
+    words = [w for w in clean(said).split() if w not in names]
+    phrases = sorted({clean(p) for p in VOCAB.get("path0", {}).get("polite_phrases", [])},
+                     key=lambda p: len(p.split()), reverse=True)
+    found, left, i = [], [], 0
+    while i < len(words):
+        p = next((p for p in phrases if words[i:i + len(p.split())] == p.split()), None)
+        if p:
+            found.append(p)
+            i += len(p.split())
+        else:
+            left.append(words[i])
+            i += 1
+    filler = set(VOCAB.get("path0", {}).get("filler_words", []))
+    return found, [w for w in left if w not in filler]
+
+
 def polite_heard(said):
     """The polite phrases in what was said, longest first ('good morning' before 'morning')."""
-    text = " " + " ".join(without_filler(said)) + " "
-    found = []
-    for p in sorted(VOCAB.get("path0", {}).get("polite_phrases", []), key=len, reverse=True):
-        if " " + clean(p) + " " in text:
-            found.append(clean(p))
-            text = text.replace(" " + clean(p) + " ", " ")
-    return found
+    return _polite_split(said)[0]
 
 
 def polite_section(heard):
@@ -1464,10 +1505,7 @@ def polite_section(heard):
 
 def without_polite(said):
     """The words left after polite phrases, filler and her name are taken out."""
-    text = " " + " ".join(without_filler(said)) + " "
-    for p in sorted(VOCAB.get("path0", {}).get("polite_phrases", []), key=len, reverse=True):
-        text = text.replace(" " + clean(p) + " ", " ")
-    return text.split()
+    return _polite_split(said)[1]
 
 
 def telling_a_fact(said):
@@ -2145,6 +2183,8 @@ async def the_doors(request: Request, call_next):
     name, door = doors.door_for(_SEC, request.url.path)
     presented = security.bearer(request.headers)
     got = TOKENS.check(presented) if presented else None
+    if got and got.get("door") and got["door"] != name:
+        got = None          # a token made for one door opens that door only (LiteLLM's chat key isn't Oread's)
     if door and door["locked"] and not (got and security.RANK.get(got["role"], 0) >= security.RANK[door["role"]]):
         return JSONResponse({"detail": f"An API token is needed (the {name} door, security: doors: {name})"},
                             status_code=401)
@@ -2326,16 +2366,25 @@ async def pass_through(body):
     url = LITELLM_URL + "/chat/completions"
     headers = {"Authorization": "Bearer " + LITELLM_KEY}
     log.info("passed through to LiteLLM: model %s", body.get("model"))
+    unreachable = {"error": {"message": f"The Off-Platform address can't be reached ({LITELLM_URL})"}}
     if not body.get("stream"):
-        async with access.client(TIMEOUT) as client:
-            r = await client.post(url, json=body, headers=headers)
+        try:
+            async with access.client(TIMEOUT) as client:
+                r = await client.post(url, json=body, headers=headers)
+        except httpx.TransportError as e:          # can't connect, or no answer in time
+            log.info("  ! pass-through: %s", e)
+            return JSONResponse(unreachable, status_code=503)
         return JSONResponse(r.json() if r.content else {}, status_code=r.status_code)
 
     async def relay():
-        async with access.client(TIMEOUT) as client:
-            async with client.stream("POST", url, json=body, headers=headers) as r:
-                async for piece in r.aiter_raw():
-                    yield piece
+        try:
+            async with access.client(TIMEOUT) as client:
+                async with client.stream("POST", url, json=body, headers=headers) as r:
+                    async for piece in r.aiter_raw():
+                        yield piece
+        except httpx.TransportError as e:          # the stream has begun: the error goes as its last event
+            log.info("  ! pass-through: %s", e)
+            yield f"data: {json.dumps(unreachable)}\n\n".encode()
     return StreamingResponse(relay(), media_type="text/event-stream")
 
 
@@ -2776,8 +2825,10 @@ async def answer_chat(body, started, cpu0, flight):
             log_activity(d, who, "bank", flairs.strip(hit["text"]), started, bank_id=hit.get("bank_id"))
             return local_reply(hit["text"], streaming)
     if d["path"] == "ask":
-        reply = phrase("router", "ask_around", d["assistant"]).format(heard=d["heard"])
-        ask_later(d["assistant"], {"kind": "ask_around", "said": d["said"]})
+        # with no way Off-Platform there's nobody to ask: she says what she heard, and no question
+        reply = phrase("router", "ask_around" if LITELLM_URL else "ask_around_home_only", d["assistant"]).format(heard=d["heard"])
+        if LITELLM_URL:
+            ask_later(d["assistant"], {"kind": "ask_around", "said": d["said"]})
         record_turn(d["assistant"], d, messages, "router", reply)
         # her question already says what she heard: it counts as "What did you hear?"
         save_asked(d["assistant"], "heard", (_load_turns().get(d["assistant"]) or [None])[-1])
@@ -2834,13 +2885,13 @@ async def answer_chat(body, started, cpu0, flight):
     if d["path"] == "C" and d["kind"] == "add_name":
         clear_pending(d["assistant"], "named")
         p = d["pending"]
-        d["said"] = f"{p.get('said', 'add a chore')} named {' '.join(without_filler(d['said']))}"
+        d["said"] = f"{p.get('said', 'add a chore')} named {' '.join(name_words(d['said']))}"
         d["path"] = "A"          # now it's an ordinary add, with the name
 
     if d["path"] == "C" and d["kind"] == "need":
         clear_pending(d["assistant"], f"heard the {d['pending'].get('need')}")
         p = d["pending"]
-        d["said"] = f"{p.get('said', '')} {' '.join(without_filler(d['said']))}".strip()
+        d["said"] = f"{p.get('said', '')} {' '.join(name_words(d['said']))}".strip()
         d["path"] = "A"          # the request again, with what she asked for
 
     if d["path"] == "C":
@@ -3043,14 +3094,6 @@ async def answer_chat(body, started, cpu0, flight):
                     log.info("  ! couldn't log the block: %s", e)
         return hit
 
-    try:
-        if not LITELLM_URL:
-            raise RuntimeError("no Off-Platform address (OFF_PLATFORM_URL): answered at home only")
-        access.ACCESS.check_outbound(url)
-    except Exception as e:
-        log.info("  ! %s", e)
-        return local_reply(phrase("router", "gemini_unreachable", d["assistant"]), streaming)
-
     def unreachable(e):
         """LiteLLM couldn't be reached, or stopped answering: her honest line, never silence."""
         line = phrase("router", "gemini_unreachable", d["assistant"])
@@ -3063,6 +3106,14 @@ async def answer_chat(body, started, cpu0, flight):
             except Exception as err:
                 log.info("  ! couldn't log it: %s", err)
         return line
+
+    try:
+        if not LITELLM_URL:
+            raise RuntimeError("no Off-Platform address (OFF_PLATFORM_URL): answered at home only")
+        access.ACCESS.check_outbound(url)
+    except Exception as e:
+        log.info("  ! %s", e)
+        return local_reply(unreachable(e), streaming)     # its row finished and its turn kept, like a dead address
 
     if not streaming:
         try:

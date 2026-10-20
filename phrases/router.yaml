@@ -264,6 +264,10 @@ polite_hey_there:
   any:
     - "Hello! What can I do for you?"
     - "Hello there. I'm listening."
+polite_hi_there:
+  any:
+    - "Hello! What can I do for you?"
+    - "Hello there. I'm listening."
 
 polite_goodbye:
   any:
@@ -274,6 +278,22 @@ polite_bye:
     - "Goodbye!"
     - "Goodbye for now."
 polite_see_you:
+  any:
+    - "Goodbye!"
+    - "Goodbye for now."
+polite_see_you_later:
+  any:
+    - "Goodbye!"
+    - "Goodbye for now."
+polite_bye_bye:
+  any:
+    - "Goodbye!"
+    - "Goodbye for now."
+polite_bye_now:
+  any:
+    - "Goodbye!"
+    - "Goodbye for now."
+polite_good_bye:
   any:
     - "Goodbye!"
     - "Goodbye for now."
@@ -368,6 +388,11 @@ ask_around_no:
     - "Very well, the coven can rest."
     - "Alright, the spell book stays shut."
     - "Okay, the cauldron stays covered."
+
+# ask_around with no way Off-Platform (no OFF_PLATFORM_URL): nobody to ask, so no question
+ask_around_home_only:
+  any:
+    - "I think I heard \"{heard}\". That's not something I know here at home."
 
 
 # ---------- the firewall (firewall.yaml) ----------

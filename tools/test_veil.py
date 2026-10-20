@@ -238,6 +238,16 @@ c.check_outbound("https://litcal.johnromanodorazio.com/api/v5/calendar")
 PASSED.append("a name in the going-out list: calls to it permitted")
 raises("...another name isn't", lambda: c.check_outbound("https://example.com/x"))
 raises("a name in the coming-in list is refused when saved", lambda: access.parse(["litcal.johnromanodorazio.com"]))
+# Oct 20: a one-word name (a Docker service) is a name too; an address is never taken for one
+case("one-word names and addresses", [access.is_name(x) for x in ("litellm", "weather-brain", "192.168.1.20", "local")],
+     [True, True, False, False])
+case("a going-out list of names only would cut off the house", bool(access.cuts_off_the_house(["litcal.johnromanodorazio.com"])), True)
+case("...with local, or an address, it doesn't", (access.cuts_off_the_house(["local", "litellm"]),
+     access.cuts_off_the_house(["192.168.1.20", "litellm"]), access.cuts_off_the_house([])), (None, None, None))
+_bad = access.Access({"outbound_allowed": ["192.168.1.20"]})
+raises("a bad list isn't loaded", lambda: _bad.load({"outbound_allowed": ["nonsense!"]}))
+case("...and the lists in use stay as they were", (_bad.entries["outbound_allowed"], _bad.allowed("outbound_allowed", "192.168.1.20")),
+     (["192.168.1.20"], True))
 # Oct 20: folders the router makes are handed back like its files (FILE_OWNER), not left to root
 _handed = []
 _was_hand_back, config.hand_back = config.hand_back, _handed.append
@@ -578,7 +588,10 @@ users.sign_out(session)
 case("signed out", users.session_user(session), None)
 toks = security.Tokens(data)
 t = toks.create("tools", "reviewer")
-case("token checks", toks.check(t), {"name": "tools", "role": "reviewer"})
+case("token checks", toks.check(t), {"name": "tools", "role": "reviewer", "door": None})
+# Oct 20: a token made for a door says which, so it opens that door only (router the_doors) and
+# never the pages' API (web.actor_of)
+case("a door's token names its door", toks.check(toks.create("guard", "viewer", door="guard"))["door"], "guard")
 case("a wrong token", toks.check(t + "x"), None)
 case("the internal token", toks.check(security.INTERNAL)["role"], "administrator")
 case("tokens stored as fingerprints", t in open(os.path.join(data, "tokens.json")).read(), False)
@@ -962,7 +975,11 @@ for said, want in [("Add a chore, paint the back of the house on Thursday.", "Pa
                    ("I need to add the chore to get Newton's Medicine at Tractor Supply.", "Get Newton's Medicine at Tractor Supply"),
                    ("Can you add to the chore list to get Newton's?", "Get Newton's"),
                    ("Iris, I need you to find the chore.", ""),
-                   ("I want to add mow the lawn", "Mow the lawn")]:
+                   ("I want to add mow the lawn", "Mow the lawn"),
+                   # Oct 20: an assistant's name inside a thing's name stays; off either end it goes
+                   ("add a chore called felix vet visit", "Felix vet visit"),
+                   ("Iris, add a chore feed felix", "Feed felix"),
+                   ("add a chore water the iris", "Water the iris")]:
     case(f"Names said: {said}", _k2.spoken_value(said, "add"), want)
 # the voice map has a create_project too: "create" and the noun "project"
 _k2.map["actions"]["create_project"] = {"api": "POST /projects", "verbs": {"create": {"share": 0.9, "basis": "yours"},

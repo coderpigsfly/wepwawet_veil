@@ -263,6 +263,47 @@ cases:
     path: '0'
     kind: polite
     speech_has: oodbye
+- name: bye bye is a goodbye (Oct 20, the code read)
+  say: Bye bye
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: oodbye
+- name: good bye, two words, is a goodbye
+  say: Good bye
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: oodbye
+- name: see you later is a goodbye
+  say: See you later
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: oodbye
+- name: hi there is a hello
+  say: Hi there
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: Hello
+- name: hey there is a hello, though hey alone is filler
+  say: Hey there
+  expect:
+    path: '0'
+    kind: polite
+    speech_has: Hello
+- name: thank you thank you is polite, not something to ask around about
+  say: Thank you, thank you.
+  expect:
+    path: '0'
+    kind: polite
+- name: with Home Assistant's default instructions ("You are a voice assistant..."), you is no name and thank you is polite
+  assistant: you are a voice assistant for home assistant
+  say: Thank you
+  expect:
+    path: '0'
+    kind: polite
 - name: thank you alone is polite
   say: Thank you.
   expect:

@@ -72,7 +72,9 @@ def client_of(request):
 def actor_of(request):
     """{name, role, how} for a signed-in person or a token, or None."""
     tok = TOKENS.check(security.bearer(request.headers))
-    if tok:
+    # the pages' API takes only a token tied to no door: a door's token (LiteLLM's, the guard's in Home
+    # Assistant, Oread's) is for that door on port 8770, and the Tools page's own is for its tools there
+    if tok and not tok.get("door") and not tok.get("internal"):
         return {"name": f"token {tok['name']}", "role": tok["role"], "how": "token"}
     user = USERS.session_user(request.cookies.get(COOKIE))
     if user:
@@ -885,6 +887,19 @@ async def settings_set(request: Request):
         raise VeilError("path is a list of setting names")
     need(request, "super" if keys[0] in SUPER_ONLY else "administrator")
     check_value(keys, b.get("value"))
+    if keys[0] == "security" and len(keys) == 2 and keys[1] in access.LISTS:
+        # the same checks as the Addresses tab (PUT /api/access): a list of good entries, and never
+        # one that leaves out the address you're saving from
+        value = b.get("value")
+        if not isinstance(value, list):
+            raise VeilError(f"{keys[1]} is a list of addresses (like [192.168.1.50, 192.168.1.0/24])")
+        entries = [str(e).strip() for e in value if str(e).strip()]
+        access.parse(entries, names_ok=keys[1] == "outbound_allowed")
+        if keys[1] == "outbound_allowed" and access.cuts_off_the_house(entries):
+            raise VeilError(access.cuts_off_the_house(entries))
+        if keys[1] == "admin_allowed" and not access.Access({"admin_allowed": entries}).allowed(
+                "admin_allowed", client_of(request)):
+            raise VeilError(f"That would lock you out: your address ({client_of(request)}) isn't in admin_allowed", 409)
     if keys[0] == "security" and b.get("value") is True and (
             (len(keys) == 4 and keys[1] == "doors" and keys[3] == "locked")
             or (len(keys) == 2 and keys[1].endswith("_token_required"))):
@@ -2633,6 +2648,8 @@ async def integration_test(request: Request, name: str):
             return {"ok": False, "detail": f"Couldn't reach Home Assistant: {e}"}
     if name == "litellm":
         r = router()
+        if not r.LITELLM_URL:
+            return {"ok": False, "detail": "No Off-Platform address set (OFF_PLATFORM_URL in .env): answering at home only"}
         try:
             async with access.client(5) as c:
                 resp = await c.get(r.LITELLM_URL + "/models", headers={"Authorization": "Bearer " + r.LITELLM_KEY})
@@ -3652,6 +3669,8 @@ async def access_set(request: Request):
     new = {k: [str(e).strip() for e in (b.get(k) or []) if str(e).strip()] for k in access.LISTS}
     for k, v in new.items():
         access.parse(v, names_ok=k == "outbound_allowed")
+    if access.cuts_off_the_house(new["outbound_allowed"]):
+        raise VeilError(access.cuts_off_the_house(new["outbound_allowed"]))
     test = access.Access(new)
     if not test.allowed("admin_allowed", client_of(request)):
         raise VeilError(f"That would lock you out: your address ({client_of(request)}) isn't in admin_allowed", 409)
