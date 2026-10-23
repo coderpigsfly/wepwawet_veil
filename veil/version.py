@@ -4,4 +4,4 @@ with every release. Year.month.release, as Home Assistant numbers its own (issue
 is the first release in October 2026, 2026.10.1 the next, 2026.11.0 the first in November. What
 changed in each is in CHANGELOG.md."""
 
-VERSION = "2026.10.1"
+VERSION = "2026.10.2"

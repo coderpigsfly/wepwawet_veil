@@ -26,8 +26,12 @@ voice device → Home Assistant → Wepwawet Veil (in the audio path, optional) 
              → Wepwawet Veil → answered at home, or Off-Platform (a cloud model) → back to the device
 ```
 
-**See it work:** [a request through Wepwawet](docs/media/littleassistant.mp4) (16 seconds): a tablet
-assistant hears its wake word and a question about the weather, and Wepwawet answers it at home.
+**See it work** (16 seconds): a tablet assistant hears its wake word and a question about the
+weather, and Wepwawet answers it at home.
+
+https://github.com/user-attachments/assets/9f27c0ca-d9e7-4599-be1c-0b69e17d930f
+
+The full-size video is [docs/media/littleassistant.mp4](docs/media/littleassistant.mp4).
 
 The router poses as an OpenAI-compatible model: Home Assistant's conversation agent points at it
 directly. What it can't answer at home goes Off-Platform to any OpenAI-compatible endpoint (in the
