@@ -1,0 +1,172 @@
+# The compliant copy of Liturgical calendar (issue #24), written by tools/wepwawet_copy.py: the app's own
+# file is never changed. Its user rules of a standard shape are actions here; one the household
+# keeps by hand under the same name (connectors/<app>.yaml rules:) is used instead.
+x-wepwawet:
+  version: 2
+  title: Liturgical calendar
+  source:
+    written_by: Wepwawet Veil
+    from: Liturgical calendar 5.7
+    pushed_back:
+    - days_until
+    - feast_on
+    - holy_day
+    - next_feast
+    - next_holy_day
+    - when_feast
+  data:
+    kind: transient
+    pace: slow
+    hold_seconds: 3600.0
+  lists:
+    feast:
+      from: GET /calendar/nation/{calendar_id}/{year}
+      id: event_key
+      name: name
+  actions:
+    when_feast:
+      starts:
+      - when is
+      - when's
+      - what day is
+      - what date is
+      target:
+        from: GET /calendar/nation/{calendar_id}/{year}
+        find:
+          ignore:
+          - the
+          - feast
+          - feasts
+          - of
+          - day
+          - is
+          - 'on'
+          - a
+          - holy
+          - solemnity
+          - this
+          - year
+          act: 60
+          ask: 30
+          extra_words: ignore
+      confirm: {}
+      says:
+        lines:
+        - '{item} is {date}.'
+        fields:
+          date: date
+        past_lines:
+        - '{item} was {date}.'
+    holy_day:
+      starts:
+      - holy day of obligation
+      - a holy day
+      - day of obligation
+      target:
+        from: GET /calendar/nation/{calendar_id}/{year}
+        find:
+          ignore:
+          - is
+          - the
+          - a
+          - an
+          - feast
+          - of
+          - day
+          - this
+          - year
+          - it
+          act: 60
+          ask: 30
+          extra_words: ignore
+      confirm: {}
+      says:
+        lines:
+        - Yes, {item} is a holy day of obligation, {date}.
+        fields:
+          date: date
+          holy: holy_day_of_obligation
+        empty_lines:
+        - No, {item} isn't a holy day of obligation.
+    next_feast:
+      starts:
+      - what's the next feast
+      - what is the next feast
+      - when is the next feast
+      - next feast
+      from: GET /calendar/nation/{calendar_id}/{year}
+      pick:
+      - by_date:
+          which: next
+      says:
+        lines:
+        - 'The next feast day is {date}: {items}.'
+        fields:
+          date: date
+        list: true
+    next_holy_day:
+      starts:
+      - when is the next holy day
+      - what is the next holy day
+      - what's the next holy day
+      - next holy day
+      from: GET /calendar/nation/{calendar_id}/{year}
+      pick:
+      - filter:
+          field: holy_day_of_obligation
+          value: 'true'
+      - by_date:
+          which: next
+      says:
+        lines:
+        - The next holy day of obligation is {item}, {date}.
+        fields:
+          date: date
+    feast_on:
+      starts:
+      - whose feast day is
+      - whose feast is
+      - what feast is
+      - what feast day is
+      - what's the feast
+      from: GET /calendar/nation/{calendar_id}/{year}
+      pick:
+      - by_date:
+          which: day said
+          not_found: There's no feast day {day}.
+      says:
+        lines:
+        - '{day}: {items}.'
+        list: true
+    days_until:
+      starts:
+      - how many days until
+      - how many days till
+      - how many days to
+      - how long until
+      - how long till
+      target:
+        from: GET /calendar/nation/{calendar_id}/{year}
+        find:
+          ignore:
+          - the
+          - feast
+          - feasts
+          - of
+          - day
+          - is
+          - 'on'
+          - a
+          - holy
+          - solemnity
+          - this
+          - year
+          act: 60
+          ask: 30
+          extra_words: ignore
+      confirm: {}
+      says:
+        lines:
+        - '{item} is {date_days} days away, {date}.'
+        fields:
+          date: date

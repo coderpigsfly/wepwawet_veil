@@ -1,0 +1,38 @@
+# addons/window/settings.yaml - its own settings (the OSPRI lab's word lists, Oct 22, 2026; English for now).
+#
+# A seed word speech-to-text lost ("Mark the troll done": chore heard as troll) sends a request Off-Platform.
+# Before it goes, she asks: "Did you mean "Mark the chore done"? Shall I?" when an app at home takes the corrected
+# words. Whether a guess is worth the question is the window's decision: a household's own odds (odds.py and its
+# numbers, beside this file) when it has them, else the plain rule (always asked).
+ask_about: [chore, weather, feast, history]   # the seed words she asks about (chores first, Oct 22; then the rest)
+# a chore's seed word has a place: right after an action word, a little word or two between ("add a ___",
+# "mark my ___"); only a never word there is corrected, and the rest is the payload (a chore's name), as heard
+little_words: [a, an, the, my, our, your, this, that, another, new, me]
+seeds:
+  chore:
+    word: chore             # put where the never word was heard ("chores" for a never word said with an s)
+    roots: [chore]          # already said: nothing was lost
+    slot_after: [add, delete, mark, find, move, rename, skip, check, create, nudge, postpone, reschedule, undo, read, show,
+                 list, "on", complete, finish, remove, change, update]     # "on" quoted: YAML reads a bare on as true
+    names_after: [add, create]        # after these the rest is the new chore's name: said back in quotes, as heard
+    name_leads: [to, called, named]   # "add a chore to mow the lawn": the name is "mow the lawn"
+    never: [tour, detour, editor, choke, chop, troll, chalk, chord, chaw, metros, chew]
+    need_close_by: [short, path, shore]   # words of their own too often: only with a close-by word (shore: ch said as sh)
+    close_by: [add, delete, mark, done, find, move, rename, skip, check, create, nudge, postpone, reschedule, undo,
+               completed, complete, finished, list, task, tasks, trash, mow, lawn]
+  weather:
+    word: weather
+    roots: [weather]
+    never: [waiter]
+    need_close_by: [whether, web]     # whether is a word of its own ("I don't know whether to go"): only with a close-by word
+    close_by: [forecast, rain, snow, temperature, umbrella, cold, hot, warm, outside, today, tomorrow, sunny, jacket, coat]
+  feast:
+    word: feast
+    roots: [feast]
+    never: [beast, peace, piece, east, fist, fees]
+    close_by: [holy, day, days, obligation, next, whose, week]
+  history:
+    word: history
+    roots: [histor]
+    never: [his tree, his story, fish time]
+    close_by: [born, died, happened, today, day, something]

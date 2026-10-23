@@ -1,7 +1,7 @@
 # personality/sources.yaml - where each assistant's flourishes come from (public-domain books).
-# Read by tools/build_flair.py; the router never reads it.
+# Read by addons/flair/tools/build_flair.py; the router never reads it.
 # An example (defaults/examples/personality/): add your own assistants below and delete the example.
-# After editing: python3 tools/build_flair.py refresh, then mine <assistant>
+# After editing: python3 addons/flair/tools/build_flair.py refresh, then mine <assistant>
 #
 # For each assistant:
 #   speakers: who she is in the books. A quote said by one of them counts most.

@@ -1,4 +1,4 @@
-# veil/mishearings.py - what speech-to-text heard, filed under what was really meant.
+# addons/mishearings/mishearings.py - Mishearings (an add-on, issue #25): what speech-to-text heard, filed under what was really meant.
 # learn/mishearings.yaml: each entry is an intention (meant: what you really said) with the ways
 # speech-to-text heard it under it, each with its own count. Fed from Misheard on the
 # Transactions page and from "What did you hear?" then "Record that as a misunderstanding".
@@ -26,7 +26,7 @@ HEADER = """# learn/mishearings.yaml - what speech-to-text heard, under what you
 #   taken: true once the words tool has taken that one into the words
 #   clips: each Oread clip it was heard in (clip id, device, when), from the audio path
 # Written by the router (Misheard on Transactions, "Record that as a misunderstanding", the
-# Misses page). Capped by miss_log_max: past it, the line heard least recently goes first.
+# Mishearings page). Capped by miss_log_max: past it, the line heard least recently goes first.
 
 """
 
@@ -201,7 +201,7 @@ def from_misses(misses_file):
 
 
 # ---------- swaps: mishearings pushed back (learn/swaps.yaml) ----------
-# A swap is one difference you marked Use it on the Misses page ("grainsplate" heard, "brain flea"
+# A swap is one difference you marked Use it on the Mishearings page ("grainsplate" heard, "brain flea"
 # meant). Before anything is decided, each swap's heard words are replaced by what was meant, as
 # whole words only, longest first; the trace says which. Nothing else in a mishearing is used.
 
@@ -237,7 +237,7 @@ def use(heard, meant, on=True):
         kept.append({"heard": heard, "meant": meant, "added": dt.datetime.now().strftime("%Y-%m-%d %H:%M")})
     config.make_dirs(os.path.dirname(SWAPS_FILE))
     with open(SWAPS_FILE, "w") as f:
-        f.write("# learn/swaps.yaml - mishearings pushed back (the Misses page, Use it): before anything is decided,\n"
+        f.write("# learn/swaps.yaml - mishearings pushed back (the Mishearings page, Use it): before anything is decided,\n"
                 "# each heard is replaced by meant, as whole words only, longest first.\n")
         yaml.safe_dump({"swaps": kept}, f, sort_keys=False, allow_unicode=True, width=4096)
     config.hand_back(SWAPS_FILE)

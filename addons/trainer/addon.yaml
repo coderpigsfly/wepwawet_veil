@@ -1,0 +1,19 @@
+# addons/trainer - the trainer (dev-house-router #29): switched on per person, by voice or on its page. When the voice
+# ID is sure a request is that person's and it isn't formed fully (a chore said as a condition, "When Owen wakes up,
+# ask him to ..."; a statement nothing at home claims, "I need the plumber called"), she announces trainer mode and
+# walks it through the household's routine: name, date, time, who it's for. A request formed right: silent.
+name: trainer
+title: Trainer
+version: 1.0.0
+kind: action               # it performs a function: it walks a person through a request they didn't form fully
+about: Per person, walks a request that wasn't formed fully through the household's routine (a chore's name, date, time and who it's for), and stays silent when it was.
+serves: on_platform
+serves_how: a request a person didn't form fully is finished at home with them, instead of going Off-Platform or being saved wrong
+data: {kind: record}       # who has trainer mode on (data/tables/trainer.db, never in git)
+path: inbound              # before the request is acted on
+provides: [is_on, set_on, people_on, settings]
+may: [read, answer]
+on_error: skip
+budget_ms: 20
+pages:
+  - {id: trainer, label: Trainer, group: Teach, role: administrator}

@@ -52,8 +52,11 @@ def readback(name, fields, filled):
     return text
 
 
+OFFER_MAX = int(F.LANG.get("series_offer_max") or 3)      # vocab/language.yaml: how many she names at once
+
+
 def _offers(fields, filled, more=()):
-    return join_or([offer_name(n, fields[n]) for n in open_extras(fields, filled)] + list(more))
+    return join_or(([offer_name(n, fields[n]) for n in open_extras(fields, filled)] + list(more))[:OFFER_MAX])
 
 
 def start(name, noun, fields, filled, say, more=()):
@@ -108,7 +111,10 @@ def settle(fields, filled, got, now):
 
 def answer(state, text, now, say, stop_words=(), people=None, choices=None):
     fields, filled = state["fields"], dict(state["filled"])
-    extras = {n: f for n, f in fields.items() if f.get("kind") == "extra" and n not in filled}
+    # open extras, and the date and time even when set: a day said to "anything else?" moves it
+    # ("Remind me on Saturday at three", Oct 21: it was taken as a new chore)
+    extras = {n: f for n, f in fields.items() if f.get("kind") == "extra"
+              and (n not in filled or f.get("type") in ("date", "time"))}
     got = F.parse_answer(text, extras, now, people=people, choices=choices)
 
     words = " ".join(F.words_of(text))

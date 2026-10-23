@@ -21,10 +21,36 @@ _TRIED = False
 NAMING = None     # set from vocab (naming_words): "called", "named"
 
 
+class Diagrams:
+    """The model, each sentence diagrammed once: the same words asked about again (the decision, the
+    app's checks, the name) get the diagram already made (Oct 21: lean, one diagram per sentence).
+    The diagrams are only read, never changed, so one can be shared."""
+
+    def __init__(self, model, keep=256):
+        import collections
+        self.model, self.keep, self.made = model, keep, collections.OrderedDict()
+        self.parsed = self.reused = 0
+
+    def __call__(self, text):
+        d = self.made.get(text)
+        if d is not None:
+            self.made.move_to_end(text)
+            self.reused += 1
+            return d
+        d = self.made[text] = self.model(text)
+        self.parsed += 1
+        if len(self.made) > self.keep:
+            self.made.popitem(last=False)
+        return d
+
+    def __getattr__(self, name):
+        return getattr(self.model, name)
+
+
 def set_nlp(nlp):
-    """The router's own spaCy model, shared (loaded once)."""
+    """The router's own spaCy model, shared (loaded once), each sentence diagrammed once."""
     global _NLP, _TRIED
-    _NLP, _TRIED = nlp, True
+    _NLP, _TRIED = (nlp if isinstance(nlp, Diagrams) or nlp is None else Diagrams(nlp)), True
 
 
 def nlp():
@@ -34,7 +60,7 @@ def nlp():
         try:
             import spacy
             from veil import config
-            _NLP = spacy.load(config.section(config.settings(), "language").get("spacy_model") or "en_core_web_sm")
+            _NLP = Diagrams(spacy.load(config.section(config.settings(), "language").get("spacy_model") or "en_core_web_sm"))
         except Exception as e:
             log.info("  ! no sentence diagram for names (%s): words alone", e)
     return _NLP
@@ -71,9 +97,11 @@ def _words_only(said, lead):
 
 
 def thing(said, lead=(), people=(), stop_nouns=(), naming=("called", "named", "titled"), filler=(),
-          when_words=(), when_lead=()):
+          when_words=(), when_lead=(), every_units=()):
     """when_words: words that are a date or time on their own (weekdays, months, parts of the day,
-    daily); when_lead: words that belong to the date after them (every, each, on, by, due)."""
+    daily); when_lead: words that belong to the date after them (every, each, on, by, due);
+    every_units: what "every" counts ("every day", "every other week", "every 2 weeks", "every weekday")."""
+    every_units = {str(w).lower() for w in every_units}
     when_words = {str(w).lower() for w in when_words}
     when_lead = {str(w).lower() for w in when_lead}
     filler = {str(w).lower() for w in filler}
@@ -97,6 +125,11 @@ def thing(said, lead=(), people=(), stop_nouns=(), naming=("called", "named", "t
     for t in d:                      # what the diagram missed: a weekday, "daily", "morning"
         if t.lower_ in when_words:
             drop.add(t.i)
+    for t in d:                      # a repeat: "every day", "every other week", "every 2 weeks"
+        if t.lower_ in when_lead and t.i + 1 < len(d):
+            j = t.i + 1 + (d[t.i + 1].lower_ == "other" or d[t.i + 1].like_num)
+            if j < len(d) and d[j].lower_ in every_units:
+                drop.update(range(t.i, j + 1))
     for t in reversed(list(d)):      # "every" Tuesday, "due" Friday: the word before a date is the date's
         if t.lower_ in when_lead and t.i + 1 in drop:
             drop.add(t.i)
@@ -105,6 +138,9 @@ def thing(said, lead=(), people=(), stop_nouns=(), naming=("called", "named", "t
         if t.dep_ == "prep" and any(c.i in drop or c.lemma_.lower() in stop or c.lower_ in stop or c.lower_ in people
                                     for c in t.children):
             drop.update(x.i for x in t.subtree)
+    for t in d:                      # "at 3": a time the diagram didn't mark, after the phrases ("pick the kids up at 3" keeps its up)
+        if t.lower_ == "at" and t.i + 1 < len(d) and d[t.i + 1].like_num:
+            drop.update((t.i, t.i + 1))
     toks = [t for t in d if not t.is_punct]
     named = next((k for k, t in enumerate(toks) if t.lower_ in naming), None)
     if named is not None:
@@ -128,7 +164,7 @@ def thing(said, lead=(), people=(), stop_nouns=(), naming=("called", "named", "t
         if t.pos_ == "INTJ" or t.lower_ in filler or (t.lower_ in lead and not out):
             continue
         out.append(t)
-    while out and out[-1].lower_ in lead:
+    while out and out[-1].lower_ in lead and out[-1].dep_ != "prt":     # "pick the kids UP": the verb's own particle stays
         out.pop()
     # the words as said, spaced as said ("Newton's", not "Newton 's")
     name = "".join(t.text + (t.whitespace_ or (" " if n.i != t.i + 1 else "")) for t, n in zip(out, out[1:]))
@@ -147,6 +183,45 @@ def asked_of_you(said):
     doing it; "thank you" isn't one."""
     n = nlp()
     return bool(n) and any(t.lower_ == "you" and t.dep_ == "nsubj" and t.head.pos_ in ("VERB", "AUX") for t in n(said))
+
+
+def is_task(name):
+    """Is this a thing to do: a sentence's action with its noun ("Pick up my tuxedo", "Call the vet")?
+    "Before" or "Funeral" alone isn't one (Oct 21: the owner's test of a chore). No diagramming: yes."""
+    n = nlp()
+    if not n or not str(name or "").strip():
+        return bool(str(name or "").strip())
+    # read as something to do ("I need to water the fern"): alone, "water" reads as a noun
+    name = str(name).strip()
+    # its first word lowercased (it's the action), the rest as said: a capital marks a name ("Turing")
+    d = list(n("i need to " + name[:1].lower() + name[1:]))[3:]
+    # it opens with the action, as a thing to do does ("Water the fern"; "That's very fun" doesn't)
+    acts = bool(d) and (d[0].pos_ == "VERB" or (d[0].pos_ == "AUX" and d[0].dep_ in ("xcomp", "ROOT")))    # "be at Owen's"
+    # its noun: a thing or a person; "it", "that" point back at one, so they aren't a thing of its own
+    # (the small model reads a name ending in -ing as a verb, "have Turing euthanized": a capital after
+    # the first word, or the thing acted on, is the noun all the same)
+    return acts and any(t.pos_ in ("NOUN", "PROPN") or (t.pos_ == "PRON" and t.lower_ not in ("it", "that", "this", "them"))
+                        or (k and t.text[:1].isupper()) or t.dep_ in ("dobj", "pobj") for k, t in enumerate(d))
+
+
+def requested_of_you(said):
+    """Is this a request of her ("can you mark the chore done", "I need you to find it")? "You" doing
+    something with can, could, would or will, or wanted of her. Telling her something isn't one
+    ("You already have a name for it", Oct 21)."""
+    n = nlp()
+    if not n:
+        return False
+    for t in n(said):
+        if t.lower_ != "you":
+            continue
+        h = t.head
+        if t.dep_ == "nsubj" and any(c.dep_ == "aux" and c.lower_ in ("can", "could", "would", "will") for c in h.children):
+            return True
+        if t.dep_ in ("dobj", "nsubj") and h.lemma_.lower() in ("need", "want", "like") and t.i > h.i:
+            return True
+        if h.dep_ in ("xcomp", "ccomp") and h.head.lemma_.lower() in ("need", "want", "like") and h.head.i < t.i:
+            return True            # "I need you to find it": you, doing what's wanted
+    return False
 
 
 def main_verb(said, strip=()):
@@ -169,6 +244,17 @@ def main_verb(said, strip=()):
             v = nxt
         return v.lemma_.lower() if v.pos_ == "VERB" and v.lemma_.lower() not in strip else None
     return None
+
+
+def without_group(said, heard):
+    """The words said without a group named for the thing ("... to Mara's morning briefing", "...
+    in the house project"): only where a word puts it there (to, in, on) or its noun follows, so
+    "paint the house" keeps its house."""
+    if not heard:
+        return said
+    pat = (r"(?:\b(?:to|in|into|on|onto|under)\s+(?:(?:the|my|her|his|their|our)\s+)?" + re.escape(heard) +
+           r"(?:\s+(?:project|list))?|\b" + re.escape(heard) + r"\s+(?:project|list))\b")
+    return re.sub(r"\s{2,}", " ", re.sub(pat, " ", said.replace("\u2019", "'"), count=1, flags=re.I)).strip()
 
 
 def said_outside(said, name, word):

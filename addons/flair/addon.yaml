@@ -1,0 +1,35 @@
+# addons/flair - Persona Flair: a flourish from her lines bank on answers given at home (issue #25, step 2).
+# Its whole toolset is its own: its lines bank (flairlines.py), combing the books (tools/build_flair.py),
+# its page and its doors (api.py). With Flair off none of it shows or runs.
+name: flair
+title: Persona Flair
+version: 1.0.0
+kind: dress
+about: Adds a flourish from her lines bank (an opener, an aside, a closer) to some of her answers at home, each persona by its own rate.
+serves: comfort            # it doesn't keep a request on platform: it makes her sound like herself
+data: {kind: record}       # the lines bank and knobs, in each persona's file (personality/<who>.yaml)
+path: outbound           # Oread -> Wepwawet -> ... -> Home Assistant: her answer going out
+positions: [beginning, end]       # an opener before the result or a closer after it, by chance
+slots: [dress]
+provides: [flaired]
+may: [answer]
+on_error: skip
+budget_ms: 5
+pages:
+  - {id: flair, label: Persona Flair, group: Personality, role: administrator}
+tools:                     # on the Tools page, only while Flair is on
+  flair_refresh:
+    page: flair
+    group: Flair
+    label: Download the books
+    about: The public-domain books in personality/sources.yaml
+    run: [python3, addons/flair/tools/build_flair.py, refresh, "{assistant}"]
+    args: {assistant: {choices: assistants, optional: true}}
+  flair_mine:
+    page: flair
+    group: Flair
+    label: Comb the books
+    about: Propose lines -> personality/candidates/ (your keep choices survive)
+    run: [python3, addons/flair/tools/build_flair.py, mine, "{assistant}"]
+    args: {assistant: {choices: assistants}}
+    writes: [personality]

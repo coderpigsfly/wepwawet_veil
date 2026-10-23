@@ -3620,7 +3620,7 @@ words:
     basis: borrowed
     per_source:
       massive: 2/2
-  lisa:
+  mara:
     where:
     - who.person
     measure: with a door

@@ -190,14 +190,14 @@ function pathTag(row) {
 // ---------- the frame ----------
 
 const PAGES = [
-  ["Watch", [["transactions", "Transactions"], ["bank", "Off-Platform Bank"], ["misses", "Misses"], ["savings", "Savings"]]],
-  ["Teach", [["try", "Try it"], ["topics", "Seed Topics"], ["fleas", "Brain fleas"], ["words", "Words understood"], ["tools", "Tools"]]],
-  ["Personality", [["flair", "Persona Flair"], ["sparkle", "Name Sparkle"]]],
-  ["System", [["overview", "Overview"], ["stats", "Stats"]]],
-  ["Connect and protect", [["integrations", "Integrations"], ["people", "People"], ["firewall", "Firewall"], ["security", "Security"], ["settings", "Settings"]]],
+  ["Watch", [["transactions", "Transactions"], ["misses", "Misses"], ["savings", "Savings"]]],
+  ["Teach", [["try", "Try it"], ["topics", "Seed Topics"], ["words", "Words understood"], ["tools", "Tools"]]],
+  ["Personality", [["sayings", "Sayings"]]],    // her own fixed lines; the rest are add-ons' pages (issue #25)
+  ["System", [["overview", "Overview"], ["stats", "Stats"], ["addons", "Add-ons"]]],
+  ["Connect and protect", [["integrations", "Integrations"], ["people", "People"], ["security", "Security"], ["settings", "Settings"]]],
   ["You", [["account", "Account"], ["guide", "Guides"]]],
 ];
-const NEEDS = { candidates: "flair", users: "security", audit: "security", savings: "overview", stats: "overview", sparkle: "people" };
+const NEEDS = { candidates: "flair", users: "security", audit: "security", savings: "overview", stats: "overview" };
 
 // A small line icon for each page (24 x 24, drawn with the text colour; nothing from the internet).
 const ICONS = {
@@ -225,6 +225,7 @@ const ICONS = {
   hide: ["M15 6l-6 6 6 6"],
   alert: ["M12 3l9.5 17h-19z", "M12 10v4", "M12 17.5v.01"],
   check: ["M5 12.5l4.5 4.5L19 7"],
+  addons: ["M9 3h6v4a2 2 0 1 0 4 0h2v6h-4a2 2 0 1 0 0 4h4v4H3v-6h4a2 2 0 1 0 0-4H3V3z"],
 };
 
 function icon(name) {
@@ -249,14 +250,26 @@ function setMenuHidden(hidden) {
   try { if (hidden) localStorage.setItem("veil-menu", "hidden"); else localStorage.removeItem("veil-menu"); } catch (e) { /* private window */ }
 }
 
+// The menu: the core's own pages, then each add-on that's on adds its own (issue #25), in the group it
+// names (a new group when it's none of the core's). An add-on that's off leaves no trace.
+function menuPages() {
+  const groups = PAGES.map(([g, pages]) => [g, pages.slice()]);
+  for (const p of (session && session.addon_pages) || []) {
+    let g = groups.find(([name]) => name === p.group);
+    if (!g) { g = [p.group, []]; groups.splice(groups.length - 1, 0, g); }
+    if (!g[1].some(([id]) => id === p.id)) g[1].push([p.id, p.label]);
+  }
+  return groups;
+}
+
 function frame(current, ...content) {
   const nav = h("nav", { class: "nav", "aria-label": "Pages" });
-  for (const [group, pages] of PAGES) {
+  for (const [group, pages] of menuPages()) {
     const shown = pages.filter(([id]) => allowed(id));
     if (!shown.length) continue;
     const list = h("div", { class: "nav-group", role: "group", "aria-label": group }, h("div", { class: "group", "aria-hidden": "true" }, group));
     for (const [id, label] of shown) {
-      list.append(h("a", { href: `#/${id}`, class: "with-icon", "aria-current": id === current ? "page" : null }, icon(id), h("span", {}, label)));
+      list.append(h("a", { href: `#/${id}`, class: "with-icon", "aria-current": id === current ? "page" : null }, icon(ICONS[id] ? id : "addons"), h("span", {}, label)));
     }
     nav.append(list);
   }
@@ -478,7 +491,7 @@ let shown = 0;          // the newest page asked for: a slower page finishing la
 async function show(page) {
   const mine = ++shown;
   try {
-    const content = await (PAGE_FNS[page] || PAGE_FNS.overview)();
+    const content = await (PAGE_FNS[page] || addonPageFn(page) || PAGE_FNS.overview)();
     if (mine !== shown) return;
     app.replaceChildren(frame(page, ...[].concat(content)));
     tuckIntros(app);
@@ -587,7 +600,7 @@ async function overviewPage() {
         h("dt", {}, "Everything else goes"), h("dd", {}, `Off-Platform: ${o.fallback_model}, through LiteLLM (${o.litellm})`),
         h("dt", {}, "Who spoke (Oread)"), h("dd", {}, onOff(o.oread.enabled), o.oread.enabled ? ` ${o.oread.source === "wyoming" ? "in the audio path" : o.oread.url} (${o.oread.source})` : ""),
         h("dt", {}, "Firewall"), h("dd", {}, onOff(o.firewall.enabled), ` ${o.firewall.rules} rules`),
-        h("dt", {}, "Persona Flair"), h("dd", {}, onOff(o.flair.on), o.flair.on ? ` for ${o.flair.personalities.join(", ")}` : " (every rate is 0)"),
+        h("dt", {}, "Add-ons"), h("dd", {}, (o.addons || []).length ? o.addons.join(", ") : "none on"),
         h("dt", {}, "Sentence diagramming"), h("dd", {}, onOff(o.spacy)),
         h("dt", {}, "Shows as"), h("dd", {}, `${o.model_name} (in LiteLLM and Home Assistant)`))),
     h("section", { class: "card panel" }, h("h2", {}, "Services"), services),
@@ -1115,7 +1128,8 @@ const TXN_COLUMNS = [["When", "time"], ["Assistant", "assistant"], ["Who spoke",
 function activityRow(r, bankOn = true) {
   const who = r.speaker ? `${r.speaker}${r.speaker_score != null ? ` (${Number(r.speaker_score).toFixed(2)})` : ""}` : "";
   const box = h("span", { class: "small" });
-  const can = allowed("bank");
+  const can = allowed("misses");                 // a reviewer: delete, mark misheard
+  const canBank = allowed("bank");               // the Bank add-on is on, and they may use it
   const offPlatform = r.engine === "gemini" && r.bank_id;
   const cols = TXN_COLUMNS.length;
   // Delete: right, and routed right, so nothing to learn from it
@@ -1123,12 +1137,12 @@ function activityRow(r, bankOn = true) {
   // Bank: an Off-Platform request into the Off-Platform Bank
   const add = r.in_bank
     ? h("span", { class: "badge pill-ok", title: "In the Off-Platform Bank as a replacement answer" }, "banked")
-    : h("button", { type: "button", disabled: !can || !offPlatform || !bankOn,
+    : h("button", { type: "button", disabled: !canBank || !offPlatform || !bankOn,
         title: !bankOn ? "The bank is off (answers kept is 0, on the Off-Platform Bank's Rules tab)"
           : offPlatform ? "Into the Off-Platform Bank as a replacement answer" : "Only a request that went Off-Platform goes into the bank" }, "Bank");
   // Misheard: into the mishearings (learn/mishearings.yaml), under what was really said
-  const misheard = r.marked === "misheard"
-    ? h("span", { class: "badge", title: "In the mishearings (Misses page)" }, "misheard")
+  const misheard = !MISHEARD() ? null : r.marked === "misheard"
+    ? h("span", { class: "badge", title: "In the mishearings (Mishearings page)" }, "misheard")
     : h("button", { type: "button", disabled: !can || !r.heard, title: "Speech to text got it wrong: into the mishearings, under what was really said" }, "Misheard");
   const reasons = [...(r.blocked ? [`Firewall: ${r.blocked}`] : []), ...(r.why || [])];
   const why = reasons.length ? h("button", { type: "button", class: "quiet-button", title: "Why it went where it went" }, "Why") : null;
@@ -1168,7 +1182,7 @@ function activityRow(r, bankOn = true) {
     await api("/api/bank/add", { method: "POST", body: { activity_id: r.id } });
     gone("the Off-Platform Bank", "#/bank");
   }));
-  if (r.marked !== "misheard") misheard.addEventListener("click", () => {
+  if (misheard && r.marked !== "misheard") misheard.addEventListener("click", () => {
     const said = h("textarea", { rows: "3", class: "said-box", placeholder: "what was really said (optional: you can type it later on the Misses page)", "aria-label": "What was really said" });
     const rec = h("button", { type: "button", class: "primary" }, "Record");
     const rbox = h("span", { class: "small" });
@@ -1213,10 +1227,16 @@ function withRules(page, label, inner, more = {}) {
   };
 }
 
+// is the Mishearings add-on on (its page is in the menu): Misheard on the Transactions page
+const MISHEARD = () => ((session && session.addon_pages) || []).some((p) => p.id === "mishearings");
+
+// what an add-on's page adds to its Rules tab (the Bank's Trim)
+const RULES_EXTRA = {};
+
 async function rulesView(page) {
   const kit = await settingsKit();
   const here = (k) => (SETTINGS_ELSEWHERE[k] || [])[1] === `${page}?tab=rules`;
-  const extra = page === "bank" ? [await bankTrim()] : [];
+  const extra = RULES_EXTRA[page] ? [await RULES_EXTRA[page]()] : [];
   return [h("p", { class: "quiet" }, `${RULES_ABOUT[page] || ""} Each from settings.yaml, with its comment; change one and its Save lights up.`),
     ...extra, ...kit.cards(here)];
 }
@@ -1280,7 +1300,7 @@ async function transactionsList() {
     keep = h("div", { class: "row small" }, h("span", { class: "quiet" }, "Keep transactions for"), daysBox, h("span", { class: "quiet" }, "days"), save, msg);
   }
   return [h("h1", {}, "Transactions"),
-    h("p", { class: "quiet" }, "Every request the router handled, one to a row, newest first until you sort. Rows that went Off-Platform are tinted (that's where most mishearings end up); firewall stops are red. Why shows the router's reasons (and the firewall's); Delete takes out one that was right and routed right (nothing to learn); Bank puts an Off-Platform request into the Off-Platform Bank; Misheard opens a box under the row for what was really said (Enter records it, Esc closes) and files it on the Misses page. Banked and misheard ones leave this list (choose handled to see them); the rest age out after the days kept. Click a column heading to sort by it, again to reverse."),
+    h("p", { class: "quiet" }, "Every request the router handled, one to a row, newest first until you sort. Rows that went Off-Platform are tinted (that's where most mishearings end up); firewall stops are red. Why shows the router's reasons (and the firewall's); Delete takes out one that was right and routed right (nothing to learn); Bank puts an Off-Platform request into the Off-Platform Bank; Misheard opens a box under the row for what was really said (Enter records it, Esc closes) and files it on the Mishearings page (when that add-on is on). Banked and misheard ones leave this list (choose handled to see them); the rest age out after the days kept. Click a column heading to sort by it, again to reverse."),
     keep,
     h("div", { class: "toolbar" }, shown, handled, search, who, h("button", { type: "button", onclick: () => load(true) }, "Refresh")),
     list, more];
@@ -1318,207 +1338,7 @@ async function savingsPage() {
   return page;
 }
 
-// ---------- Watch: the Off-Platform bank ----------
-
-function commandText(json) {
-  // [{"name": "HassTurnOn", "arguments": "{\"name\": \"garage door\"}"}] -> HassTurnOn (name: garage door)
-  let calls = [];
-  try { calls = JSON.parse(json || "[]"); } catch (e) { return String(json || ""); }
-  return calls.map((c) => {
-    let a = c.arguments;
-    if (typeof a === "string") { try { a = a.trim() ? JSON.parse(a) : {}; } catch (e) { return `${c.name} (${a})`; } }
-    const parts = Object.entries(a || {}).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
-    return parts.length ? `${c.name} (${parts.join("; ")})` : c.name;
-  }).join(", then ");
-}
-
 function pct(x) { return x === null || x === undefined ? "-" : `${Math.round(Number(x) * 100)}%`; }
-
-async function bankPage() {
-  const view = (location.hash.split("?view=")[1] || "sayings");
-  const tabs = h("div", { class: "tabs", role: "tablist" }, [["sayings", "By saying"], ["results", "What it became"]]
-    .map(([id, label]) => h("button", { role: "tab", "aria-selected": id === view ? "true" : "false", onclick: () => { location.hash = `#/bank?view=${id}`; } }, label)));
-  const intro = h("p", { class: "quiet" }, "Each identical request (the same words from speech to text) that had to go Off-Platform, per personality, counted, with the Off-Platform answers that came back. A request you add (Bank on Transactions, or here) becomes a replacement answer; your formula decides how often the bank answers it instead.");
-  // Export: the bank written to learn/bank.yaml, so it can go to git (the database never does)
-  const exMsg = h("span", { class: "small" });
-  const ex = h("button", { type: "button", disabled: !allowed("bank"), title: "Write the whole bank to learn/bank.yaml, to commit and push" }, "Export to learn/bank.yaml");
-  ex.addEventListener("click", busy(ex, exMsg, async () => {
-    const r = await api("/api/bank/export", { method: "POST" });
-    exMsg.replaceChildren(okNote(`${r.sayings} sayings (${r.added} added) written to ${r.file}: commit and push it to share it`));
-  }));
-  const exportRow = h("div", { class: "row-actions" }, ex, exMsg);
-  // the generic upload: sayings and the ways each may be answered, answered at home from then on
-  const upBox = h("textarea", { rows: "6", class: "words-box", "aria-label": "sayings to upload, as YAML",
-    placeholder: "- said: what is the capital of PA\n  answers:\n    - Harrisburg is the capital of Pennsylvania." });
-  const upMsg = h("span", { class: "small" });
-  const upBtn = h("button", { type: "button", disabled: !allowed("bank") }, "Add them to the bank");
-  upBtn.addEventListener("click", busy(upBtn, upMsg, async () => {
-    const r = await api("/api/bank/upload", { method: "POST", body: { yaml: upBox.value, generic: true } });
-    upMsg.replaceChildren(okNote(`${r.added} added for ${r.personality}, generic: answered at home from now on (with Use the bank on)`));
-  }));
-  const upload = h("details", { class: "card panel fold" }, h("summary", {}, h("h2", {}, "Upload sayings")),
-    h("p", { class: "quiet small" }, "Each saying with the ways it may be answered, as YAML: said, then answers. Each goes in as added and generic, so the bank answers it every time, with no trip Off-Platform."),
-    upBox, h("div", { class: "row-actions" }, upBtn, upMsg));
-  if (view === "results") return [h("h1", {}, "Off-Platform Bank"), intro, exportRow, upload, tabs, await bankResults()];
-  return [h("h1", {}, "Off-Platform Bank"), intro, exportRow, upload, tabs, ...(await bankSayings())];
-}
-
-// on the bank's Rules tab: trim the one-offs now, rather than waiting for trim_days
-async function bankTrim() {
-  const canSet = allowed("settings");
-  const trimMsg = h("span", { class: "small" });
-  const trimBtn = h("button", { type: "button", disabled: !canSet }, "Trim one-offs now");
-  trimBtn.addEventListener("click", busy(trimBtn, trimMsg, async () => {
-    const r = await api("/api/bank/trim", { method: "POST" });
-    trimMsg.replaceChildren(okNote(`${r.trimmed} taken out`));
-  }));
-  return h("section", { class: "card panel" }, h("h2", {}, "The formula"),
-    h("p", { class: "quiet small formula" }, "N = Off-Platform trips − 1   ·   T = answers kept per saying (bank_answers_kept)   ·   Q = N ÷ T (at most 100%)   ·   with Q ≥ U (bank_use_from) the bank answers Q of the time, at random, with one of the words kept for it. Turn it on with answer_from_bank."),
-    h("div", { class: "row-actions" }, trimBtn, trimMsg, h("span", { class: "small quiet" }, "Sayings heard once, not added or reviewed, older than trim_days.")));
-}
-
-const RESULT_COLUMNS = [["Device command", "sig"], ["Times", "count"], ["Wordings", "wordings"], ["Last", "last"], ["Said after", null], ["", null]];
-
-async function bankResults() {
-  const d = await api("/api/bank/results");
-  if (d.off) return h("p", { class: "empty-state" }, "The activity log is off.");
-  const state = { sort: "count", desc: true };
-  const head = h("thead", {});
-  const body = h("tbody", {});
-  const val = (r) => ({ sig: r.sig, count: r.count, wordings: r.variants.length, last: r.last })[state.sort];
-  const draw = () => {
-    head.replaceChildren(sortHead(RESULT_COLUMNS, state, draw, ["Times", "Wordings"]));
-    const rows = [...(d.results || [])].sort((x, y) => cmp(val(x), val(y), state.desc)).flatMap((r) => {
-      const more = h("td", { colspan: String(RESULT_COLUMNS.length) },
-        h("table", { class: "matrix sub" }, h("tbody", {}, r.variants.map((v) => h("tr", {},
-          h("td", { class: "txn-heard" }, v.heard), h("td", { class: "num" }, `${v.count}×`), h("td", { class: "quiet" }, v.class), h("td", { class: "quiet" }, v.personality || ""))))));
-      const under = h("tr", { class: "txn-more", hidden: true }, more);
-      const open = h("button", { type: "button", class: "quiet-button" }, "Wordings");
-      open.addEventListener("click", () => { under.hidden = !under.hidden; });
-      return [h("tr", {},
-        h("td", { class: "txn-heard" }, r.sig),
-        h("td", { class: "num" }, String(r.count)),
-        h("td", { class: "num" }, String(r.variants.length)),
-        h("td", { class: "quiet nowrap" }, when(r.last)),
-        h("td", { class: "txn-said" }, r.final ? h("div", { class: "said-line" }, hearButton(r.final, true), h("span", { class: "clamp", title: r.final }, r.final)) : ""),
-        h("td", { class: "txn-actions" }, h("div", { class: "row-actions" }, open))), under];
-    });
-    body.replaceChildren(...(rows.length ? rows : [h("tr", {}, h("td", { colspan: String(RESULT_COLUMNS.length), class: "empty-state" }, "No device commands yet."))]));
-  };
-  draw();
-  const a = d.answers || {};
-  return h("div", {}, h("p", { class: "quiet small" }, "The device commands the Off-Platform model turned requests into, counted. Wordings opens every way it was asked."),
-    h("div", { class: "table-wrap" }, h("table", { class: "matrix txn-table" }, head, body)),
-    h("p", { class: "quiet small" }, `Plus ${a.rows || 0} sayings it simply answered (${a.asked || 0} times): see By saying.`));
-}
-
-const BANK_COLUMNS = [["Saying", "heard"], ["Personality", "personality"], ["Kind", "class"], ["Heard", "count"], ["Trips", "trips"],
-  ["By bank", "used"], ["State", "q"], ["Last", "last"], ["Generic", "generic"], ["Review", "review"], ["", null]];
-
-async function bankSayings() {
-  const added = select([{ value: "yes", label: "added (replacement answers)" }, { value: "no", label: "only counted" },
-    { value: "all", label: "added and counted" }], "yes", { "aria-label": "Added" });
-  const who = select([{ value: "", label: "every personality" }], "", { "aria-label": "Personality" });
-  const review = select([{ value: "", label: "every review" }, "new", "keep", "ignore", "promote"], "", { "aria-label": "Review" });
-  const search = input("search", { placeholder: "words in the request", "aria-label": "Search" });
-  const state = { sort: "count", desc: true };
-  const head = h("thead", {});
-  const body = h("tbody", {});
-  let d = { rows: [] };
-  let filled = false;
-  const status = h("p", { class: "small bank-status" });
-  async function load() {
-    const q = new URLSearchParams({ added: added.value, personality: who.value, review: review.value, order: "count", search: search.value, limit: "1000" });
-    d = await api(`/api/bank?${q}`);
-    // whether the bank answers at all, said once here rather than on every row
-    status.replaceChildren(d.bank_keeps === false ? h("span", { class: "pill-bad" }, "The bank is off: answers kept is 0 (Rules tab). It still counts.")
-      : d.answer_from_bank ? h("span", { class: "pill-ok" }, "The bank answers: Use the bank is on.")
-        : h("span", {}, "The bank collects but doesn't answer yet: Use the bank is off (Rules tab)."));
-    if (!filled) {
-      for (const p of d.personalities || []) who.append(h("option", { value: p }, p));
-      filled = true;
-    }
-    draw();
-  }
-  const draw = () => {
-    head.replaceChildren(sortHead(BANK_COLUMNS, state, draw, ["Heard", "Trips", "By bank"]));
-    const rows = [...d.rows].sort((x, y) => cmp(x[state.sort] ?? "", y[state.sort] ?? "", state.desc)).flatMap((r) => bankRow(r));
-    body.replaceChildren(...(rows.length ? rows : [h("tr", {}, h("td", { colspan: String(BANK_COLUMNS.length), class: "empty-state" },
-      added.value === "yes" ? "Nothing added yet: Bank a request that went Off-Platform on the Transactions page." : "Nothing here yet."))]));
-  };
-  function bankRow(r) {
-    const box = errorBox();
-    const more = h("td", { colspan: String(BANK_COLUMNS.length) });
-    const under = h("tr", { class: "txn-more", hidden: true }, more);
-    const reviewSel = select(["new", "keep", "ignore", { value: "promote", label: "answer at home later" }], r.review, { "aria-label": "Review" });
-    reviewSel.addEventListener("change", async () => {
-      try { await api(`/api/bank/${r.id}`, { method: "PATCH", body: { review: reviewSel.value } }); r.review = reviewSel.value; } catch (e) { box.textContent = e.message; }
-    });
-    // Generic: these answers suit every personality; another may use them, adding her own flair
-    const generic = h("input", { type: "checkbox", checked: !!r.generic, "aria-label": `Generic: any personality may use "${r.heard}"`,
-      title: "Generic: any personality may answer this from the bank, adding its own flair. Off: only " + (r.personality || "this personality") });
-    generic.addEventListener("change", async () => {
-      try { await api(`/api/bank/${r.id}`, { method: "PATCH", body: { generic: generic.checked } }); r.generic = generic.checked ? 1 : 0; }
-      catch (e) { generic.checked = !generic.checked; box.textContent = e.message; }
-    });
-    const addBtn = h("button", { type: "button", class: r.added ? "" : "primary", title: r.added ? "Take it out of the bank (it's counted still)" : "A replacement answer: the bank may answer it" }, r.added ? "Take out" : "Add");
-    addBtn.addEventListener("click", busy(addBtn, box, async () => {
-      await api(`/api/bank/${r.id}`, { method: "PATCH", body: { added: !r.added } });
-      load();
-    }));
-    const answers = h("button", { type: "button", class: "quiet-button", title: "The answers kept for it, and your note" }, `Answers (${(r.answers || []).length})`);
-    answers.addEventListener("click", () => {
-      if (!under.hidden) { under.hidden = true; return; }
-      const note = h("textarea", { rows: "2", class: "said-box", placeholder: "a note (never acted on)", "aria-label": "Note" }, r.note || "");
-      const save = h("button", { type: "button" }, "Save note");
-      const nmsg = errorBox();
-      // answer at home: its words and the answers kept become a brain flea (asked before Off-Platform)
-      const flea = h("button", { type: "button", disabled: !(r.answers || []).some((a) => a.kind !== "tool" && a.answer),
-        title: "Answer it at home: a brain flea with its words, saying the answers kept" }, "Make it a brain flea");
-      flea.addEventListener("click", busy(flea, nmsg, async () => {
-        const got = await api(`/api/bank/${r.id}/flea`, { method: "POST" });
-        nmsg.replaceChildren(okNote(`Brain flea ${got.flea} made: answered at home now`));
-      }));
-      save.addEventListener("click", busy(save, nmsg, async () => {
-        await api(`/api/bank/${r.id}`, { method: "PATCH", body: { review: r.review, note: note.value } });
-        r.note = note.value;
-        nmsg.replaceChildren(okNote("saved"));
-      }));
-      more.replaceChildren(
-        h("table", { class: "matrix sub" }, h("tbody", {}, (r.answers || []).length ? r.answers.map((a) => h("tr", {},
-          h("td", { class: "quiet nowrap" }, when(a.time)),
-          h("td", { class: "txn-said" }, a.kind === "tool" ? [h("strong", {}, "Device command: "), commandText(a.tool_calls), a.answer ? ` · then said: ${a.answer}` : ""]
-            : h("div", { class: "said-line" }, hearButton(a.answer, true), h("span", {}, a.answer || "(no words)"))),
-          h("td", { class: "quiet nowrap" }, [a.model, a.ms ? `${(a.ms / 1000).toFixed(1)} s` : ""].filter(Boolean).join(" · ")))) :
-          h("tr", {}, h("td", { class: "quiet" }, "No answers kept yet.")))),
-        h("div", { class: "misheard-fix" }, note, h("div", { class: "row-actions" }, save, flea, nmsg)));
-      under.hidden = false;
-    });
-    // the saying's own state; whether the bank answers at all is shown once, above the table
-    const stateText = !r.added ? ["counted only", ""]
-      : r.usable && d.answer_from_bank ? [`answers ${pct(r.q)} of the time`, "pill-ok"]
-        : r.usable ? [`ready: ${pct(r.q)} of ${pct(d.u)}`, ""]
-          : [(r.answers || []).length ? `added; ${pct(r.q)} of ${pct(d.u)}` : "added; no answers yet", ""];
-    return [h("tr", { class: r.added ? "bank-added" : "" },
-      h("td", { class: "txn-heard" }, r.heard, r.note ? h("div", { class: "small quiet", title: r.note }, `Note: ${r.note}`) : null),
-      h("td", {}, r.personality || "?"),
-      h("td", { class: "quiet" }, r.class + (r.qword ? ` (${r.qword})` : ""), r.topic_guess ? h("div", { class: "small", title: "closest home topic" }, `${r.topic_guess} ${Math.round((r.topic_score || 0) * 100)}%`) : null),
-      h("td", { class: "num" }, String(r.count)),
-      h("td", { class: "num" }, String(r.trips)),
-      h("td", { class: "num" }, String(r.used || 0)),
-      h("td", { class: "small" }, h("span", { class: stateText[1] }, stateText[0])),
-      h("td", { class: "quiet nowrap" }, when(r.last)),
-      h("td", { class: "center" }, generic),
-      h("td", {}, reviewSel),
-      h("td", { class: "txn-actions" }, h("div", { class: "row-actions" }, answers, addBtn), box)), under];
-  }
-  for (const el of [added, who, review, search]) el.addEventListener("change", load);
-  await load();
-  return [h("p", { class: "quiet small" }, "Each saying, how often it was heard and went Off-Platform, how often the bank answered it, and its state. Added ones are tinted. Generic: any personality may answer it from the bank, adding its own flair (left off, it stays with the personality that asked; a persona's own saying always comes first). Answers opens the answers kept for it (the newest T) and your note. Click a heading to sort. Reviewed and added sayings are never trimmed."), status,
-    h("div", { class: "toolbar" }, added, who, review, search),
-    h("div", { class: "table-wrap" }, h("table", { class: "matrix txn-table bank-table" }, head, body))];
-}
-
 // ---------- Teach: try a sentence ----------
 
 async function tryPage() {
@@ -1710,11 +1530,6 @@ function decisionText(d) {
   return [where, d.topic, d.action ? `(${d.action})` : ""].filter(Boolean).join(" ");
 }
 
-function diffView(diff) {
-  return diff ? h("span", { class: "diff" }, diff.map((x) => x.op === "same" ? h("span", {}, x.heard + " ")
-    : [x.heard ? h("del", { title: "heard" }, x.heard) : null, x.said ? h("ins", { title: "really said" }, x.said) : null, " "])) : null;
-}
-
 // a sortable heading for the tables sorted on the page itself: [label, key] -> th; state {sort, desc}
 function sortHead(columns, state, redraw, numeric) {
   return h("tr", {}, columns.map(([label, key]) => {
@@ -1749,139 +1564,13 @@ function underBox(under, more, label, value, button, save) {
   box.focus();
 }
 
-// The phrase fix's two boxes, filled with the whole line as heard and as meant: trim them to the
-// words that should be swapped (a short question is usually the phrase as it is).
-function phraseStart(diff) {
-  const join = (side) => diff.map((op) => op[side]).filter(Boolean).join(" ");
-  return { heard: join("heard"), meant: join("said") };
-}
-
-function phraseBox(under, more, c) {
-  const start = phraseStart(c.diff || []);
-  const heard = input("text", { value: start.heard, "aria-label": "heard", class: "said-box" });
-  const meant = input("text", { value: start.meant, "aria-label": "meant", class: "said-box" });
-  const go = h("button", { type: "button", class: "primary" }, "Save");
-  const msg = errorBox();
-  const close = () => { under.hidden = true; more.replaceChildren(); };
-  let warned = "";
-  go.addEventListener("click", busy(go, msg, async () => {
-    const words = heard.value.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 1 && warned !== words[0]) {
-      // a word on its own is swapped everywhere: said here, not in a pop-up; Save again keeps it
-      warned = words[0];
-      go.textContent = "Save anyway";
-      throw new Error(`This swaps "${words[0]}" everywhere it's heard. Add a word around it, or Save anyway.`);
-    }
-    await api("/api/mishearings/swap", { method: "POST", body: { heard: heard.value, meant: meant.value, on: true, line: c.said } });
-    route();
-  }));
-  for (const box of [heard, meant]) box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go.click(); } if (e.key === "Escape") close(); });
-  more.replaceChildren(h("div", { class: "misheard-fix" },
-    h("span", { class: "small quiet" }, "The whole line as heard: trim it to the words that should be swapped (whole words, in this order)."), heard,
-    h("span", { class: "small quiet" }, "Use these instead (trim to match):"), meant,
-    h("div", { class: "row-actions" }, go, h("button", { type: "button", onclick: close }, "Cancel"), msg)));
-  under.hidden = false;
-  heard.focus();
-}
-
-const MH_COLUMNS = [["What was said / heard", "text"], ["Times", "times"], ["First", "first"], ["Last", "last"], ["Today", null], ["", null]];
-
-// mishearings: each intention a band row (what was really said, its total), its heard lines under it
-function mishearingRows(p, state, swaps) {
-  const cols = MH_COLUMNS.length;
-  const band = h("tr", { class: "mh-band" + (p.meant ? "" : " mh-unknown") },
-    h("td", {}, p.meant ? h("strong", {}, p.meant) : h("strong", { class: "quiet" }, "Not given yet: type what was really said")),
-    h("td", { class: "num" }, h("strong", {}, String(p.total))),
-    h("td", {}), h("td", {}),
-    h("td", { class: "small quiet" }, p.now_meant ? decisionText(p.now_meant) : ""), h("td", {}));
-  const kids = [...p.heard].sort((x, y) => state.sort === "text" ? cmp(x.said, y.said, state.desc)
-    : state.sort === "last" || state.sort === "first" ? cmp(x[state.sort], y[state.sort], state.desc) : cmp(x.count || 1, y.count || 1, state.desc));
-  const rows = [band];
-  for (const c of kids) {
-    const msg = errorBox();
-    const more = h("td", { colspan: String(cols) });
-    const under = h("tr", { class: "txn-more", hidden: true }, more);
-    const move = h("button", { type: "button", title: p.meant ? "File it under other words (its count goes with it)" : "File it under what was really said" }, p.meant ? "Move" : "Said");
-    move.addEventListener("click", () => underBox(under, more, "What was really said", p.meant, p.meant ? "Move" : "Save",
-      (v) => api("/api/mishearings/meant", { method: "POST", body: { heard: c.said, meant: v } })));
-    const drop = h("button", { type: "button" }, "Drop");
-    drop.addEventListener("click", busy(drop, msg, async () => {
-      if (!confirm(`Take "${c.said}" out of the mishearings? Its count goes with it.`)) return;
-      await api("/api/mishearings/drop", { method: "POST", body: { heard: c.said } });
-      route();
-    }));
-    // each difference can be used before anything is decided (a swap, learn/swaps.yaml): whole words only
-    const inUse = (heardW) => (swaps || []).some((x) => x.heard === heardW.toLowerCase());
-    const useBtns = (c.diff || []).filter((op) => op.op === "both" && op.heard && op.said).map((op) => {
-      const on = inUse(op.heard);
-      const b = h("button", { type: "button", class: on ? "pill-ok small" : "small", title: on ? "In use: heard words swapped before anything is decided, and for Home Assistant. Click to stop." : `Swap "${op.heard}" for "${op.said}" whenever it's heard, before anything is decided and in the words Home Assistant gets (whole words only). A common word changes everywhere: use a phrase for it.` },
-        on ? `Using: ${op.heard} → ${op.said}` : `Use it: ${op.heard} → ${op.said}`);
-      b.addEventListener("click", busy(b, msg, async () => { await api("/api/mishearings/swap", { method: "POST", body: { heard: op.heard, meant: op.said, on: !on } }); route(); }));
-      return b;
-    });
-    // a phrase fix: the changed words with a word either side (widen or narrow it), only that run swapped
-    const phrase = (c.diff || []).some((op) => op.op !== "same") ? h("button", { type: "button", class: "small",
-      title: "Swap a run of words (who taught you three → who taught you that), only when that whole run is heard" }, "Use a phrase") : null;
-    if (phrase) phrase.addEventListener("click", () => phraseBox(under, more, c));
-    rows.push(h("tr", { class: "mh-heard" },
-      h("td", { class: "mh-said" }, c.diff ? diffView(c.diff) : `"${c.said}"`, c.taken ? [" ", h("span", { class: "badge" }, "taken")] : null,
-        useBtns.length || phrase ? h("div", { class: "row-actions" }, ...useBtns, phrase) : null),
-      h("td", { class: "num" }, String(c.count || 1)),
-      h("td", { class: "quiet nowrap" }, c.first || ""), h("td", { class: "quiet nowrap" }, c.last || ""),
-      h("td", { class: "small" }, c.now_heard ? [decisionText(c.now_heard), " ", h("span", { class: "nowrap " + (c.verdict.startsWith("harmless") ? "pill-ok" : "pill-bad"),
-        title: c.verdict }, c.verdict.startsWith("harmless") ? "harmless now" : "still matters")] : ""),
-      h("td", { class: "txn-actions" }, h("div", { class: "row-actions" }, move, drop), msg)), under);
-  }
-  return rows;
-}
-
-// the mishearings pushed back: each heard words swapped before anything is decided (learn/swaps.yaml),
-// as a table (Oct 18: a run of chips grew too long): folded, sortable like the rest
-const SWAP_COLUMNS = [["Heard", "heard"], ["Swapped for", "meant"], ["Added", "added"], ["Used", "used"], ["Last used", "last_used"], ["", null]];
-function swapsInUse(swaps, days) {
-  if (!swaps.length) return null;
-  const msg = errorBox();
-  const state = { sort: "heard", desc: false };
-  const head = h("thead", {});
-  const body = h("tbody", {});
-  const draw = () => {
-    head.replaceChildren(sortHead(SWAP_COLUMNS, state, draw, ["Used"]));
-    body.replaceChildren(...[...swaps].sort((x, y) => cmp(x[state.sort] ?? "", y[state.sort] ?? "", state.desc)).map((x) => {
-      const stop = h("button", { type: "button", class: "small", "aria-label": `stop swapping ${x.heard}` }, "Stop");
-      stop.addEventListener("click", busy(stop, msg, async () => { await api("/api/mishearings/swap", { method: "POST", body: { heard: x.heard, meant: x.meant, on: false } }); route(); }));
-      return h("tr", {}, h("td", {}, h("code", {}, x.heard)), h("td", {}, h("code", {}, x.meant)),
-        h("td", { class: "quiet nowrap" }, x.added || "-"), h("td", { class: "num" }, String(x.used || 0)),
-        h("td", { class: "quiet nowrap" }, x.last_used ? when(x.last_used) : "-"), h("td", { class: "txn-actions" }, stop));
-    }));
-  };
-  draw();
-  return foldBox("swaps", `In use before anything is decided, and in the words Home Assistant gets (${swaps.length})`, false,
-    h("p", { class: "quiet small" }, `Used: how many requests had it swapped in the last ${days} days (the activity log keeps that long). Stop takes it out at once.`),
-    h("div", { class: "table-wrap" }, h("table", { class: "matrix txn-table swaps-table" }, head, body)), msg);
-}
-
 const MISS_COLUMNS = [["Heard", "text"], ["Assistant", "assistant"], ["Times", "times"], ["First", "first"], ["Last", "last"], ["Then", "then"], ["Reply", null], ["Should have been", null], ["", null]];
 
 async function missesPage() {
-  const [d, mh] = await Promise.all([api("/api/misses"), api("/api/mishearings")]);
+  const d = await api("/api/misses");
   const canFix = allowed("tools");
   const output = h("pre", { class: "output", hidden: true });
   const status = h("p", { class: "quiet" });
-  // mishearings: not given yet first, then the intentions in the chosen order
-  const mstate = { sort: "times", desc: true };
-  const mbody = h("tbody", {});
-  const mhead = h("thead", {});
-  const lastOf = (p) => p.heard.reduce((a, c) => (c.last || "") > a ? c.last : a, "");
-  const firstOf = (p) => p.heard.reduce((a, c) => c.first && (!a || c.first < a) ? c.first : a, "");
-  const drawM = () => {
-    mhead.replaceChildren(sortHead(MH_COLUMNS, mstate, drawM, ["Times"]));
-    const groups = [...mh.mishearings].sort((x, y) => (x.meant === null) !== (y.meant === null) ? (x.meant === null ? -1 : 1)
-      : mstate.sort === "text" ? cmp(x.meant, y.meant, mstate.desc) : mstate.sort === "last" ? cmp(lastOf(x), lastOf(y), mstate.desc)
-        : mstate.sort === "first" ? cmp(firstOf(x), firstOf(y), mstate.desc) : cmp(x.total, y.total, mstate.desc));
-    mbody.replaceChildren(...(groups.length ? groups.flatMap((p) => mishearingRows(p, mstate, mh.swaps))
-      : [h("tr", {}, h("td", { colspan: String(MH_COLUMNS.length), class: "empty-state" }, "No mishearings recorded."))]));
-  };
-  drawM();
   // the wrong part answered
   const estate = { sort: "last", desc: true };
   const ebody = h("tbody", {});
@@ -1925,10 +1614,7 @@ async function missesPage() {
   };
   drawE();
   return [h("h1", {}, "Misses"),
-    h("h2", {}, "Mishearings"),
-    h("p", { class: "quiet" }, "What speech-to-text heard, under what was really said: each intention is a band with its total, the ways it was heard under it, each counted, with the wrong words crossed out and the right ones beside them. They come from Misheard on the Transactions page, or by voice (\"What did you hear?\", then \"Record that as a misunderstanding\"). They stay, counting, until you drop them or they're taken into the words. Move files one under other words, count and all (Enter saves, Esc closes). Today says where the router sends each now, and whether the mishearing still matters. Use it on a difference (grainsplate → brain flea) swaps those heard words for the right ones before anything is decided, whenever they're heard, whole words only, and in the words handed back to Home Assistant too, so its own sentences match; Use a phrase swaps a run of words only when the whole run is heard (who taught you three → who taught you that), so a common word on its own is left alone. Use it on a common word changes it everywhere (watcher → washer would make \"Who is the watcher?\" \"Who is the washer?\"): use a phrase for those. The trace says when a swap happened."),
-    swapsInUse(mh.swaps || [], mh.swap_days),
-    h("div", { class: "table-wrap" }, h("table", { class: "matrix txn-table mh-table" }, mhead, mbody)),
+    h("p", { class: "quiet" }, MISHEARD() ? ["What speech-to-text heard wrong is on the ", h("a", { href: "#/mishearings" }, "Mishearings"), " page."] : ""),
     h("h2", {}, "The wrong part answered"),
     h("p", { class: "quiet" }, "Recorded by voice: \"Who answered that?\", then \"Record that as a misunderstanding\". Off-Platform ones are tinted. Should be: what should have happened; Test case: what happens today becomes a test."),
     status, output,
@@ -1942,516 +1628,6 @@ async function runTool(id, args, output, status, label) {
     output.textContent = `$ ${r.cmd}\n`;
     followJob(r.job, output, status, { label: label, restart: false });
   } catch (e) { status.textContent = e.message; }
-}
-
-// ---------- Personality: flair ----------
-
-async function flairPage() {
-  const d = await api("/api/flair");
-  const who = hashParam("who") || (d.personalities[0] || {}).name || "";
-  const tab = ["sayings", "phrases"].includes(hashParam("tab")) ? hashParam("tab") : "main";
-  const picker = h("div", { class: "pills" }, d.personalities.map((p) => h("a", { class: "pill", href: `#/flair?who=${p.name}${tab !== "main" ? `&tab=${tab}` : ""}`,
-    "aria-pressed": p.name === who ? "true" : "false" }, p.name)));
-  const tabs = h("div", { class: "tabs page-tabs", role: "tablist" }, [["main", "Persona Flair"], ["sayings", "Sayings"], ["phrases", "Phrases"]].map(([id, text]) =>
-    h("button", { role: "tab", type: "button", "aria-selected": id === tab ? "true" : "false",
-      onclick: () => { location.hash = `#/flair?who=${who}${id !== "main" ? `&tab=${id}` : ""}`; } }, text)));
-  const one = await api(`/api/flair/${who}`);
-  const isAdmin = allowed("tools");
-  let topicNames = ["weather", "chores"];
-  try { if (allowed("topics")) topicNames = (await api("/api/topics")).topics.map((t) => t.name); } catch (e) { /* keep the two */ }
-  FLAIR_TOPICS = ["any"].concat(topicNames, ["router"]);
-  // Accept a line from her books and it goes straight into the lines bank
-  const bankSec = h("div", {});
-  const reload = async () => {
-    const fresh = await api(`/api/flair/${who}`);
-    bankSec.replaceChildren(linesBankCard(who, fresh, isAdmin, reload));
-  };
-  bankSec.append(linesBankCard(who, one, isAdmin, reload));
-  const meP = d.personalities.find((p) => p.name === who) || {};
-  const banner = h("div", { class: "flair-banner" },
-    h("div", {}, h("div", { class: "flair-who" }, who || "nobody"), h("div", { class: "small" }, Number((one.personality || {}).rate || 0) > 0 ? "flair on (rate above 0)" : "flair off (rate 0)")),
-    h("div", { class: "flair-stats" },
-      h("span", {}, h("strong", {}, String(((one.personality || {}).flourishes || []).length)), " in the lines bank"),
-      h("span", {}, h("strong", {}, String(meP.candidates || 0)), " from the books"),
-      h("span", {}, h("strong", {}, `${Math.round(Number((one.personality || {}).rate || 0) * 100)}%`), " flourished")));
-  const head = [h("h1", {}, "Persona Flair"), tabs, banner];
-  if (tab === "sayings") return [...head, picker, await sayingsCard(who, isAdmin)];
-  if (tab === "phrases") return [...head, picker, isAdmin ? sourcesCard(who, one.sources || {}) : h("p", { class: "quiet" }, "Only an administrator can change where the lines come from."),
-    isAdmin ? await combingCard() : null];
-  return [...head,
-    h("p", { class: "quiet" }, `Each persona's flair on answers given at home. The lines are in the Lines bank: type your own in, or Accept a line from the books and it goes straight there. Edit, save or delete any of them; an edit is heard after a restart.`),
-    picker, knobsCard(who, one, isAdmin), bankSec, await candidatesCard(who, reload)];
-}
-
-// Where a flourish goes, and on which answers: the choices on the Flair page.
-let FLAIR_TOPICS = ["any", "weather", "chores", "router"];
-const FLAIR_SLOTS = [{ value: "any", label: "any (wherever it fits)" }, { value: "opener", label: "opener (before)" },
-  { value: "closer", label: "closer (after)" }, { value: "aside", label: "aside (at a [[aside]])" }];
-
-function topicSelect(topics, onChange) {
-  const cur = (topics && topics.length ? topics : ["any"]).join(", ");
-  const opts = FLAIR_TOPICS.map((t) => ({ value: t, label: t === "any" ? "any topic" : t === "router" ? "the router's own answers" : t }));
-  if (!FLAIR_TOPICS.includes(cur)) opts.push({ value: cur, label: cur });
-  return select(opts, cur, { "aria-label": "topic", onchange: (e) => onChange(e.target.value.split(",").map((x) => x.trim()).filter(Boolean)) });
-}
-
-function knobsCard(who, one, isAdmin) {
-  const p = one.personality || {};
-  const rate = input("number", { min: "0", max: "1", step: "0.05", value: p.rate ?? 0 });
-  const streak = input("number", { min: "0", max: "10", step: "1", value: p.max_in_a_row ?? 1 });
-  const box = errorBox();
-  const note = h("span", {});
-  const save = h("button", { class: "primary", type: "button", disabled: !isAdmin }, "Save");
-  save.addEventListener("click", busy(save, box, async () => {
-    await api(`/api/flair/${who}`, { method: "PUT", body: { rate: Number(rate.value), max_in_a_row: Number(streak.value) } });
-    note.replaceChildren(okNote("Saved. Restart to hear it."));
-    session = await api("/api/session");
-  }));
-  // the deck: of every 10 answers at home, how many get a flourish
-  const flairDeck = h("span", {});
-  const drawDeck = () => flairDeck.replaceChildren(deckOf(Math.round(Number(rate.value || 0) * 10), "flair-on"));
-  rate.addEventListener("input", drawDeck);
-  drawDeck();
-  return h("section", { class: "card panel flair-card flair-knobs" }, h("h2", {}, `${who}: how often`),
-    h("div", { class: "deck-row" }, h("span", { class: "small quiet" }, "Of every 10 answers at home:"),
-      h("span", { class: "deck-label" }, flairDeck, h("span", { class: "small" }, " flourished")),
-      h("a", { class: "small", href: "#/sparkle" }, "Saying names: Name Sparkle")),
-    h("div", { class: "grid2" },
-      field("Flair rate", rate, "Share of answers at home with a flourish (0.6 = 6 of every 10, dealt like a deck)."),
-      field("Most in a row", streak, "Never more flourished answers than this back to back (0 = no limit).")),
-    box, h("div", { class: "row-actions" }, save, note));
-}
-
-// a row of 10 little cards, n of them filled: how many of every 10 answers
-function deckOf(n, cls) {
-  return h("span", { class: "deck", "aria-hidden": "true" },
-    Array.from({ length: 10 }, (_, i) => h("span", { class: "card-dot" + (i < n ? ` on ${cls}` : "") })));
-}
-
-const LINE_COLUMNS = [["Line", "text"], ["Where", "slot"], ["Answers", "topics"], ["Mood", "mood"], ["From", "from"], ["", null]];
-const lineKey = (f, k) => (Array.isArray(f[k]) ? f[k].join(", ") : f[k]) || "";
-
-// one editable line as a table row: words, where, which answers, mood, its book; then the buttons
-function lineRow(f, canEdit, buttons) {
-  f._draft = f._draft || { text: f.text, slot: f.slot || "any", topics: f.topics || ["any"], mood: f.mood || ["plain"] };
-  const dr = f._draft;
-  const text = h("textarea", { rows: "1", class: "line-box", disabled: !canEdit, "aria-label": "The words", oninput: (e) => { dr.text = e.target.value; } }, dr.text);
-  const slot = select(FLAIR_SLOTS, dr.slot, { disabled: !canEdit, "aria-label": "Where it goes", class: `tint slot-${dr.slot}`,
-    onchange: (e) => { dr.slot = e.target.value; e.target.className = `tint slot-${dr.slot}`; } });
-  const topic = topicSelect(dr.topics, (v) => { dr.topics = v; });
-  if (!canEdit) topic.disabled = true;
-  const mood = select(["plain", "warning", "sorry"], (dr.mood || ["plain"])[0], { disabled: !canEdit, "aria-label": "Mood", class: `tint mood-${(dr.mood || ["plain"])[0]}`,
-    onchange: (e) => { dr.mood = [e.target.value]; e.target.className = `tint mood-${e.target.value}`; } });
-  const box = errorBox();
-  return h("tr", {},
-    h("td", { class: "line-cell" }, text, f.placeholder ? h("span", { class: "badge", title: "A starter line: steps aside once there are real lines" }, "placeholder") : null),
-    h("td", {}, slot), h("td", {}, topic), h("td", {}, mood),
-    h("td", { class: "small quiet" }, f.from || ""),
-    h("td", { class: "txn-actions" }, h("div", { class: "row-actions" }, hearButton(dr.text, true), ...buttons(dr, box)), box));
-}
-
-function lineTable(lines, draw) {
-  const state = { sort: null, desc: false };
-  const head = h("thead", {});
-  const body = h("tbody", {});
-  const redraw = () => {
-    head.replaceChildren(sortHead(LINE_COLUMNS, state, redraw));
-    const shown = state.sort ? [...lines].sort((x, y) => cmp(lineKey(x, state.sort), lineKey(y, state.sort), state.desc)) : lines;
-    body.replaceChildren(...(shown.length ? shown.map(draw) : [h("tr", {}, h("td", { colspan: String(LINE_COLUMNS.length), class: "empty-state" }, "None."))]));
-  };
-  redraw();
-  return h("div", { class: "table-wrap" }, h("table", { class: "matrix txn-table line-table" }, head, body));
-}
-
-function linesBankCard(who, one, isAdmin, reload) {
-  const lines = ((one.personality || {}).flourishes || []).map((f, i) => Object.assign({ _i: i }, f));
-  const table = lineTable(lines, (f) => lineRow(f, isAdmin, (dr, box) => {
-    const save = h("button", { type: "button", disabled: !isAdmin }, "Save");
-    save.addEventListener("click", busy(save, box, async () => {
-      await api(`/api/flair/${who}/lines`, { method: "PATCH", body: { index: f._i, text_was: f.text, text: dr.text, slot: dr.slot, topics: dr.topics, mood: dr.mood } });
-      box.replaceChildren(okNote("saved"));
-      f.text = dr.text.trim().replace(/\s+/g, " ");
-    }));
-    const del = h("button", { type: "button", disabled: !isAdmin }, "Delete");
-    del.addEventListener("click", busy(del, box, async () => {
-      if (!confirm(`Take "${f.text}" out of the lines bank?`)) return;
-      await api(`/api/flair/${who}/lines`, { method: "PATCH", body: { index: f._i, text_was: f.text, delete: true } });
-      await reload();
-    }));
-    return [save, del];
-  }));
-  // add one line, or many at once separated by |
-  const many = h("textarea", { rows: "2", class: "said-box", placeholder: "One line, or many separated by |   e.g.  Abracadabra! | By my broom! | Hocus pocus." });
-  const addBtn = h("button", { type: "button", disabled: !isAdmin }, "Add to the lines bank");
-  const addNote = h("span", { class: "small" });
-  addBtn.addEventListener("click", busy(addBtn, addNote, async () => {
-    const parts = many.value.split(/[|\n]/).map((x) => x.trim().replace(/\s+/g, " ")).filter(Boolean);
-    const questions = parts.filter((x) => x.endsWith("?"));
-    const r = await api(`/api/flair/${who}/lines`, { method: "POST", body: { lines: parts.filter((x) => !x.endsWith("?")).map((t) => ({ text: t })) } });
-    await reload();
-    // (the card was redrawn; say it in the new one)
-    const note = document.querySelector(".lines-bank .add-note");
-    if (note) note.replaceChildren(okNote(`${r.added} added${r.already ? `, ${r.already} already there` : ""}${questions.length ? `; ${questions.length} left out (a question)` : ""}. Restart to hear them.`));
-  }));
-  const byslot = (k) => lines.filter((f) => (f.slot || "any") === k).length;
-  const fold = h("details", { class: "card panel fold flair-card flair-bank lines-bank", open: BANK_OPEN },
-    h("summary", {}, h("h2", {}, "Lines bank ", h("span", { class: "count-badge" }, String(lines.length))),
-      h("span", { class: "slot-tally" }, ["opener", "closer", "aside", "any"].filter(byslot).map((k) => h("span", { class: `tag slot-${k}` }, `${byslot(k)} ${k}`)))));
-  fold.append(h("p", { class: "quiet small" }, "The lines. Each: where it goes (any = wherever it fits; opener before the answer, closer after it, aside only where a phrase has a hand-placed [[aside]]), which answers (any topic, one topic, or the router's own answers), and the mood it suits. Change one and Save it, or Delete it. Never a question: a reply has to end on its own question. Click a heading to sort."),
-    table, h("div", { class: "bulk-add" }, field("Add lines", many, "Any topic and any place to start with; change them in the table after."), h("div", { class: "row" }, addBtn, h("span", { class: "small add-note" }), addNote)));
-  fold.addEventListener("toggle", () => { BANK_OPEN = fold.open; });
-  return fold;
-}
-let BANK_OPEN = true;          // the lines bank stays open or folded as you left it while you work
-
-const BOOK_COLUMNS = [["Accept", null], ["Line", "text"], ["Where", "slot"], ["Mood", "mood"], ["Answers", "topics"], ["From", "from"]];
-
-async function candidatesCard(who, reload) {
-  const d = await api(`/api/flair/${who}/candidates`);
-  const cands = d.candidates;
-  const box = errorBox();
-  const count = h("span", {}, String(cands.length));
-  const state = { sort: null, desc: false };
-  const head = h("thead", {});
-  const body = h("tbody", {});
-  let limit = 60;
-  const more = h("button", { class: "more", type: "button", onclick: () => { limit += 100; redraw(); } }, "Show more");
-  function rowFor(c) {
-    const pick = { slot: c.slot, mood: c.mood || ["plain"] };
-    const slot = select(["opener", "closer"], c.slot, { "aria-label": "Where it goes", class: `tint slot-${c.slot}`,
-      onchange: (e) => { pick.slot = e.target.value; e.target.className = `tint slot-${pick.slot}`; } });
-    const mood = select(["plain", "warning", "sorry"], (c.mood || ["plain"])[0], { "aria-label": "Mood", class: `tint mood-${(c.mood || ["plain"])[0]}`,
-      onchange: (e) => { pick.mood = [e.target.value]; e.target.className = `tint mood-${e.target.value}`; } });
-    const accept = h("input", { type: "checkbox", "aria-label": `Accept "${c.text}"`, title: "Accept: it goes into the lines bank" });
-    const tr = h("tr", {},
-      h("td", { class: "center" }, accept),
-      h("td", { class: "line-cell" }, c.text, " ", hearButton(c.text, true)),
-      h("td", {}, slot), h("td", {}, mood),
-      h("td", { class: "small quiet" }, (c.topics || []).join(", ")),
-      h("td", { class: "small quiet" }, c.from || ""));
-    accept.addEventListener("change", async () => {
-      accept.disabled = true;
-      try {
-        await api(`/api/flair/${who}/candidates/accept`, { method: "POST", body: { found: c.found || c.text, slot: pick.slot, mood: pick.mood } });
-        cands.splice(cands.indexOf(c), 1);
-        count.textContent = String(cands.length);
-        tr.remove();
-        await reload();
-      } catch (e) { accept.checked = false; accept.disabled = false; box.textContent = e.message; }
-    });
-    return tr;
-  }
-  function redraw() {
-    head.replaceChildren(sortHead(BOOK_COLUMNS, state, redraw));
-    const shown = state.sort ? [...cands].sort((x, y) => cmp(lineKey(x, state.sort), lineKey(y, state.sort), state.desc)) : cands;
-    body.replaceChildren(...(shown.length ? shown.slice(0, limit).map(rowFor)
-      : [h("tr", {}, h("td", { colspan: String(BOOK_COLUMNS.length), class: "empty-state" }, "Empty. Comb the books (Phrases tab) to fill it again (lines already taken are left out)."))]));
-    more.hidden = shown.length <= limit;
-    more.textContent = `Show more (${shown.length - limit} left)`;
-  }
-  redraw();
-  const clear = h("button", { type: "button", disabled: !cands.length }, "Clear the list");
-  clear.addEventListener("click", busy(clear, box, async () => {
-    if (!confirm(`Clear all ${cands.length} lines from the books list? Combing the books again fills it (leaving out what's been accepted or dropped).`)) return;
-    await api(`/api/flair/${who}/candidates/clear`, { method: "POST" });
-    cands.splice(0);
-    count.textContent = "0";
-    redraw();
-  }));
-  return h("details", { class: "card panel fold flair-card flair-books" }, h("summary", {}, h("h2", {}, "Lines from the books ", h("span", { class: "count-badge" }, count))),
-    h("p", { class: "quiet small" }, "Best guesses first. Fix the slot or mood if the guess is wrong, then tick Accept: the line goes into the Lines bank at once (reword it there if it needs it) and leaves this list. The ones you don't want can stay or go: Clear the list empties it; combing the books again fills it, never with a line already in the bank or deleted from it. Click a heading to sort."),
-    h("div", { class: "table-wrap" }, h("table", { class: "matrix txn-table line-table" }, head, body)), more,
-    box, h("div", { class: "row-actions" }, clear));
-}
-
-function sourcesCard(who, src) {
-  const state = { speakers: src.speakers || [], near: src.near || [], books: (src.books || []).map((b) => Object.assign({}, b)) };
-  const books = h("div", {});
-  function draw() {
-    books.replaceChildren(...state.books.map((b, i) => h("div", { class: "flourish" },
-      input("text", { value: b.title, "aria-label": "title", oninput: (e) => { b.title = e.target.value; } }),
-      input("text", { value: b.url, "aria-label": "address", oninput: (e) => { b.url = e.target.value; } }),
-      input("text", { value: b.local, "aria-label": "local path", oninput: (e) => { b.local = e.target.value; } }),
-      h("span", {}), h("button", { type: "button", "aria-label": "remove", onclick: () => { state.books.splice(i, 1); draw(); } }, "×"))));
-  }
-  draw();
-  const box = errorBox();
-  const note = h("span", {});
-  const save = h("button", { class: "primary", type: "button" }, "Save");
-  save.addEventListener("click", busy(save, box, async () => {
-    await api(`/api/flair/${who}/sources`, { method: "PUT", body: state });
-    note.replaceChildren(okNote("Saved. Download and comb again on the Tools page."));
-  }));
-  return h("details", { class: "card panel fold flair-card flair-sources", open: true }, h("summary", {}, h("h2", {}, "Phrases")),
-    h("p", { class: "quiet small" }, "Public-domain books only (before 1929). Speakers: who the persona is in the books; near: words that put a quote in that world."),
-    h("div", { class: "grid2" }, h("div", {}, h("h3", {}, "Speakers"), chipList(state.speakers, (v) => { state.speakers = v; })),
-      h("div", {}, h("h3", {}, "Near words"), chipList(state.near, (v) => { state.near = v; }))),
-    bookTools(who),
-    h("h3", {}, "Books (title, address, local path)"), books,
-    h("button", { type: "button", onclick: () => { state.books.push({ title: "", url: "https://www.gutenberg.org/cache/epub/", local: "~/datasets/books/" }); draw(); } }, "Add a book"),
-    box, h("div", { class: "row-actions" }, save, note));
-}
-
-// Her sayings: every fixed line she says (phrases/*.yaml), her own or the shared ones, editable here.
-async function sayingsCard(who, isAdmin) {
-  const d = await api("/api/phrases");
-  const search = input("search", { placeholder: "find a saying (words in it, or its name: ask, coven, chores...)", "aria-label": "Find a saying" });
-  const list = h("div", {});
-  const pretty = (k) => k.replace(/_/g, " ");
-  function editor(file, key, sec, whose, lines, after) {
-    const rows = lines.map((x) => ({ text: x }));
-    const box = errorBox();
-    const body = h("div", { class: "say-rows" });
-    const r = sec.rules;
-    const draw = () => body.replaceChildren(...rows.map((row, i) => h("div", { class: "row say-row" },
-      input("text", { value: row.text, disabled: !isAdmin, "aria-label": `${pretty(key)} line ${i + 1}`, oninput: (e) => { row.text = e.target.value; } }),
-      hearButton(row.text.replace(/{\w+}/g, "something"), true),
-      h("button", { type: "button", disabled: !isAdmin, "aria-label": "remove", onclick: () => { rows.splice(i, 1); draw(); } }, "×"))));
-    draw();
-    const add = h("button", { type: "button", disabled: !isAdmin, onclick: () => { rows.push({ text: rows.length ? "" : (lines[0] || "") }); draw(); body.lastChild && body.lastChild.querySelector("input").focus(); } }, "Add a line");
-    const save = h("button", { type: "button", class: "primary", disabled: !isAdmin }, "Save");
-    save.addEventListener("click", busy(save, box, async () => {
-      const res = await api(`/api/phrases/${file}/${key}/${whose}`, { method: "PUT", body: { lines: rows.map((x) => x.text) } });
-      sec.lines[whose] = res.lines;
-      if (!res.lines.length) delete sec.lines[whose];
-      box.replaceChildren(okNote("saved, in use now"));
-      if (after) after();
-    }));
-    const rule = [r.needed.length ? `keep ${r.needed.map((x) => `{${x}}`).join(", ")}` : "",
-      r.allowed.filter((x) => !r.needed.includes(x)).length ? `may use ${r.allowed.filter((x) => !r.needed.includes(x)).map((x) => `{${x}}`).join(", ")}` : "",
-      r.question === true ? "ends with a question (it waits for your answer)" : r.question === false ? "never a question" : ""].filter(Boolean).join("; ");
-    return h("div", { class: "say-editor" }, rule ? h("p", { class: "small quiet" }, rule) : null, body, h("div", { class: "row-actions" }, add, save, box));
-  }
-  function sectionFor(f, key) {
-    const sec = f.sections[key];
-    const own = f.personal ? (sec.lines[who] || null) : null;
-    const shared = sec.lines.any || [];
-    const slot = h("div", {});
-    const draw = () => {
-      const mine = f.personal ? (sec.lines[who] || null) : null;
-      const sharedBlock = h("div", { class: "say-block say-shared-block" },
-        h("p", { class: "small" }, h("strong", {}, "Shared, for everyone"),
-          f.personal ? (mine ? ` (${who} says ${who}'s own instead; these are for anyone without their own)` : ` (${who} says these now)`) : " (an app's lines don't know who's speaking)"),
-        editor(f.file, key, sec, "any", sec.lines.any || [], () => { draw(); tag.replaceChildren(countTag()); }));
-      if (!f.personal) { slot.replaceChildren(sharedBlock); return; }
-      const ownBlock = mine
-        ? h("div", { class: "say-block say-own-block" }, h("p", { class: "small" }, h("strong", {}, `${who}'s own`), " (said instead of the shared ones; empty them all and save to go back to the shared ones)"),
-            editor(f.file, key, sec, who, mine, () => { draw(); tag.replaceChildren(countTag()); }))
-        : h("div", { class: "say-block say-own-block" }, h("p", { class: "small" }, h("strong", {}, `${who}'s own`), ": none yet."),
-            h("button", { type: "button", disabled: !isAdmin, onclick: () => { sec.lines[who] = (sec.lines.any || []).slice(); draw(); } }, `Give ${who} own lines (starting from the shared ones)`));
-      slot.replaceChildren(ownBlock, sharedBlock);
-    };
-    const countTag = () => h("span", { class: "small quiet" }, f.personal ? ((sec.lines[who] || []).length ? `${(sec.lines[who] || []).length} own, ${(sec.lines.any || []).length} shared` : `${(sec.lines.any || []).length} shared (in use)`) : `${(sec.lines.any || []).length} lines`);
-    const tag = h("span", {}, countTag());
-    const item = h("details", { class: "say-section", "data-find": `${key} ${pretty(key)} ${Object.values(sec.lines).flat().join(" ")} ${sec.note}`.toLowerCase() },
-      h("summary", {}, h("strong", {}, pretty(key)), " ", tag, sec.note ? h("span", { class: "small quiet say-note" }, ` · ${sec.note}`) : null), slot);
-    item.addEventListener("toggle", () => { if (item.open && !slot.childNodes.length) draw(); }, { once: false });
-    void own;
-    return item;
-  }
-  for (const f of [...d.files].sort((a, b) => (b.personal - a.personal) || a.file.localeCompare(b.file))) {
-    const fileBox = h("div", { class: "say-filebox" }, h("h3", { class: "say-file" }, f.personal ? "The router's own replies" : `The ${pretty(f.file)} app's replies`));
-    for (const part of f.parts) {
-      fileBox.append(h("div", { class: "say-partbox" }, h("p", { class: "say-part small" }, part.title), ...part.sections.map((k) => sectionFor(f, k))));
-    }
-    list.append(fileBox);
-  }
-  search.addEventListener("input", () => {
-    const q = search.value.trim().toLowerCase();
-    for (const el of list.querySelectorAll(".say-section")) {
-      const hit = !q || el.dataset.find.includes(q);
-      el.hidden = !hit;
-      if (q && hit && !el.open) { el.open = true; }
-    }
-    // a heading with nothing found under it steps aside
-    for (const box of list.querySelectorAll(".say-partbox, .say-filebox")) box.hidden = !box.querySelector(".say-section:not([hidden])");
-  });
-  // the words she uses for asking around: so "yes, check with the coven" counts as a yes
-  let asking = d.about_asking.slice();
-  const askMsg = h("span", { class: "small" });
-  const askSave = h("button", { type: "button", disabled: !isAdmin }, "Save the asking words");
-  askSave.addEventListener("click", busy(askSave, askMsg, async () => {
-    await api("/api/phrases/asking", { method: "PUT", body: { words: asking } });
-    askMsg.replaceChildren(okNote("Saved. Restart to use them."));
-  }));
-  return h("details", { class: "card panel fold flair-card flair-sayings" }, h("summary", {}, h("h2", {}, "Sayings")),
-    h("p", { class: "quiet small" }, `Every fixed line the router says, from "Shall I check with my coven?" to "Plus 3 more.": the router says these itself, never Home Assistant. Pick a saying, give ${who} own lines or change the shared ones, and save: in use at once. Each says what it must keep ({heard} is the words that were heard) and whether it's a question.`),
-    h("div", { class: "say-asking" }, h("strong", { class: "small" }, "Words for asking around"),
-      h("p", { class: "small quiet" }, "When it offers to ask around, \"yes, check with the coven\" counts as a yes only if its asking word is here. Add the words your lines use (coven, cauldron, winds...)."),
-      chipList(asking, (v) => { asking = v; }), h("div", { class: "row-actions" }, askSave, askMsg)),
-    search, list);
-}
-
-// Download her books and Comb the books, right here (the same tools as on the Tools page)
-function bookTools(who) {
-  const output = h("pre", { class: "output", hidden: true });
-  const status = h("p", { class: "quiet small" });
-  const run = (id, label) => {
-    const b = h("button", { type: "button", class: id === "flair_mine" ? "primary" : "" }, label);
-    b.addEventListener("click", () => runTool(id, { assistant: who }, output, status, label));
-    return b;
-  };
-  return h("div", { class: "book-tools" },
-    h("h3", {}, "Books"),
-    h("p", { class: "quiet small" }, `First Download the books (from the addresses below to the local paths), then Comb the books: new lines appear in Lines from the books. Combing leaves out lines already in the bank or deleted from it.`),
-    h("div", { class: "row-actions" }, run("flair_refresh", "Download the books"), run("flair_mine", "Comb the books")),
-    status, output);
-}
-
-async function combingCard() {
-  const d = (await api("/api/combing")).combing || {};
-  const c = JSON.parse(JSON.stringify(d));
-  const lists = [["said_words", "Said verbs (\"said the Witch\")"], ["speaker_adjectives", "Words before the speaker's kind (\"the good Witch\")"],
-    ["never", "Never said"], ["story_words", "Story-bound words (a line about \"him\" or \"her\" makes no sense alone)"],
-    ["allowed_capitals", "Capitalized words allowed"], ["closer_words", "Closer words (guess: goes after the answer)"],
-    ["interjections", "Interjections (ranked higher)"]];
-  const groups = [];
-  for (const [k, label] of lists) groups.push(h("div", {}, h("h3", {}, label), chipList(c[k] || [], (v) => { c[k] = v; })));
-  for (const g of ["moods", "topics"]) {
-    for (const [k, v] of Object.entries(c[g] || {})) {
-      groups.push(h("div", {}, h("h3", {}, `${g === "moods" ? "Mood" : "Topic"}: ${k}`), chipList(v, (nv) => { c[g][k] = nv; })));
-    }
-  }
-  const maxWords = input("number", { min: "1", max: "30", value: c.max_words ?? 9, oninput: (e) => { c.max_words = Number(e.target.value); } });
-  const box = errorBox();
-  const note = h("span", {});
-  const save = h("button", { class: "primary", type: "button" }, "Save");
-  save.addEventListener("click", busy(save, box, async () => {
-    await api("/api/combing", { method: "PUT", body: { combing: c } });
-    note.replaceChildren(okNote("Saved. Comb the books again to use it."));
-  }));
-  return h("details", { class: "card panel flair-card flair-sources" }, h("summary", {}, h("strong", {}, "How the books are combed (personality/combing.yaml)")),
-    h("p", { class: "quiet small" }, "Words and short phrases, whole words, ignoring case. A * at the end means any ending; -? an optional hyphen."),
-    field("Longest line (words)", maxWords), h("div", { class: "grid2" }, groups), box, h("div", { class: "row-actions" }, save, note));
-}
-
-// ---------- Personality: Name Sparkle (saying people's names) ----------
-
-async function sparklePage() {
-  const d = await api("/api/sparkle");
-  const isAdmin = allowed("people");
-  // where the names come from: one line at the top
-  const from = select([{ value: "", label: "(none picked)" }].concat(d.sources.map((x) => ({ value: x.name, label: `${x.title}${x.who_spoke ? " (names who spoke)" : " (people list)"}` }))),
-    d.voice_id_from || "", { "aria-label": "Voice ID from" });
-  const fromBox = errorBox();
-  const fromSave = h("button", { type: "button", disabled: !isAdmin }, "Save");
-  fromSave.addEventListener("click", busy(fromSave, fromBox, async () => {
-    await api("/api/sparkle", { method: "PUT", body: { voice_id_from: from.value } });
-    route();
-  }));
-  // a tab per persona (found from the personality files, so a new device gets one), and Shared
-  let current = hashParam("tab") || (d.devices.find((x) => x.has_file) || d.devices[0] || {}).name || "shared";
-  const tabs = h("div", { class: "tabs page-tabs", role: "tablist" });
-  const body = h("div", {});
-  const isOn = (n) => Number((n || {}).rate || 0) > 0;
-  function draw() {
-    tabs.replaceChildren(...d.devices.map((x) => h("button", { role: "tab", type: "button", "aria-selected": x.name === current ? "true" : "false",
-      onclick: () => { current = x.name; draw(); } }, x.name, isOn(x.names) ? h("span", { class: "tab-dot on", title: "names on" }) : h("span", { class: "tab-dot", title: "names off" }))),
-      h("button", { role: "tab", type: "button", "aria-selected": current === "shared" ? "true" : "false", onclick: () => { current = "shared"; draw(); } }, "Shared"));
-    const dev = d.devices.find((x) => x.name === current);
-    body.replaceChildren(...(dev ? personaTab(d, dev, isAdmin, draw) : [namesTable(d, d.calls, isAdmin, {
-      title: "Shared names", hint: "The names any persona may use for each voice, when it has none of its own for them.",
-      put: async (person, names) => (await api("/api/sparkle/calls", { method: "PUT", body: { person: person, names: names } })).names,
-      remove: async (person) => api("/api/sparkle/calls", { method: "PUT", body: { person: person, remove: true } }), pull: true })]));
-  }
-  draw();
-  return [h("h1", {}, "Name Sparkle"),
-    h("div", { class: "flair-banner sparkle-banner" },
-      h("div", {}, h("div", { class: "flair-who" }, "Name Sparkle"), h("div", { class: "small" }, "saying your name now and then")),
-      h("div", { class: "flair-stats" },
-        h("span", {}, h("strong", {}, String(d.people.length)), " voices saved"),
-        h("span", {}, h("strong", {}, String(d.devices.filter((x) => isOn(x.names)).length)), " personas saying names"))),
-    h("div", { class: "row" }, h("label", { class: "small" }, "Voice ID from ", from), fromSave, fromBox,
-      infoTip("The integration that knows people by voice. Its own names are the people everywhere: here, each app's people card, and the firewall. How sure it must be is its own, per device (its \"known\").")),
-    tabs, body];
-}
-
-// One persona's tab on Name Sparkle: how often it says names, an optional least score, and its own
-// names for each voice (used first; the shared names when it has none for someone).
-function personaTab(d, dev, isAdmin, redraw) {
-  const n = dev.names || {};
-  const drate = input("number", { min: "0", max: "1", step: "0.05", value: n.rate ?? 0, "aria-label": `${dev.name}: share of answers` });
-  const dstreak = input("number", { min: "0", max: "10", step: "1", value: n.max_in_a_row ?? 1, "aria-label": `${dev.name}: most in a row` });
-  const dscore = input("number", { min: "0", max: "1", step: "0.01", value: n.min_score ?? "", placeholder: "the voice ID's own", "aria-label": `${dev.name}: at least this score` });
-  const ddeck = h("span", {});
-  const drawD = () => ddeck.replaceChildren(...(Number(drate.value || 0) > 0
-    ? [deckOf(Math.round(Number(drate.value) * 10), "name-on"), h("span", { class: "small" }, " with a name")]
-    : [h("span", { class: "quiet small" }, `no names on ${dev.name} (share 0)`)]));
-  drate.addEventListener("input", drawD);
-  drawD();
-  const dbox = errorBox();
-  const dnote = h("span", {});
-  const dsave = h("button", { class: "primary", type: "button", disabled: !isAdmin }, `Save ${dev.name}`);
-  dsave.addEventListener("click", busy(dsave, dbox, async () => {
-    const r = await api(`/api/sparkle/device/${dev.name}`, { method: "PUT", body: { rate: drate.value, max_in_a_row: dstreak.value, min_score: dscore.value } });
-    dev.names = Object.assign({}, dev.names, r.names);
-    if (dscore.value === "") delete dev.names.min_score;
-    dnote.replaceChildren(okNote("Saved. Restart to use it."));
-    redraw();
-  }));
-  const own = Object.assign({}, n.calls || {});
-  for (const v of d.people) if (!(v in own)) own[v] = [];
-  return [h("section", { class: "card panel flair-card flair-knobs" },
-      h("div", { class: "deck-row" }, h("span", { class: "small quiet" }, `On ${dev.name}, of every 10 answers:`), h("span", { class: "deck-label" }, ddeck)),
-      h("div", { class: "grid3" },
-        field("Share of answers", drate, "0 = no names on this persona. Random, dealt like a shuffled deck (0.3 = 3 of every 10)."),
-        field("Most in a row", dstreak, "Never more answers with a name than this back to back (0 = no limit)."),
-        field("At least this score", dscore, "Empty: the voice ID's own \"known\" for this device decides. A number asks for more.")),
-      dbox, h("div", { class: "row-actions" }, dsave, dnote)),
-    namesTable(d, own, isAdmin, { title: `${dev.name}'s own names`, hint: `What ${dev.name} calls each voice. Used first; a voice with none here gets the shared names.`,
-      put: async (person, names) => (await api(`/api/sparkle/device/${dev.name}/calls`, { method: "PUT", body: { person: person, names: names } })).names })];
-}
-
-// The names under each voice: shared (with Pull and Delete) or one persona's own.
-function namesTable(d, start, isAdmin, o) {
-  const calls = JSON.parse(JSON.stringify(start || {}));
-  const body = h("tbody", {});
-  const box = errorBox();
-  const pullNote = h("span", { class: "small" });
-  async function put(person, names) { calls[person] = await o.put(person, names); draw(); }
-  function draw() {
-    const people = Object.keys(calls);
-    body.replaceChildren(...(people.length ? people.flatMap((person) => {
-      const names = calls[person] || [];
-      const add = input("text", { placeholder: `another name for ${person}`, "aria-label": `Add a name for ${person}`, disabled: !isAdmin });
-      const addBtn = h("button", { type: "button", disabled: !isAdmin }, "Add");
-      const doAdd = busy(addBtn, box, async () => { if (add.value.trim()) await put(person, names.concat([add.value.trim()])); });
-      addBtn.addEventListener("click", doAdd);
-      add.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doAdd(); } });
-      const gone = o.remove ? h("button", { type: "button", disabled: !isAdmin, title: `Delete ${person} and the names under them` }, "Delete") : null;
-      if (gone) gone.addEventListener("click", busy(gone, box, async () => { await o.remove(person); delete calls[person]; draw(); }));
-      const rows = [h("tr", { class: "mh-band" },
-        h("td", {}, h("strong", {}, person)),
-        h("td", { class: "num" }, h("span", { class: "count-badge" }, String(names.length))),
-        h("td", {}, h("div", { class: "row" }, add, addBtn, gone)))];
-      names.forEach((nm, i) => {
-        const t = input("text", { value: nm, "aria-label": `${person}: name ${i + 1}`, disabled: !isAdmin });
-        const sv = h("button", { type: "button", disabled: !isAdmin }, "Save");
-        sv.addEventListener("click", busy(sv, box, async () => { const nn = names.slice(); nn[i] = t.value; await put(person, nn); }));
-        t.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sv.click(); } });
-        const del = h("button", { type: "button", disabled: !isAdmin }, "Delete");
-        del.addEventListener("click", busy(del, box, async () => { await put(person, names.filter((_, j) => j !== i)); }));
-        rows.push(h("tr", { class: "mh-heard" }, h("td", {}, t), h("td", {}), h("td", { class: "txn-actions" }, h("div", { class: "row-actions" }, hearButton(nm, true), sv, del))));
-      });
-      return rows;
-    }) : [h("tr", {}, h("td", { colspan: "3", class: "empty-state" }, "No voices saved yet: press Pull on the Shared tab."))]));
-  }
-  draw();
-  const srcTitle = ((d.sources || []).find((x) => x.name === d.voice_id_from) || {}).title || d.voice_id_from || "the voice ID";
-  let pull = null;
-  if (o.pull) {
-    pull = h("button", { type: "button", class: "primary", disabled: !isAdmin || !d.voice_id_from }, `Pull from ${srcTitle}`);
-    pull.addEventListener("click", busy(pull, pullNote, async () => {
-      const r = await api("/api/sparkle/pull", { method: "POST" });
-      for (const p of r.added) calls[p] = [];
-      draw();
-      pullNote.replaceChildren(okNote(r.added.length ? `${r.added.length} new: ${r.added.join(", ")}` : `nobody new (${r.from} knows ${r.known.length})`));
-    }));
-  }
-  return h("section", { class: "card panel flair-card flair-bank" }, h("h2", {}, o.title, " ", infoTip(o.hint)),
-    pull ? h("div", { class: "row-actions" }, pull, pullNote) : null,
-    h("div", { class: "table-wrap" }, h("table", { class: "matrix txn-table mh-table calls-table" },
-      h("thead", {}, h("tr", {}, h("th", {}, "Voice / names to use"), h("th", { class: "num" }, "Names"), h("th", {}, ""))), body)), box);
 }
 
 // ---------- Connect: integrations ----------
@@ -2702,7 +1878,7 @@ function listCardFold(x, d, word, isAdmin, open) {
 
 async function listCard(x, d, word, isAdmin, trial, det) {
   const id = encodeURIComponent(x.id);
-  const q = trial ? `?source=${encodeURIComponent(trial.from)}&id=${encodeURIComponent(trial.id)}&label=${encodeURIComponent(trial.name)}` : "";
+  const q = trial ? `?source=${encodeURIComponent(trial.from)}&id=${encodeURIComponent(trial.id)}&label=${encodeURIComponent(trial.name)}&fill=${encodeURIComponent(JSON.stringify(trial.fill || {}))}` : "";
   const r = await api(`/api/integrations/${id}/lists/${encodeURIComponent(word)}${q}`);
   const c = r.card || {};
   const sum = det.querySelector(".list-sum");
@@ -2717,10 +1893,25 @@ async function listCard(x, d, word, isAdmin, trial, det) {
     pick(nameSel, c.name, /display|^name$|title/i);
   };
   fields();
+  // a command whose path takes a value ("GET /projects/{id}/projectusers"): a box for each (fill:)
+  const fillBox = h("div", { class: "grid3" });
+  const fillIn = {};
+  const drawFill = () => {
+    const keep = Object.fromEntries(Object.entries(fillIn).map(([k, el]) => [k, el.value]));
+    for (const k of Object.keys(fillIn)) delete fillIn[k];
+    const params = [...cmd.value.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+    fillBox.replaceChildren(...params.map((p) => {
+      fillIn[p] = input("text", { value: keep[p] ?? ((c.fill || {})[p] ?? ""), "aria-label": `its {${p}}` });
+      return field(`Its {${p}}`, fillIn[p], `The value ${cmd.value} takes for {${p}}.`);
+    }));
+  };
+  const fillValues = () => Object.fromEntries(Object.entries(fillIn).map(([k, el]) => [k, el.value.trim()]));
+  drawFill();
   cmd.addEventListener("change", fields);
+  cmd.addEventListener("change", drawFill);
   const house = select([{ value: "", label: "nothing in the house (like projects)" }, { value: "people", label: "people in the house" }], c.house || (word === "people" ? "people" : ""), { "aria-label": "what its items are here" });
   const tryBtn = h("button", { type: "button" }, "List them");
-  tryBtn.addEventListener("click", () => det._reload({ from: cmd.value, id: idSel.value, name: nameSel.value }));
+  tryBtn.addEventListener("click", () => det._reload({ from: cmd.value, id: idSel.value, name: nameSel.value, fill: fillValues() }));
   const isPeople = () => house.value === "people";
   // the default: a person in the house (people), or one of its items
   const defOpts = () => isPeople()
@@ -2789,7 +1980,7 @@ async function listCard(x, d, word, isAdmin, trial, det) {
     const weight = wField.value ? { field: wField.value, higher: wHigher.checked, from: wFrom.value === "" ? null : Number(wFrom.value), words: wWords.value } : {};
     const defined = dFrom.value ? { from: dFrom.value, month: dMonth.value.trim() || "month", day: dDay.value.trim() || "day" } : {};
     await api(`/api/integrations/${id}/lists/${encodeURIComponent(word)}`, { method: "PUT",
-      body: { from: cmd.value, id: idSel.value, name: nameSel.value, house: house.value, default: def.value, me: me.value, map: map, names: otherNames,
+      body: { from: cmd.value, fill: fillValues(), id: idSel.value, name: nameSel.value, house: house.value, default: def.value, me: me.value, map: map, names: otherNames,
         skip: isPeople() ? {} : skip, weight: isPeople() ? {} : weight, defined: isPeople() ? {} : defined } });
     save.after(okNote("Saved. Restart to use it."));
   }));
@@ -2799,6 +1990,7 @@ async function listCard(x, d, word, isAdmin, trial, det) {
   } }, "Take it out") : null;
   return h("div", {},
     h("div", { class: "grid3" }, field("Its items come from", cmd), field("An item's id is", idSel), field("An item's name is", nameSel)),
+    fillBox,
     h("div", { class: "grid3" }, field("Its items are", house), field(isPeople() ? "Default person" : `Default ${word}`, def, "Used when none is said. None: left out (later it may ask)."), meField),
     h("div", { class: "row-actions" }, tryBtn),
     r.detail ? h("p", { class: "warn small" }, r.detail) : null,
@@ -3275,7 +2467,7 @@ function serviceCard(name, s, isAdmin) {
   const timeout = input("number", { step: "1", min: "1", value: s.timeout ?? 8 });
   // only an app the router keeps a copy of (one with a connector) refreshes it on a clock
   const keeps = Boolean(s.keeps_copy);
-  const refresh = input("number", { step: "5", min: "5", value: s.cache_refresh_seconds ?? 60 });
+  const refresh = input("number", { step: "5", min: "0", value: s.cache_refresh_seconds ?? 60 });
   const box = errorBox();
   const note = h("span", {});
   const out = h("p", { class: "small" });
@@ -3301,7 +2493,30 @@ function serviceCard(name, s, isAdmin) {
       isApp ? field("Pages it reads", pages, "An answer in pages (its next): how many pages to read in all; each is a call (1: the first only).") : null,
       isApp ? field("Its spec's paths start with", prefix, "Only when its address leaves that start out (Wikipedia's spec lists /{domain}/v1/feed/..., served at its address /feed/...); empty for most apps.") : null,
       isApp ? h("p", { class: "quiet small" }, "Its people, its projects and who \"me\" means: the Defaults tab, Lists.") : null),
-    box, h("div", { class: "row-actions" }, save, testButton(name, out), note), out);
+    box, h("div", { class: "row-actions" }, save, testButton(name, out), note), out,
+    s.rolls_forward && isAdmin ? overdueTool(name) : null);
+}
+
+// #27: repeating things nobody marked done sit in the past; shown first, then brought forward to their next date
+function overdueTool(name) {
+  const out = h("div", {});
+  const box = errorBox();
+  const look = h("button", { type: "button" }, "Bring overdue repeating chores forward");
+  look.addEventListener("click", busy(look, box, async () => {
+    const r = await api(`/api/integrations/${name}/overdue`);
+    if (!r.items.length) { out.replaceChildren(h("p", { class: "small" }, "Nothing to bring forward: no repeating chore is past its date.")); return; }
+    const go = h("button", { type: "button", class: "primary" }, `Move ${r.items.length}`);
+    go.addEventListener("click", busy(go, box, async () => {
+      const m = await api(`/api/integrations/${name}/overdue`, { method: "POST" });
+      out.replaceChildren(okNote(`Moved ${m.moved.length}.`));
+    }));
+    out.replaceChildren(h("div", { class: "table-wrap" }, h("table", { class: "matrix" }, h("thead", {}, h("tr", {}, h("th", {}, "Chore"), h("th", {}, "Was due"), h("th", {}, "Moves to"))),
+      h("tbody", {}, r.items.map((x) => h("tr", {}, h("td", {}, x.name), h("td", { class: "quiet nowrap" }, x.say_from), h("td", { class: "nowrap" }, x.say_to)))))),
+      h("div", { class: "row-actions" }, go, h("button", { type: "button", onclick: () => out.replaceChildren() }, "Cancel")));
+  }));
+  return h("div", { class: "overdue-tool" }, h("h3", {}, "Clean-up"),
+    h("p", { class: "quiet small" }, "Repeating chores nobody marked done stay on their old date. This moves each to its next date from today on, its time kept. One that doesn't repeat is never moved: a real miss stays seen. You see the list first."),
+    h("div", { class: "row-actions" }, look, box), out);
 }
 
 function litellmCard(l, isAdmin) {
@@ -3534,97 +2749,6 @@ async function startingView() {
     h("p", { class: "quiet small" }, "An update shipped these in the starting copies (defaults/), and your own files don't have them. Your files are never changed by an update: Add puts one in (your comments kept; most are used after a restart), Not for us hides it for good. Values you changed aren't listed: yours win."),
     h("div", { class: "table-wrap" }, h("table", { class: "matrix" },
       h("thead", {}, h("tr", {}, ["File", "Where", "What", ""].map((x) => h("th", {}, x)))), h("tbody", {}, rows))));
-}
-
-// ---------- Protect: firewall ----------
-
-// Ticks for one rule list, in the router's words, keeping the front end's names in the rule
-// (frontend/<name>.yaml). A value the words don't know is still shown, so nothing is lost.
-function picks(rule, key, title, options, hint) {
-  const have = new Set(rule[key] || []);
-  const known = new Set(options.map((o) => o.value));
-  const boxes = options.map((o) => h("label", { class: "check small", title: o.value },
-    h("input", { type: "checkbox", checked: have.has(o.value), onchange: (e) => {
-      const now = new Set(rule[key] || []);
-      if (e.target.checked) now.add(o.value); else now.delete(o.value);
-      rule[key] = [...now];
-    } }), ` ${o.label} `, h("code", { class: "quiet small" }, o.value)));
-  const odd = [...have].filter((v) => !known.has(v));
-  return h("div", {}, h("h3", {}, title), hint ? h("p", { class: "hint" }, hint) : null,
-    h("div", { class: "pick-grid" }, ...boxes),
-    odd.length ? h("p", { class: "small" }, "Also in this rule: ", ...odd.map((v) => h("code", {}, v + " "))) : null);
-}
-
-async function firewallPage() {
-  const d = await api("/api/firewall");
-  // device names no Home Assistant device has (a misspelt rule silently stops nothing): checked after the page shows
-  const unknownBox = h("div", {});
-  api("/api/firewall/devices").then((c) => {
-    if (c.error) { unknownBox.replaceChildren(h("p", { class: "quiet small" }, `Device names not checked: ${c.error}.`)); return; }
-    if (!c.unknown.length) return;
-    unknownBox.replaceChildren(h("div", { class: "card warn-box", role: "alert" },
-      h("strong", {}, `Device names Home Assistant doesn't have (of its ${c.devices} devices)`),
-      h("ul", {}, c.unknown.map((u) => h("li", {}, `Rule ${u.rule}${u.name ? ` (${u.name})` : ""}: "${u.device}" matches no device, so it stops nothing.`))),
-      h("p", { class: "small" }, "Check the spelling against the device's name in Home Assistant.")));
-  }).catch(() => {});
-  const fw = JSON.parse(JSON.stringify(d.firewall || { enabled: false, rules: [] }));
-  fw.rules = fw.rules || [];
-  const isAdmin = allowed("tools");
-  const rules = h("div", {});
-  function draw() {
-    rules.replaceChildren(...fw.rules.map((r, i) => {
-      const name = input("text", { value: r.name || "", placeholder: "what it's for", oninput: (e) => { r.name = e.target.value; } });
-      const msg = input("text", { value: r.message || "", placeholder: "empty: a line from phrases/router.yaml firewall_blocked", oninput: (e) => { r.message = e.target.value; } });
-      const list = (k, label, hint) => h("div", {}, h("h3", {}, label), hint ? h("p", { class: "hint" }, hint) : null, chipList(r[k] || [], (v) => { r[k] = v; }));
-      return h("section", { class: "card rule" },
-        h("h3", {}, `Rule ${i + 1}`, h("span", {}, check(" on", r.enabled !== false, (e) => { r.enabled = e.target.checked; }), " ",
-          h("button", { type: "button", onclick: () => { fw.rules.splice(i, 1); draw(); } }, "Remove"))),
-        h("div", { class: "grid2" }, field("Name", name), field("Reply", msg)),
-        h("div", { class: "grid2" },
-          list("people", "Who", `The voice ID's own names, exactly (${d.people.join(", ") || "none saved yet: Pull on Name Sparkle"}), unknown, or anyone.`),
-          list("assistants", "Only on these voice devices", "Empty: on all of them."),
-          list("voice_devices", "May not use these voice devices at all", d.assistants.join(", ")),
-          list("devices", "May not work these devices, by name", "Like garage door: in what they say, and in what the Off-Platform model tries to do."),
-          list("commands", "May not say", "Whole words, like open the garage."),
-          list("topics", "May not use these topics", `${d.topics.join(", ")}, or topic.action (chores.add).`)),
-        h("div", { class: "grid2" },
-          picks(r, "domains", "May not use these kinds of devices", (d.words || {}).kinds || [], "Every action on them, however it was asked."),
-          picks(r, "intents", "May not do these to a device", (d.words || {}).actions || [], "Only these actions: unlock but not lock, say.")),
-        check(" Nothing they say goes Off-Platform", r.gemini, (e) => { r.gemini = e.target.checked; }));
-    }));
-  }
-  draw();
-  const enabled = check(" Firewall on", fw.enabled, (e) => { fw.enabled = e.target.checked; });
-  const sure = input("number", { min: "0", max: "1", step: "0.01", value: fw.sure_score ?? 0.8, oninput: (e) => { fw.sure_score = Number(e.target.value); } });
-  const down = select([{ value: "unknown", label: "treat every voice as unknown" }, { value: "allow", label: "block nobody" }], fw.when_oread_down || "unknown",
-    { onchange: (e) => { fw.when_oread_down = e.target.value; } });
-  const box = errorBox();
-  const note = h("span", {});
-  const save = h("button", { class: "primary", type: "button", disabled: !isAdmin }, "Save");
-  save.addEventListener("click", busy(save, box, async () => {
-    await api("/api/firewall", { method: "PUT", body: { firewall: fw } });
-    note.replaceChildren(okNote("Saved; in use now."));
-  }));
-  // try the rules being edited (before saving)
-  const say = input("text", { placeholder: "open the garage door" });
-  const who = input("text", { placeholder: "a voice's name, empty for unknown" });
-  const score = input("number", { min: "0", max: "1", step: "0.01", value: "0.9" });
-  const result = h("p", {});
-  const tbtn = h("button", { type: "button" }, "Try");
-  tbtn.addEventListener("click", busy(tbtn, result, async () => {
-    const speaker = who.value.trim() ? { speaker: who.value.trim(), label: "known", score: Number(score.value) } : { label: "unknown", score: 0.2 };
-    const r = await api("/api/try", { method: "POST", body: { say: say.value, speaker: speaker, firewall: Object.assign({}, fw, { enabled: true }) } });
-    result.replaceChildren(r.path === "blocked" ? h("span", { class: "pill-bad" }, `Blocked: ${r.blocked}. Reply: ${r.speech}`) : h("span", { class: "pill-ok" }, `Allowed (path ${r.path}).`));
-  }));
-  return [h("h1", {}, "Firewall"), unknownBox,
-    d.oread_on ? null : h("p", { class: "warn" }, ["Oread is off, so the router can't tell voices apart: every voice counts as unknown. Rules for anyone or unknown apply now; rules naming a person wait until Oread is on: ", h("a", { href: "#/integrations?open=oread" }, "switch it on in Integrations"), " (the firewall has its own On switch, on this page)."]),
-    h("p", { class: "quiet" }, "Who may use what, by voice. A rule that matches stops the request and its message is said. Kinds of devices and actions also cover the front end's own device commands and the Off-Platform model's, however they were understood, once the front end asks the router first (Veil Guard Service, for Home Assistant)."),
-    h("section", { class: "card panel" }, enabled, h("div", { class: "grid2" },
-      field("A voice counts as a person when the voice ID is this sure", sure, "The firewall's own number: it can be stricter than Name Sparkle's."),
-      field("While the voice ID can't be asked", down))),
-    rules, h("button", { type: "button", onclick: () => { fw.rules.push({ name: "", enabled: true, people: ["unknown"], assistants: [], voice_devices: [], devices: [], commands: [], topics: [], intents: [], domains: [], gemini: false, message: "" }); draw(); } }, "Add a rule"),
-    box, h("div", { class: "row-actions" }, save, note),
-    h("section", { class: "card panel" }, h("h2", {}, "Try the rules above"), h("div", { class: "grid2" }, field("Say", say), field("Who spoke", who), field("How sure the voice ID is", score)), tbtn, result)];
 }
 
 // ---------- Protect: security ----------
@@ -3947,14 +3071,187 @@ async function guidePage() {
   return [h("h1", {}, "Guides"), tabs, h("div", { class: "card guide gap-top" }, h("pre", { class: "guide-text" }, text))];
 }
 
+// Her sayings: every fixed line she says (phrases/*.yaml), her own or the shared ones, editable here.
+async function sayingsCard(who, isAdmin) {
+  const d = await api("/api/phrases");
+  const search = input("search", { placeholder: "find a saying (words in it, or its name: ask, coven, chores...)", "aria-label": "Find a saying" });
+  const list = h("div", {});
+  const pretty = (k) => k.replace(/_/g, " ");
+  function editor(file, key, sec, whose, lines, after) {
+    const rows = lines.map((x) => ({ text: x }));
+    const box = errorBox();
+    const body = h("div", { class: "say-rows" });
+    const r = sec.rules;
+    const draw = () => body.replaceChildren(...rows.map((row, i) => h("div", { class: "row say-row" },
+      input("text", { value: row.text, disabled: !isAdmin, "aria-label": `${pretty(key)} line ${i + 1}`, oninput: (e) => { row.text = e.target.value; } }),
+      hearButton(row.text.replace(/{\w+}/g, "something"), true),
+      h("button", { type: "button", disabled: !isAdmin, "aria-label": "remove", onclick: () => { rows.splice(i, 1); draw(); } }, "×"))));
+    draw();
+    const add = h("button", { type: "button", disabled: !isAdmin, onclick: () => { rows.push({ text: rows.length ? "" : (lines[0] || "") }); draw(); body.lastChild && body.lastChild.querySelector("input").focus(); } }, "Add a line");
+    const save = h("button", { type: "button", class: "primary", disabled: !isAdmin }, "Save");
+    save.addEventListener("click", busy(save, box, async () => {
+      const res = await api(`/api/phrases/${file}/${key}/${whose}`, { method: "PUT", body: { lines: rows.map((x) => x.text) } });
+      sec.lines[whose] = res.lines;
+      if (!res.lines.length) delete sec.lines[whose];
+      box.replaceChildren(okNote("saved, in use now"));
+      if (after) after();
+    }));
+    const rule = [r.needed.length ? `keep ${r.needed.map((x) => `{${x}}`).join(", ")}` : "",
+      r.allowed.filter((x) => !r.needed.includes(x)).length ? `may use ${r.allowed.filter((x) => !r.needed.includes(x)).map((x) => `{${x}}`).join(", ")}` : "",
+      r.question === true ? "ends with a question (it waits for your answer)" : r.question === false ? "never a question" : ""].filter(Boolean).join("; ");
+    return h("div", { class: "say-editor" }, rule ? h("p", { class: "small quiet" }, rule) : null, body, h("div", { class: "row-actions" }, add, save, box));
+  }
+  function sectionFor(f, key) {
+    const sec = f.sections[key];
+    const own = f.personal ? (sec.lines[who] || null) : null;
+    const shared = sec.lines.any || [];
+    const slot = h("div", {});
+    const draw = () => {
+      const mine = f.personal ? (sec.lines[who] || null) : null;
+      const sharedBlock = h("div", { class: "say-block say-shared-block" },
+        h("p", { class: "small" }, h("strong", {}, "Shared, for everyone"),
+          f.personal ? (mine ? ` (${who} says ${who}'s own instead; these are for anyone without their own)` : ` (${who} says these now)`) : " (an app's lines don't know who's speaking)"),
+        editor(f.file, key, sec, "any", sec.lines.any || [], () => { draw(); tag.replaceChildren(countTag()); }));
+      if (!f.personal) { slot.replaceChildren(sharedBlock); return; }
+      const ownBlock = mine
+        ? h("div", { class: "say-block say-own-block" }, h("p", { class: "small" }, h("strong", {}, `${who}'s own`), " (said instead of the shared ones; empty them all and save to go back to the shared ones)"),
+            editor(f.file, key, sec, who, mine, () => { draw(); tag.replaceChildren(countTag()); }))
+        : h("div", { class: "say-block say-own-block" }, h("p", { class: "small" }, h("strong", {}, `${who}'s own`), ": none yet."),
+            h("button", { type: "button", disabled: !isAdmin, onclick: () => { sec.lines[who] = (sec.lines.any || []).slice(); draw(); } }, `Give ${who} own lines (starting from the shared ones)`));
+      slot.replaceChildren(ownBlock, sharedBlock);
+    };
+    const countTag = () => h("span", { class: "small quiet" }, f.personal ? ((sec.lines[who] || []).length ? `${(sec.lines[who] || []).length} own, ${(sec.lines.any || []).length} shared` : `${(sec.lines.any || []).length} shared (in use)`) : `${(sec.lines.any || []).length} lines`);
+    const tag = h("span", {}, countTag());
+    const item = h("details", { class: "say-section", "data-find": `${key} ${pretty(key)} ${Object.values(sec.lines).flat().join(" ")} ${sec.note}`.toLowerCase() },
+      h("summary", {}, h("strong", {}, pretty(key)), " ", tag, sec.note ? h("span", { class: "small quiet say-note" }, ` · ${sec.note}`) : null), slot);
+    item.addEventListener("toggle", () => { if (item.open && !slot.childNodes.length) draw(); }, { once: false });
+    void own;
+    return item;
+  }
+  for (const f of [...d.files].sort((a, b) => (b.personal - a.personal) || a.file.localeCompare(b.file))) {
+    const fileBox = h("div", { class: "say-filebox" }, h("h3", { class: "say-file" }, f.personal ? "The router's own replies" : `The ${pretty(f.file)} app's replies`));
+    for (const part of f.parts) {
+      fileBox.append(h("div", { class: "say-partbox" }, h("p", { class: "say-part small" }, part.title), ...part.sections.map((k) => sectionFor(f, k))));
+    }
+    list.append(fileBox);
+  }
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLowerCase();
+    for (const el of list.querySelectorAll(".say-section")) {
+      const hit = !q || el.dataset.find.includes(q);
+      el.hidden = !hit;
+      if (q && hit && !el.open) { el.open = true; }
+    }
+    // a heading with nothing found under it steps aside
+    for (const box of list.querySelectorAll(".say-partbox, .say-filebox")) box.hidden = !box.querySelector(".say-section:not([hidden])");
+  });
+  // the words she uses for asking around: so "yes, check with the coven" counts as a yes
+  let asking = d.about_asking.slice();
+  const askMsg = h("span", { class: "small" });
+  const askSave = h("button", { type: "button", disabled: !isAdmin }, "Save the asking words");
+  askSave.addEventListener("click", busy(askSave, askMsg, async () => {
+    await api("/api/phrases/asking", { method: "PUT", body: { words: asking } });
+    askMsg.replaceChildren(okNote("Saved. Restart to use them."));
+  }));
+  return h("details", { class: "card panel fold flair-card flair-sayings" }, h("summary", {}, h("h2", {}, "Sayings")),
+    h("p", { class: "quiet small" }, `Every fixed line the router says, from "Shall I check with my coven?" to "Plus 3 more.": the router says these itself, never Home Assistant. Pick a saying, give ${who} own lines or change the shared ones, and save: in use at once. Each says what it must keep ({heard} is the words that were heard) and whether it's a question.`),
+    h("div", { class: "say-asking" }, h("strong", { class: "small" }, "Words for asking around"),
+      h("p", { class: "small quiet" }, "When it offers to ask around, \"yes, check with the coven\" counts as a yes only if its asking word is here. Add the words your lines use (coven, cauldron, winds...)."),
+      chipList(asking, (v) => { asking = v; }), h("div", { class: "row-actions" }, askSave, askMsg)),
+    search, list);
+}
+
+
+// Sayings: every fixed line she says, her own or the shared ones (core: what she says is hers whatever
+// add-ons are on; it was a tab of Persona Flair until Flair became an add-on, issue #25).
+async function sayingsPage() {
+  const names = (session && session.assistants) || [];
+  const who = hashParam("who") || names[0] || "";
+  const picker = h("div", { class: "pills" }, names.map((n) => h("a", { class: "pill", href: `#/sayings?who=${n}`,
+    "aria-pressed": n === who ? "true" : "false" }, n)));
+  return [h("h1", {}, "Sayings"),
+    h("p", { class: "quiet intro" }, "Every fixed line she says: her own, or the shared ones any persona says. An edit is heard after a restart."),
+    picker, await sayingsCard(who, allowed("settings"))];
+}
+
+// An add-on's page: its own script (addons/<name>/page.js), loaded when it's shown; render(api, h).
+function addonPageFn(page) {
+  const p = ((session && session.addon_pages) || []).find((x) => x.id === page);
+  if (!p) return null;
+  return async () => (await import(`/addons/${p.addon}/page.js`)).render(api, h, KIT);
+}
+
+// What an add-on's page may use of the shell's own helpers (issue #25): passed in, never reached for.
+const KIT = {
+  allowed, busy, check, chipList, cmp, errorBox, field, hashParam, hearButton, input, number, okNote, runTool, select,
+  sortHead, infoTip, route, when, withRules, userRulesView, underBox, decisionText, foldBox,
+  rulesExtra: (page, fn) => { RULES_EXTRA[page] = fn; },
+  refreshSession: async () => { session = await api("/api/session"); },
+};
+
+// Add-ons: what isn't the router's own job, each switched on or off here (issue #25, veil/addons.py).
+async function addonsPage() {
+  const d = await api("/api/addons");
+  const box = errorBox();
+  const rows = d.addons.map((a) => {
+    const on = h("input", { type: "checkbox", checked: a.chosen, disabled: !!a.broken, "aria-label": `${a.title} on` });
+    on.addEventListener("change", async () => {
+      box.textContent = "";
+      try {
+        await api("/api/addons", { method: "POST", body: { name: a.name, on: on.checked } });
+        session = null; route();
+      } catch (e) { box.textContent = e.message; on.checked = !on.checked; }
+    });
+    const serves = a.serves === "on_platform" ? `Keeps requests on platform: ${a.serves_how || ""}` : "Comfort: it doesn't keep requests on platform, and costs almost nothing";
+    const t = Object.entries(a.timing || {}).map(([slot, x]) => `${slot}: ${x.calls} calls, ${x.avg_ms} ms each${x.errors ? `, ${x.errors} failed` : ""}`).join("; ");
+    return h("div", { class: "card" },
+      h("label", { class: "check" }, on, h("strong", {}, a.title), " ", h("span", { class: "quiet" }, a.version || "")),
+      h("p", {}, a.about || ""),
+      h("p", { class: "quiet" }, serves),
+      h("p", { class: "quiet" }, `${a.path === "inbound" ? "Inbound (the request coming in)" : "Outbound (her answer going out)"}` +
+        (a.positions.length ? `, at ${a.positions.join(" or ")}` : "") + ` · Works at: ${a.slots.join(", ") || "nothing on the path (it provides services)"}` +
+        (a.needs.length ? ` · Needs: ${a.needs.join(", ")}` : "") + (a.needed_by.length ? ` · Needed by: ${a.needed_by.join(", ")}` : "") +
+        ` · May: ${a.may.join(", ")}` + (a.on ? " · running" : a.chosen ? " · on after a restart" : "")),
+      t ? h("p", { class: "quiet" }, t) : null,
+      a.broken ? h("p", { class: "error" }, `Not used: ${a.broken}`) : null);
+  });
+  // the outbound order: a replace add-on first (it changes the result itself), then the ones at the
+  // beginning or end of her answer in the household's order, each wrapping what the one before left
+  const wraps = d.addons.filter((a) => a.chosen && a.path === "outbound" && !a.positions.includes("replace") && a.positions.length);
+  const replace = d.addons.filter((a) => a.chosen && a.positions.includes("replace"));
+  let order = (d.order || []).filter((n) => wraps.some((a) => a.name === n));
+  wraps.forEach((a) => { if (!order.includes(a.name)) order.push(a.name); });
+  const title = (n) => (d.addons.find((a) => a.name === n) || {}).title || n;
+  const list = h("ol", { class: "order-list", "aria-label": "Outbound order" });
+  const orderBox = errorBox();
+  const draw = () => list.replaceChildren(...replace.map((a) => h("li", {}, `${a.title} `, h("span", { class: "quiet" }, "(replaces inside her answer: always first)"))),
+    ...order.map((n, i) => h("li", {}, `${title(n)} `, h("span", { class: "quiet" }, "(at the beginning or end, by chance) "),
+      h("button", { type: "button", class: "small", disabled: i === 0, "aria-label": `${title(n)} earlier`, onclick: () => move(i, -1) }, "Earlier"),
+      h("button", { type: "button", class: "small", disabled: i === order.length - 1, "aria-label": `${title(n)} later`, onclick: () => move(i, 1) }, "Later"))));
+  const move = async (i, by) => {
+    const next = order.slice();
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    orderBox.textContent = "";
+    try { await api("/api/addons/order", { method: "POST", body: { order: next } }); order = next; draw(); }
+    catch (e) { orderBox.textContent = e.message; }
+  };
+  draw();
+  const orderCard = wraps.length + replace.length ? h("div", { class: "card" }, h("h2", {}, "Her answer, going out"),
+    h("p", { class: "quiet" }, "The order the add-ons dress her answer in: one that replaces something inside it first, then the ones at its beginning or end, each wrapping what the one before left (Flair, then Name Sparkle: the name in front of the flourish). Each still goes by its own chance, at the beginning or the end. A change is heard after a restart."),
+    list, orderBox) : null;
+  return [h("h1", {}, "Add-ons"),
+    h("p", { class: "quiet intro" }, "The router's own job is to keep a request on platform with what it has. Everything else is an add-on: switched on here, each in its own folder (addons/), passing the same test as any app. A change takes effect after a restart."),
+    box, orderCard, ...(rows.length ? rows : [h("p", { class: "quiet" }, "No add-ons in addons/.")])];
+}
+
 const PAGE_FNS = {
-  overview: overviewPage, stats: withRules("stats", "Stats", statsPage), transactions: transactionsList, inbound: transactionsList, outbound: transactionsList, bank: withRules("bank", "Off-Platform Bank", bankPage), savings: withRules("savings", "Savings", savingsPage),
+  overview: overviewPage, stats: withRules("stats", "Stats", statsPage), transactions: transactionsList, inbound: transactionsList, outbound: transactionsList, savings: withRules("savings", "Savings", savingsPage),
   try: tryPage, topics: withRules("topics", "Seed Topics", topicsPage, { build: ["Build", async () => [
     h("p", { class: "quiet" }, "Build the keyword tiers from the datasets after changing a topic's seeds or the build's settings (Rules), then restart. The utilities look at the datasets and how a topic scores on them."),
     ...(await toolsView("topics"))]] }), tools: withRules("tools", "Tools", toolsPage), misses: withRules("misses", "Misses", missesPage, { tools: ["Tools", async () => [
-    h("p", { class: "quiet" }, "Review the misses against today's router, make one a test case, or drop one."), ...(await toolsView("misses"))]] }), flair: flairPage, sparkle: sparklePage,
-  integrations: integrationsPage, settings: settingsPage, firewall: firewallPage, security: securityPage,
-  account: accountPage, guide: guidePage, fleas: fleasPage, words: wordsPage, people: peoplePage,
+    h("p", { class: "quiet" }, "Review the misses against today's router, make one a test case, or drop one."), ...(await toolsView("misses"))]] }), 
+  integrations: integrationsPage, settings: settingsPage, security: securityPage,
+  account: accountPage, guide: guidePage, words: wordsPage, people: peoplePage, addons: addonsPage, sayings: sayingsPage,
 };
 
 // People: one row per person, a column per attached app (veil/people.py, settings.yaml people:).
@@ -4031,31 +3328,6 @@ async function wordsPage() {
   return [h("h1", {}, "Words understood"),
     h("p", { class: "quiet" }, "The words the router understands rather than says, from the vocab/ files: yes and no, the filler and dismissals, polite words, sentence shapes, the learn commands, dates and numbers, moods, follow-up cues. Each list is used as it's written; type a word and press Enter to add it, × to take one out, then Save (used after a restart). A list changed in the file or on another page since this one opened isn't saved over: reload first. What's said, not understood, is on Persona Flair, Sayings."),
     ...files];
-}
-
-// Brain fleas: the household's small true facts, answered at home before the Off-Platform Bank, built
-// with the same line-by-line builder as an app's User rules (veil/fleas.py, learn/fleas.yaml).
-async function fleasPage() {
-  const d = await api("/api/fleas");
-  const isAdmin = allowed("tools");
-  const intro = h("p", { class: "quiet small" }, `Brain fleas are small true facts of the household ("We only buy pizza from Sal's", "who is talking to you"). Each has the ways it's asked ({speaking | talking} for choices) and its steps: Who spoke (Name Sparkle's name, only when Oread is sure) and Response (the persona's lines, with its flair added). One is answered at home after the topics and before the Off-Platform Bank. A way of asking of one or two words is a key: hearing all of it is enough. Built in: add, change and forget a flea by voice ("add a brain flea, we only buy pizza from Sal's"), each read back first. Kept in ${d.file}; used as soon as it's saved.`);
-  const at = input("number", { step: "0.05", min: "0.05", max: "1", value: d.match_at, class: "num-in", "aria-label": "match at" });
-  const who = new Set(d.changers.map((x) => x.toLowerCase()));
-  const boxes = d.voices.map((v) => { const c = input("checkbox", { checked: who.has(v.toLowerCase()), "aria-label": v }); return [v, c]; });
-  const sbox = errorBox();
-  const sset = h("button", { type: "button", disabled: !isAdmin }, "Save");
-  sset.addEventListener("click", busy(sset, sbox, async () => {
-    await api("/api/fleas/settings", { method: "PATCH", body: { match_at: Number(at.value), changers: boxes.filter(([, c]) => c.checked).map(([v]) => v) } });
-    sset.after(okNote("Saved."));
-  }));
-  const settings = h("section", { class: "card panel" }, h("h3", {}, "How fleas are found and changed"),
-    h("div", { class: "setting" }, h("div", {}, h("strong", {}, "match at"), h("p", { class: "hint" }, "How closely a sentence must fit a flea's ways of asking for the persona to answer with it (0 to 1).")), at),
-    h("div", { class: "setting" }, h("div", {}, h("strong", {}, "who may change fleas by voice"), h("p", { class: "hint" }, "Only these voices, and only when Oread is sure it's them. Anyone may ask.")),
-      h("div", { class: "needs" }, boxes.length ? boxes.map(([v, c]) => h("label", { class: "chip" }, c, " ", v)) : h("span", { class: "quiet small" }, "No voices yet (Name Sparkle)"))),
-    h("div", { class: "row-actions" }, sset, sbox));
-  const x = { id: "fleas", title: "the router" };
-  return [h("h1", {}, "Brain fleas"), settings,
-    userRulesView(x, d, isAdmin, { saveUrl: "/api/fleas", intro: intro, noun: "flea", objects: false, titles: true })];
 }
 
 route();

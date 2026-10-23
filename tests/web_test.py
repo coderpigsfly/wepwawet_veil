@@ -198,8 +198,10 @@ def guard(path, body=None):
         return json.loads(r.read().decode())
 
 
-case("guard: nothing to ask about with the firewall off", guard("/firewall/summary")["ask"] is False)
-case("guard: off means allow", guard("/firewall/check", {"intent": "HassTurnOff", "domains": ["lock"]})["allow"] is True)
+case("guard: always asked, the firewall off too (what no model may work, #13)", guard("/firewall/summary")["ask"] is True)
+case("guard: off means allow, for Home Assistant's own agent", guard("/firewall/check", {"intent": "HassTurnOff", "domains": ["lock"]})["allow"] is True)
+case("guard: a language model working a lock is stopped, the firewall off too (#11)",
+     guard("/firewall/check", {"intent": "HassTurnOff", "domains": ["lock"], "targets": ["Front Door"], "platform": "google_generative_ai_conversation"})["allow"] is False)
 call("PUT", "/api/firewall", {"firewall": {"enabled": True, "rules": [
     {"name": "locks", "people": ["unknown"], "domains": ["lock"], "intents": ["HassTurnOn:cover"], "message": "Ask a grown-up."}]}})
 case("guard: rules mean ask", guard("/firewall/summary")["ask"] is True)
@@ -887,7 +889,8 @@ case("lines bank: a book line deleted is remembered, so combing won't bring it b
      st == 200 and _one.get("found", _one["text"]) in _rd("approved", "iris.yaml")["dropped"], _rd("approved", "iris.yaml"))
 os.environ["ROUTER_ROOT"] = ROOT
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from veil import flairlines as _fl  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "addons", "flair"))
+import flairlines as _fl  # noqa: E402  (the Flair add-on's lines bank, issue #25)
 _two = call("GET", "/api/flair/iris/candidates")[1]["candidates"][0]
 call("POST", "/api/flair/iris/candidates/accept", {"found": _two.get("found", _two["text"])})
 _taken = _fl.taken("iris")
@@ -1049,8 +1052,8 @@ case("dump20: the locked chat door holds at its other path too, for any model",
 call("PATCH", "/api/settings", {"path": ["security", "doors", "chat", "locked"], "value": False})
 
 
-def pull_mishearings(token):
-    req = urllib.request.Request(CHAT + "/learn/mishearings", headers={"Authorization": f"Bearer {token}"} if token else {})
+def pull_mishearings(token, path="/learn/mishearings"):
+    req = urllib.request.Request(CHAT + path, headers={"Authorization": f"Bearer {token}"} if token else {})
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             return r.status, json.loads(r.read())
@@ -1070,14 +1073,17 @@ st2, d2 = pull_mishearings(oread_tok)
 case("Mishearings for Oread: the oread door is locked as it ships, so no token, no list (Oct 17)", st1 == 401, (st1, d1))
 case("Mishearings for Oread: with its token, each heard line with its clips", st2 == 200 and d2["router"] and
      d2["mishearings"][0]["heard"][0]["clips"][0]["clip"] == "20261017-090000-001-iris", (st2, d2))
+case("Windows for Oread (Oct 22): the same door, locked: no token, nothing; with it, Did you mean off says so",
+     (pull_mishearings(None, "/learn/windows")[0], pull_mishearings(oread_tok, "/learn/windows")[0],
+      "off" in pull_mishearings(oread_tok, "/learn/windows")[1].get("detail", "")), (401, 404, True))
 call("PATCH", "/api/settings", {"path": ["security", "doors", "oread", "paths"], "value": ["/learn/elsewhere"]})
 st3, d3 = pull_mishearings(oread_tok)
 case("Mishearings for Oread: no door covering it means no list, never open by accident", st3 == 403 and "door" in d3["detail"], (st3, d3))
-call("PATCH", "/api/settings", {"path": ["security", "doors", "oread", "paths"], "value": ["/learn/mishearings", "/people/oread"]})
+call("PATCH", "/api/settings", {"path": ["security", "doors", "oread", "paths"], "value": ["/learn/mishearings", "/learn/windows", "/people/oread"]})
 
 # the people grid (Oct 17): one row per person, a column per app; an app pulls its own column only
 grid = {"apps": ["oread", "donetick"], "rows": [{"wepwawet": "Owner", "called": [], "oread": ["Owner", "Sam"], "donetick": ["Owner"]},
-                                               {"wepwawet": "", "called": [], "oread": ["Alexandra"], "donetick": []}]}
+                                               {"wepwawet": "", "called": [], "oread": ["Nora"], "donetick": []}]}
 st, d = call("PUT", "/api/people", grid)
 case("People: the grid is saved, a column per app", st == 200 and d["apps"] == ["oread", "donetick"] and d["rows"][0]["oread"] == ["Owner", "Sam"]
      and any(c["id"] == "donetick" for c in d["columns"]), d)
@@ -1096,7 +1102,7 @@ def pull_people(app_name, token):
 
 st, d = pull_people("oread", oread_tok)
 case("People for Oread: its own column only, beside the router's name", st == 200 and d["people"] == [
-     {"person": "Owner", "names": ["Owner", "Sam"]}, {"person": None, "names": ["Alexandra"]}], (st, d))
+     {"person": "Owner", "names": ["Owner", "Sam"]}, {"person": None, "names": ["Nora"]}], (st, d))
 st, d = pull_people("donetick", oread_tok)
 case("People: another app's column isn't Oread's to read (no door of Donetick's covers it)", st == 403, (st, d))
 st, d = pull_people("oread", None)
@@ -1113,9 +1119,9 @@ def push_person(app_name, token, body):
         return e.code, json.loads(e.read() or b"{}")
 
 
-st, d = push_person("oread", oread_tok, {"action": "add", "name": "Rachel"})
-case("dump22: Oread adds a person the grid doesn't have: a row of their own", st == 200 and {"person": "Rachel", "names": ["Rachel"]} in d["people"], (st, d))
-st, d = push_person("oread", oread_tok, {"action": "rename", "name": "Rach", "was": "Rachel"})
+st, d = push_person("oread", oread_tok, {"action": "add", "name": "Ruth"})
+case("dump22: Oread adds a person the grid doesn't have: a row of their own", st == 200 and {"person": "Ruth", "names": ["Ruth"]} in d["people"], (st, d))
+st, d = push_person("oread", oread_tok, {"action": "rename", "name": "Rach", "was": "Ruth"})
 case("dump22: ...renames them (the router's name with it)", st == 200 and {"person": "Rach", "names": ["Rach"]} in d["people"], (st, d))
 st, d = push_person("oread", oread_tok, {"action": "remove", "name": "Rach"})
 _g = call("GET", "/api/people")[1]
@@ -1189,6 +1195,20 @@ for _ in range(300):
 tail = [x for x in call("GET", f"/api/jobs/{jid}")[1]["lines"] if " pass" in x]
 case("regression cases run from the Tools page", bool(tail), j.get("lines", [])[-5:])
 print("  regress from the page:", tail[-1] if tail else "?")
+
+# add-ons (issue #25): listed with what they serve; switched on and off; one an add-on needs can't be turned off
+st, d = call("GET", "/api/addons")
+rn = next((a for a in d.get("addons", []) if a["name"] == "roman_numerals"), None)
+case("add-ons: Roman numerals is listed, with what it serves and where it works",
+     st == 200 and rn and rn["serves"] == "comfort" and rn["slots"] == ["dress"] and not rn["broken"], rn)
+st, d = call("POST", "/api/addons", {"name": "roman_numerals", "on": True})
+case("add-ons: switched on, after a restart", st == 200 and "roman_numerals" in d.get("enabled", []) and d.get("restart"), d)
+st, d = call("POST", "/api/addons", {"name": "roman_numerals", "on": False})
+case("add-ons: switched off again", st == 200 and "roman_numerals" not in d.get("enabled", []), d)
+st, d = call("POST", "/api/addons", {"name": "no_such_addon", "on": True})
+case("add-ons: one that isn't there is refused", st >= 400, d)
+st, d = call("GET", "/addons/no_such/page.js", header=False)
+case("add-ons: no page script for one that isn't on", st == 404, d)
 
 st, d = call("GET", "/api/audit")
 case("the audit log has the changes", any(e.get("action") == "setting changed" for e in d["events"]), d["events"][:3])

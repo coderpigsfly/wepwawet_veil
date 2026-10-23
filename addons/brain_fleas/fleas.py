@@ -1,4 +1,4 @@
-# veil/fleas.py - brain fleas: small true facts of the household ("We only buy pizza from Sal's",
+# addons/brain_fleas/fleas.py - Brain fleas (an add-on, issue #25): small true facts of the household ("We only buy pizza from Sal's",
 # "who is talking to you"), answered at home before anything goes Off-Platform. Kept in
 # learn/fleas.yaml (the household's own; a starting copy in defaults/learn/), on the Brain fleas page.
 #
@@ -94,7 +94,7 @@ class Fleas:
     def _build(self, doc):
         self.doc = doc or {}
         self.never = {str(w).lower() for w in self.doc.get("never_count") or []} | self.filler
-        self.rules, self.index, self.ways, self.broken = {}, {}, {}, {}
+        self.rules, self.index, self.ways, self.broken, self.phrases = {}, {}, {}, {}, {}
         for name, r in (self.doc.get("fleas") or {}).items():
             if not isinstance(r, dict):
                 continue
@@ -112,6 +112,7 @@ class Fleas:
                     seq = [match.stem(x) for x in raw if x not in self.never]
                     if seq:
                         ways.append((seq, asks, negated(raw)))
+                        self.phrases.setdefault(name, []).append((seq, " ".join(phrase.split())))
                         for x in seq:
                             self.index.setdefault(x, set()).add(name)
             self.ways[name] = ways
@@ -144,6 +145,26 @@ class Fleas:
                     best = (name, score, how, len(own))
         at = float(self.doc.get("match_at", 0.8))
         return (best[0], best[1], best[2]) if best[0] and best[1] >= at else (None, best[1], "")
+
+    def closest(self, said, drop=()):
+        """(flea, one of its ways as written, words shared) for the flea whose way fits what was said by enough
+        words, when none answered outright (#28: two words, or the one word said): offered, never answered on a
+        guess. Only words with a meaning count (drop: the language's function words, "is", "that", "very").
+        Fleas that change the fleas (system) or ask for a detail aren't offered."""
+        self.fresh()
+        drop = {match.stem(w) for w in drop}
+        raw = re.findall(r"[a-z0-9']+", (said or "").lower())
+        heard = {match.stem(x) for x in raw if x not in self.never} - drop
+        best = (None, "", 0)
+        for name in set().union(*[self.index.get(x, set()) for x in heard]) if heard else ():
+            r = self.rules.get(name) or {}
+            if r.get("system") or self.changes(name) or any(rules.kind_of(s)[0] == "ask" for s in r.get("steps") or []):
+                continue
+            for seq, phrase in self.phrases.get(name) or []:
+                shared = len(heard & (set(seq) - drop))
+                if (shared >= 2 or (shared >= 1 and shared == len(heard))) and shared > best[2]:
+                    best = (name, phrase, shared)
+        return best if best[0] else None
 
     def changes(self, name):
         """Does this flea change the fleas (a voice add, change or forget)?"""

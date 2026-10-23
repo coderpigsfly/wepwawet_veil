@@ -1,0 +1,19 @@
+# addons/window - the window, an action add-on (the OSPRI lab, Oct 22): a seed word speech-to-text lost
+# ("Mark the troll done") would send a request Off-Platform; she asks first, "Did you mean "Mark the chore
+# done"? Shall I?", when its decision says the guess is worth one question (a household's own odds, else
+# always). Yes does it at home and keeps the mishearing (Misses); no sends the words out as heard. Every window
+# it weighs is recorded, asked or not.
+name: window
+title: Did you mean
+version: 1.1.0
+kind: action               # it performs a function: it asks before a misheard request leaves the house
+about: When a request would go Off-Platform because a seed word was misheard (chore heard as troll), asks "Did you mean ...? Shall I?" (by a household's own odds when it has them).
+serves: on_platform
+serves_how: a request that lost its seed word to speech-to-text is done at home after one question, instead of going Off-Platform
+data: {kind: record}       # each window weighed (data/tables/window.db, never in git)
+path: inbound              # before going Off-Platform
+slots: [before_off_platform]
+provides: [answered, rows]   # answered: the core hands it the answer to her question; rows: Oread pulls them
+may: [read, answer]
+on_error: skip
+budget_ms: 20

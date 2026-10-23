@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# tools/test_flair.py - checks the flair engine (flair.py) against a pretend personality,
+# addons/flair/test_flair.py - checks the flair engine (flair.py) against a pretend personality,
 # so your real personality files can change without breaking a test.
-# Needs no router: run from ~/docker/house-router with  python3 tools/test_flair.py
+# Needs no router: run from ~/docker/house-router with  python3 addons/flair/test_flair.py
 # Also prints a sample of how each real personality file would dress a few lines.
 
 import os
@@ -10,8 +10,10 @@ import tempfile
 
 import yaml
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))            # the Flair add-on (addons/flair)
+ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, HERE)
 import flair  # noqa: E402
 
 MOODS = yaml.safe_load(open(os.path.join(ROOT, "vocab/moods.yaml")))

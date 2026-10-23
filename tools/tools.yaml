@@ -85,7 +85,7 @@ tools:
     group: Tests
     label: Unit tests
     about: Dates and fields, the follow-up series, flair, and Wepwawet Veil's own parts
-    run: [sh, -c, "python3 tools/test_fields.py && python3 tools/test_series.py && python3 tools/test_flair.py && python3 tools/test_veil.py"]
+    run: [sh, -c, "python3 tools/test_fields.py && python3 tools/test_series.py && python3 tools/test_veil.py"]
     role: reviewer
   misses:
     page: misses
@@ -110,20 +110,6 @@ tools:
     run: [python3, tools/misses.py, drop, "{miss}", --yes]
     args: {miss: {choices: misses}}
     role: reviewer
-  flair_refresh:
-    page: flair
-    group: Flair
-    label: Download the books
-    about: The public-domain books in personality/sources.yaml
-    run: [python3, tools/build_flair.py, refresh, "{assistant}"]
-    args: {assistant: {choices: assistants, optional: true}}
-  flair_mine:
-    page: flair
-    group: Flair
-    label: Comb the books
-    about: Propose lines -> personality/candidates/ (your keep choices survive)
-    run: [python3, tools/build_flair.py, mine, "{assistant}"]
-    args: {assistant: {choices: assistants}}
-    writes: [personality]
+  # Flair's tools (combing the books) are the Flair add-on's own: addons/flair/addon.yaml tools: (issue #25)
 
 

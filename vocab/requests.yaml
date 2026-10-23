@@ -17,6 +17,11 @@ command_words: [please, define, show, tell, give, find, play, spell, read, draw,
                 start, stop, open, close, lock, unlock, send, call, text, make, help,
                 book, get, buy, purchase, order, reserve, schedule, cancel, recommend, suggest]
 
+# A question whose thing is left unsaid ("What does Mara have?", "What do I have tomorrow?"): it opens
+# with a question or asking word and ends on one of these (day words after it are kept). She asks "in
+# reference to what?" and the answer is put after the verb (issue #19).
+object_left_verbs: [have, got, need, owe]
+
 # How a need starts
 need_starts: ["i need", "i want", "i'd like", "i would like", "i wanna", "let me know",
               "help me", "i was wondering", "i'm wondering", "i am wondering", "i wonder",

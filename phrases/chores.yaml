@@ -1,4 +1,4 @@
-# phrases/chores.yaml - what the persona says for chores (Donetick).
+# phrases/chores.yaml - what the persona says for chores (Donetick or Vikunja: {app} is the one answering).
 # Blanks in {braces} are filled in by connectors/donetick.py; {items} is filled in by the
 # router, which reads lists aloud (phrases/router.yaml). Never questions here. After editing: docker compose restart
 
@@ -60,22 +60,22 @@ undo_nothing:
     - "There's nothing I can undo right now."
 service_error:
   any:
-    - "Something went wrong talking to Donetick, so I didn't change anything."
+    - "Something went wrong talking to {app}, so I didn't change anything."
 
 # ...when only reading (the list, the projects): nothing could have changed
 service_error_read:
   any:
-    - "Something went wrong talking to Donetick, so I can't read the list right now."
+    - "Something went wrong talking to {app}, so I can't read the list right now."
 
 
 
 undo_unsupported:
   any:
-    - "Donetick doesn't let me undo {what}. Please change it on Donetick's web page."
+    - "{app} doesn't let me undo {what}. Please change it on {app}'s web page."
 
 undo_too_late:
   any:
-    - "Donetick wouldn't let me undo that. You can change it on Donetick's web page."
+    - "{app} wouldn't let me undo that. You can change it on {app}'s web page."
 
 
 

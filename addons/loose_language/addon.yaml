@@ -1,0 +1,19 @@
+# addons/loose_language - Loose language, an action add-on (issue #25, step 5; issue #19): an add said loosely
+# ("remind me to call Mom this weekend", "tomorrow morning") is filled from the person's own preferences and
+# offered, two details to a question, with what was heard said back. Its questions are held: no dress add-on
+# touches them until the add is closed out.
+name: loose_language
+title: Loose language
+version: 1.0.0
+kind: action               # it performs a function: it fills and asks what was said loosely
+about: Fills a day or time said loosely (this weekend, the morning, remind me) from each person's own picks, and asks for what's left, two details at a time.
+serves: on_platform
+serves_how: an add said the way people talk is finished at home, by asking, instead of going Off-Platform or being saved wrong
+data: {kind: record}       # each person's picks (data/veil.db, never in git)
+path: inbound              # inside the add of the app that claimed it; fill: a claimer's blank, by asking
+slots: [fill]
+needs: [time]              # a day another integration names ("buy palms on Palm Sunday"): loose language(time(the words))
+provides: [offer, before_event, days]
+may: [read, answer]
+on_error: skip
+budget_ms: 20

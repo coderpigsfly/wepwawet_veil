@@ -1,0 +1,18 @@
+# addons/time - Time, an action add-on (issue #25, step 5): a day named by another integration's thing
+# ("Easter Sunday", "the Feast of Stephen", "when I paint the fence") put as its date for the app that
+# claimed the request, so the weather is asked about March 28, 2027: weather(litcal(the words)).
+# Plain dates (today, Tuesday, March 28) are the core's own.
+name: time
+title: Time
+version: 1.0.0
+kind: action               # it performs a function: it supplies the date another integration knows
+about: Puts a day another integration names (a feast, a chore with a date) as its date, for the app that answers the request.
+serves: on_platform
+serves_how: a day only an app at home knows is answered at home with the right date, instead of the wrong day or a trip out
+data: {kind: transient, pace: slow}     # the other apps' things, as their copies on hand have them
+path: inbound              # after the claim, before the claiming app is asked
+slots: [supply, fill]       # supply: before the claimer is asked; fill: its blank, when it couldn't answer
+provides: [dated, fits]
+may: [read, answer]
+on_error: skip
+budget_ms: 20

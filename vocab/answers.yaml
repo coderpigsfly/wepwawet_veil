@@ -4,6 +4,12 @@
 # handled as a new request. The keys are quoted: bare yes/no mean true/false in YAML.
 # After editing: docker compose restart
 
+# a yes said more loosely, to her offer ("Saturday's fine", "that works"): it confirms what she offered
+affirm_words: [fine, great, good, perfect, works, sounds, okay, ok, sure, "yes", yeah, yep, would, does, right, correct, wonderful]
+
+# asking for the rest she offered to read ("What are my other chores?" to "Shall I read the rest?")
+rest_words: [other, others, rest, remaining, more]
+
 "yes":
   - "yes"
   - "yeah"
@@ -28,6 +34,17 @@
   - "more"
   - "absolutely"
   - "of course"
+
+# a thanks said to her confirmation ("...Right?", "Is that right?", "Did you mean ...? Shall I?") is a yes (Oct 22:
+# "Thank you." to "I'll remember: Mara's shoe size is eight and a half. Right?" lost the flea); never to her other
+# questions ("Want me to ask around?"), where thanks could be either
+confirm_thanks:
+  - "thank you"
+  - "thanks"
+  - "thank you very much"
+  - "thank you so much"
+  - "thanks a lot"
+  - "thanks so much"
 
 "no":
   - "no"

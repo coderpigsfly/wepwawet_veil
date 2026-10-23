@@ -1,5 +1,5 @@
 # flair.py - the flair level: an assistant's flourishes, added to some of her answers at home.
-# Router-independent (tested by tools/test_flair.py, no router needed).
+# Router-independent (tested by addons/flair/test_flair.py, no router needed).
 #
 # Each assistant has her own file, personality/<assistant>.yaml (the first word of her
 # instructions: "Iris Personality" -> iris.yaml). No file -> plain answers.
@@ -9,7 +9,7 @@
 #                  slot: opener goes before her answer, closer after it, aside only where a phrase
 #                  line has a hand-placed [[aside]] (mid-sentence); any fits wherever there's room
 # Plus the lines you approved from the books: personality/approved/<assistant>.yaml (written by
-# tools/build_flair.py). Once she has any real lines (your own or approved), flourishes marked
+# addons/flair/tools/build_flair.py). Once she has any real lines (your own or approved), flourishes marked
 # placeholder: true step aside.
 #
 # Where a flourish goes:
@@ -29,30 +29,14 @@ import re
 
 import yaml
 
-from veil import util
+from veil import personas, util
 
 log = logging.getLogger("router")
 
-# files in personality/ that aren't an assistant: where her lines come from, how the books are combed
-NOT_PERSONALITIES = ("sources", "combing")
+NOT_PERSONALITIES = personas.NOT_PERSONALITIES
+persona_words = personas.words      # the assistants' names as heard (core: veil/personas.py)
 
 
-def persona_words(folder):
-    """Each assistant's name (its file's name) and how speech-to-text hears it (heard_as:), lowercase.
-    Said alone they're filler, like "um" (vocab/path0.yaml filler_words), never a request."""
-    words = set()
-    if os.path.isdir(folder):
-        for name in sorted(os.listdir(folder)):
-            if name.endswith((".yaml", ".yml")) and not name.startswith(NOT_PERSONALITIES):
-                words.add(name.rsplit(".", 1)[0].lower())
-                with open(os.path.join(folder, name)) as fh:
-                    doc = yaml.safe_load(fh)
-                heard = doc.get("heard_as") if isinstance(doc, dict) else None
-                if isinstance(heard, str):       # one name written without the list's brackets
-                    heard = [heard]
-                # each as the router compares words (util.words: "Esmé." is "esm"), a word at a time
-                words |= {w for h in heard or [] if isinstance(h, str) for w in util.words(h).split()}
-    return words
 SLOT = re.compile(r"\s*\[\[\s*(\w+)\s*\]\]\s*")
 SLOTS = ("opener", "aside", "closer")
 
@@ -187,7 +171,7 @@ class Flair:
                     if not isinstance(spec, dict):
                         log.warning("  ! personality/%s isn't a personality (not key: value lines): left out", name)
                         continue
-                    # lines you approved from the books (tools/build_flair.py approve <who>)
+                    # lines you approved from the books (addons/flair/tools/build_flair.py approve <who>)
                     book = os.path.join(folder, "approved", name)
                     if os.path.exists(book):
                         with open(book) as fh:

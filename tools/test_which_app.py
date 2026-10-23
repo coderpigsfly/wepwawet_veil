@@ -120,9 +120,9 @@ esm = "I think I heard \"out of brain cleave\". I'm not sure I can answer that. 
 case("another device's answer heard here is an echo (every device's last answers are tried)",
      bool(r.echo_of("Not sure I can answer that, shall I consult the bigger spell book", [{"answer": "Okay.", "time": time.time()},
                                                                                        {"answer": esm, "time": time.time() - 5}])), True)
-case("the person's own no after her words is the answer", r.answer_after_echo(
+case("the person's own no after her words is the answer", r.after_echo(
      "I think I heard how the brain flea that we only buy pizza. That's not something I know here at home. Want me to ask around? No.",
-     "I think I heard \"had a brain flea\". That's not something I know here at home. Want me to ask around?"), "No")
+     "I think I heard \"had a brain flea\". That's not something I know here at home. Want me to ask around?"), ("No", None))
 _aa = "I think I heard \"had a brain flea that we only buy pizza at sales\". That's not something I know here at home. Want me to ask around?"
 d = r.decide(msg("I think I heard had a brain flea that we only buy pizza at sales. That's not something I know here at home. "
                  "Want me to ask around? No."), pending={"kind": "ask_around", "said": "had a brain flea"},
@@ -336,6 +336,129 @@ _got = r.thing_dated("Will it rain when I paint the fence?", "weather")
 case("dump18: another app's thing put as its date for an app that takes the words as said",
      (_got[0].startswith("Will it rain when I ") and "the fence" not in _got[0], "Paint the fence" in _got[1]), (True, True))
 _lc.cache["items"], _lc.match_min = _had_items, _had_mm
+# Oct 21, issue #25 step 5: weather(another app(the words)): the other app supplies the date (the Time add-on), the
+# weather claims it (the starting copy has no calendar: the chores app's thing stands in for a feast)
+_had_items = _lc.cache.get("items")
+_lc.cache["items"] = [{"id": 8, "name": "Easter Sunday", "nextDueDate": "2027-03-28T00:00:00Z"}]
+_e = r.thing_dated("Will it rain Easter Sunday", "weather")
+case("Time: Easter Sunday is put as its date for the weather", (_e[0].startswith("Will it rain Sunday, March 28"), _e[2]), (True, "donetick"))
+_had_time = r.ADDONS.services.pop("time.dated")
+case("Time off: the words go as said", r.thing_dated("Will it rain Easter Sunday", "weather"), None)
+r.ADDONS.services["time.dated"] = _had_time
+# the chaining protocol (#25 step 6): the claimer names its blank, the add-ons with their flag on fill it or ask
+import asyncio as _aio6  # noqa: E402
+_asked6 = []
+
+
+async def _again6(s):
+    _asked6.append(s)
+    return {"status": "answered", "speech": "Rain likely on Wednesday."} if "Wednesday" in s else {"status": "need", "need": "when", "about": "the picnic"}
+_need6 = {"status": "need", "need": "when", "about": "the picnic"}
+_had6 = list(r.ADDONS.slots.get("fill") or [])
+r.ADDONS.slots["fill"] = [("asker", lambda b, c: {"ask": "You mean the picnic on Wednesday?", "choices": [{"name": "Picnic", "say": "Wednesday"}]}, {}),
+                          ("filler", lambda b, c: {"words": c["said"] + " on Wednesday"}, {})]
+_got6 = _aio6.run(r.chain("weather", "Is it going to rain for the picnic", dict(_need6), _again6))
+case("chain: a module fills the blank, its flag goes off, and the claimer is asked again", (_got6["speech"], _asked6),
+     ("Rain likely on Wednesday.", ["Is it going to rain for the picnic on Wednesday"]))
+r.ADDONS.slots["fill"] = [("asker", lambda b, c: {"ask": "You mean the picnic on Wednesday?", "choices": [{"name": "Picnic", "say": "Wednesday"}]}, {})]
+_got6 = _aio6.run(r.chain("weather", "Is it going to rain for the picnic", dict(_need6), _again6))
+case("chain: nobody can fill it: she asks (held), and her question is saved as a clarification",
+     (_got6["speech"], _got6["ask"]["kind"], _got6["ask"]["choices"][0]["name"]), (r.util.HOLD + "You mean the picnic on Wednesday?", "clarify", "Picnic"))
+r.ADDONS.slots["fill"] = []
+_got6 = _aio6.run(r.chain("weather", "Is it going to rain for the picnic", dict(_need6), _again6))
+case("chain: no module at all: she asks when it is", r.util.unslot(_got6["speech"]), "When is the picnic?")
+r.ADDONS.slots["fill"] = _had6
+_p6 = {"kind": "clarify", "said": "Is it going to rain for the picnic", "about": "the picnic", "need": "when",
+       "choices": [{"name": "Picnic", "say": "Wednesday"}]}
+case("clarified: yes to the one offered puts its day in after the thing", r.clarified(_p6, "yes"), "Is it going to rain for the picnic on Wednesday")
+import datetime as _d6  # noqa: E402
+case("clarified: a day said instead is taken", r.clarified(dict(_p6, choices=[]), "it's on Saturday"),     # said as today or tomorrow near a Saturday
+     "Is it going to rain for the picnic " + {0: "today", 1: "tomorrow"}.get((5 - _d6.date.today().weekday()) % 7, "on Saturday"))
+case("clarified: tomorrow takes no 'on'", r.clarified(dict(_p6, choices=[]), "tomorrow"), "Is it going to rain for the picnic tomorrow")
+_p6s = {"kind": "clarify", "said": "Will it snow on the Feast of Steven when I am at the picnic", "about": "the feast of steven",
+        "choices": [{"name": "Saint Stephen, The First Martyr", "say": "Saturday, December 26", "replace": "the Feast of Steven"},
+                    {"name": "Saint Stephen of Hungary", "say": "Monday, August 16, 2027", "replace": "the Feast of Steven"}]}
+case("clarified: 'the martyr' picks one of the two; its day takes the feast's name's place",
+     (r.clarified(_p6s, "the martyr"), r.clarified(_p6s, "the second one")),
+     ("Will it snow on Saturday, December 26 when I am at the picnic", "Will it snow on Monday, August 16, 2027 when I am at the picnic"))
+case("clarified: not an answer: none (a new request)", r.clarified(_p6, "turn on the lights"), None)
+_d6 = r.decide([{"role": "user", "content": "yes"}], pending=dict(_p6, topic="weather"))
+case("path C: yes to her clarification asks the weather again with the day", (_d6["path"], _d6["topic"], _d6["said"]),
+     ("A", "weather", "Is it going to rain for the picnic on Wednesday"))
+_dw = r.decide([{"role": "user", "content": "what's the weather tomorrow"}])
+_dc = r.decide([{"role": "user", "content": "what's on my chores list"}])
+case("Only the app a request involves is read live first (the chores list isn't read for the weather)",
+     (r.involves(_dw), r.involves(_dc)), ({r.SCORER.topics["weather"]["service"]}, {r.SCORER.topics["chores"]["service"]}))
+# Oct 21, the walkie-talkie conversation: (a) the person's words after her echo, (b) her offered thing is "that",
+# (c) a thing found by the words only it has, the day or time said kept out of its name
+_her = "I believe I heard you say Leave the walkie-talkie at school. Is that right?"
+case("after an echo: her yes, then the person's own request",
+     r.after_echo("My Chief, I believe I heard you sign Liva Walki Talking at school. Is that right? Yes. Could you change the time on that to three forty five PM?", _her),
+     ("Yes", "Could you change the time on that to three forty five PM?"))
+case("after an echo: a yes alone; nothing after it", (r.after_echo("Is that right? No.", _her), r.after_echo("Is that right?", _her)), (("No", None), (None, None)))
+_pw = {"kind": "rule", "mode": "confirm", "topic": "chores", "action": "find", "said": "find Mara's walkie-talkie chore",
+       "state": {"item": {"id": 42, "name": "Leave the walkie-talkie at school"}}, "question": _her}
+_dw = r.decide([{"role": "user", "content": "My Chief, I believe I heard you sign Liva Walki Talking at school. Is that right? Yes. Could you change the time on that to three forty five PM?"}],
+               pending=_pw, turns=[{"time": r.time.time(), "answer": _her}])
+case("the request after her echo is decided, not dropped as her echo", (_dw["path"] != "0", _dw["said"].startswith("Could you change the time")), (True, True))
+_dd = r.decide([{"role": "user", "content": "Did you change the time on that task?"}], pending=_pw)
+case("her question left unanswered: the thing she offered is 'that'", _dd.get("offered"), {"topic": "chores", "id": 42, "name": "Leave the walkie-talkie at school"})
+_dy = r.decide([{"role": "user", "content": "Yes, could you change the time on that to 3:45 p.m."}], pending=_pw)
+case("'Yes, could you change the time on that to 3:45' to her question: the yes takes her offered chore as 'that'",
+     (_dy.get("offered", {}).get("id"), _dy["said"]), (42, "could you change the time on that to 3:45 p.m."))
+_dn = r.decide([{"role": "user", "content": "No, could you change the time on the mow the lawn chore to 3:45 p.m."}], pending=_pw)
+case("a no first: her offered chore isn't 'that'", (_dn.get("offered"), _dn["said"].startswith("could you change")), (None, True))
+case("a yes alone is not a request opening with yes", r.leading_yes("Yes please"), (None, "Yes please"))
+_items = [{"id": 1, "name": "Leave the walkie-talkie at school"}, {"id": 2, "name": "Mow the lawn"}, {"id": 3, "name": "Check the pool filter"}]
+case("only one thing has walkie and talkie: asked about, though half its name is under the bar",
+     (dt.only_one("change the time on the walkie talkie tour", _items, dt.stop) or {}).get("id"), 1)
+case("one shared word is never enough", dt.only_one("mow the field", _items, dt.stop), None)
+case("the day or time said is kept out of the thing's name", dt.without_when("change the time on that to three forty five pm"), "change the time on that to")
+_pq = {"kind": "offer", "topic": "chores", "action": "add", "said": "remind me to buy palms on Sunday", "offer": {"which": {"say": "Sunday"}},
+       "chosen": {}, "question": "Is Sunday the day I should remind you, or the day it's due?"}
+_dq = r.decide([{"role": "user", "content": "That's when I'll buy them."}], pending=_pq)
+case("her which-day question takes any words as its answer (Loose language reads them): 'That's when I'll buy them'",
+     (_dq["path"], (_dq.get("resume") or {}).get("answer")), ("A", "That's when I'll buy them."))
+_ag = r.answer_pending(dict(_pq, offer={"time": {}}), "again", "wren")[0]
+case("an answer she can't use: she asks for it another way, then her question", (_ag.endswith(_pq["question"]), len(_ag) > len(_pq["question"])), (True, True))
+_mw = r.decide([{"role": "user", "content": "Mow the lawn Saturday."}], memory={"topic": "chores", "said": "add a chore", "time": time.time() - 11})
+case("no seed word, no claim: 'Mow the lawn Saturday.' right after chores isn't chores' for its Saturday", (_mw["path"] != "home", _mw.get("topic")), (True, None))
+_aw = r.decide([{"role": "user", "content": "Add a task to mow the lawn for Saturday."}], memory={"topic": "chores", "said": "add a chore", "time": time.time() - 11})
+case("...an add said with its own word still is", (_aw["topic"], _aw.get("action")), ("chores", "add"))
+# Off-Platform answers read right (#25): the reading add-ons on the stream, a sentence at a time
+import json as _js  # noqa: E402
+_had_slots = list(r.ADDONS.slots.get("dress") or [])
+_rn = lambda text, ctx: text.replace("Henry VIII", "Henry the Eighth").replace("Louis XIV", "Louis the Fourteenth")  # noqa: E731
+r.ADDONS.slots["dress"] = [("roman_numerals", _rn, {"positions": ["replace"]}),
+                           ("flair", lambda text, ctx: text if ctx.get("plain") else "Behold! " + text, {"positions": ["beginning"]})]
+
+
+def _ev(content=None, finish=None, tool=False):
+    delta = {"content": content} if content is not None else ({"tool_calls": [{"index": 0, "function": {"name": "x"}}]} if tool else {})
+    return ("data: " + _js.dumps({"id": "c1", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}) + "\n\n").encode()
+_ss = r.SpokenStream("wren")
+_pieces = [_ev("King Henry "), _ev("V"), _ev("III was born"), _ev(" in 1491. Louis X"), _ev("IV came "), _ev("later."), _ev(None, "stop"), b"data: [DONE]\n\n"]
+_raw = b"".join(_pieces)
+_out = b"".join(b"".join(_ss.feed(_raw[i:i + 7])) for i in range(0, len(_raw), 7)) + b"".join(_ss.close())     # cut anywhere, mid-line too
+_said = "".join((_js.loads(l[6:])["choices"][0]["delta"].get("content") or "") for l in _out.decode().split("\n")
+                if l.startswith("data: {"))
+case("an Off-Platform answer streamed in pieces is read right a sentence at a time (a numeral split across pieces too); no flair on it",
+     (_said, _out.decode().rstrip().endswith("data: [DONE]")), ("King Henry the Eighth was born in 1491. Louis the Fourteenth came later.", True))
+_ss2 = r.SpokenStream("wren")
+_o2 = b"".join(_ss2.feed(_ev(None, tool=True))) + b"".join(_ss2.close())
+case("a tool call in the stream passes as it came", _o2, _ev(None, tool=True))
+case("the reading add-ons' spacing is kept: a sentence's own space and new line", r.read_right("Henry VIII.\n", "wren"), "Henry the Eighth.\n")
+r.ADDONS.slots["dress"] = _had_slots
+_feast_sup = {"name": "litcal", "items": [{"name": "Palm Sunday", "date": "2027-03-21T00:00:00Z"}], "name_of": lambda x: x["name"],
+              "never": {"the", "of", "feast"}, "alike": {}, "anchors": set(), "weight": lambda x: 0}
+case("loose language(time(...)): an add's feast day is put as its date, Loose language asking Time (it needs it)",
+     r.ADDONS.services["loose_language.days"]("remind me to buy palms on Palm Sunday", dict(r.supply_ctx("x", "chores"), suppliers=[_feast_sup])),
+     ("remind me to buy palms on Sunday, March 21, 2027", None))
+_cake = r.ADDONS.services["loose_language.days"]("bake a cake for Palm Sunday", dict(r.supply_ctx("x", "chores"), suppliers=[_feast_sup]))
+case("'for' a feast: its day put in, and the feast kept as the event the chore is done before",
+     (_cake[0], {k: _cake[1][k] for k in ("name", "date", "lead")}), ("bake a cake for Sunday, March 21, 2027",
+                                                                      {"name": "Palm Sunday", "date": "2027-03-21", "lead": "for"}))
+_lc.cache["items"] = _had_items
 case("dump18: an app's spoken name, else its title", r.app_spoken("chores"), (r.SERVICES["donetick"].get("spoken_name") or r.app_title("chores")))
 
 case("dump22: Oread's own-voice mark, sure of the voice, is her own voice (no name list needed)",
@@ -364,6 +487,341 @@ _ph23.PHASES["dump23"] = False
 case("dump23 off: no echoes in the pull", "echoes" in r.learn_mishearings(_ns23(url=_ns23(path="/learn/mishearings"))), False)
 _ph23.PHASES["dump23"] = True
 r.ACTIVITY, _doors23.door_for = _had23
+
+# Oct 21, the chores study: her question to a user rule answered with a request of its own, a bare
+# "okay" (the mic cut the rest off), or a name; the rule's word asked politely
+_ask = {"kind": "rule", "mode": "ask", "action": "rename", "topic": "chores", "said": "rename the task me",
+        "need": "_name", "question": "Which one?", "state": {"said": "rename the task me", "at": 1, "values": {}}}
+d = r.decide(msg("What's on my list to do today?"), pending=_ask, turns=[])
+case("to a rule's 'which one?': 'what's on my list to do today' is a request of its own",
+     (d["path"], d.get("action"), d.get("pending_dropped")), ("A", "list", True))
+d = r.decide(msg("Okay."), pending=_ask, turns=[])
+case("to a rule's question: a bare 'okay' isn't the answer; she asks again and still waits",
+     (d["path"], d.get("kind"), r.answer_pending(_ask, "again", "iris")[0].endswith("Which one?"), r.answer_pending(_ask, "again", "iris")[1]),
+     ("C", "again", True, _ask))      # she asks for it another way first (Oct 21), then her question
+d = r.decide(msg("Paint the back of the house"), pending=_ask, turns=[])
+case("to a rule's question: a name is still the answer", (d["path"], bool(d.get("resume"))), ("A", True))
+case("a rule's word asked politely is still the rule's (could you, I would like you to)",
+     [dt.rule_opening(x) for x in ("could you rename paint the back of the house to x", "i would like you to rename number five",
+                                   "what's on my list")], ["rename", "rename", None])
+
+case("her own question asked back of her isn't an echo (Oct 21); her words coming back still are",
+     (r.echo_of("Did you delete paint the house?", [{"answer": "It can't be undone. Delete Paint the house?", "time": time.time()}]),
+      bool(r.echo_of("It can't be undone. Delete paint the house.", [{"answer": "It can't be undone. Delete Paint the house?", "time": time.time()}]))),
+     (None, True))
+
+# Oct 21, issue #19: the thing left unsaid ("What does Mara have?"): she asks in reference to what, and
+# the answer goes after the verb
+d = r.decide(msg("What does Mara have?"), pending={}, turns=[])
+case("a question whose thing is left unsaid: she asks in reference to what", (d["path"], d.get("object_left")), ("object", ("what does mara have", "")))
+d = r.decide(msg("What do I have tomorrow?"), pending={}, turns=[])
+case("the day after the verb stays with it", d.get("object_left"), ("what do i have", "tomorrow"))
+case("a thing said, or a request with its own object, isn't asked about",
+     [r.missing_object(x) for x in ("What do I have to do today?", "What chores does Mara have?", "I have a cat.")], [None, None, None])
+d = r.decide(msg("Chores."), pending={"kind": "object", "said": "What does Mara have?", "head": "what does mara have", "tail": ""}, turns=[])
+case("the answer is the thing: the request decided afresh with it", (d["path"], d.get("topic"), d.get("action")), ("A", "chores", "list"))
+d = r.decide(msg("No."), pending={"kind": "object", "said": "What does Mara have?", "head": "what does mara have", "tail": ""}, turns=[])
+case("no to it: nothing more", (d["path"], d.get("kind")), ("C", "no"))
+case("her question names the apps", r.object_question("iris").count(",") >= 1 or " or " in r.object_question("iris"), True)
+
+d = r.decide(msg("That's very fun. Thank you."), pending={"kind": "add_name", "topic": "chores", "said": "remind you to wet me"}, turns=[])
+case("to 'what should I call it?', words that aren't something to do aren't a name", d.get("pending_dropped"), True)
+
+# Oct 21, the fifth test
+case("'Could you remind me to tell ...' opens with remind: an add, not the list",
+     dt.pick_action("could you remind me to tell claude this week what a good job he's doing")[0], "add")
+_off = {"kind": "offer", "topic": "chores", "said": "remind me to call the vet this week", "offer": {"day": {"value": "2026-10-24"}},
+        "question": "Would Saturday work for this week?"}
+d = r.decide(msg("What was that? I'm sorry?"), pending=_off, turns=[])
+case("a question back with no answer in it: she asks her question again, still waiting",
+     (d["path"], d.get("kind"), r.answer_pending(_off, "again", "iris")[0].endswith("Would Saturday work for this week?"),
+      r.answer_pending(_off, "again", "iris")[1]), ("C", "again", True, _off))
+d = r.decide(msg("What are my other chores?"), pending={"kind": "list_rest", "topic": "chores", "items": ["a", "b"]}, turns=[])
+case("'What are my other chores?' to 'Shall I read the rest?': the rest", (d["path"], d.get("kind")), ("C", "yes"))
+
+# Oct 21, the seventh test
+d = r.decide(msg("Remind me to tell Nora she's a squatter quatch at least six times before the weekends."), pending={}, turns=[])
+case("a long sentence opening with the add's own word isn't held by the guard", (d["path"], d.get("action")), ("A", "add"))
+_off2 = {"kind": "offer", "topic": "chores", "said": "remind me to wash the car", "offer": {"day": {"value": "2026-10-24"}},
+         "chosen": {"day": "2026-10-27", "time": "09:00"}, "question": "Should I remind you by voice, by alert, or both?"}
+d = r.decide(msg("Minded by Rock."), pending=_off2, turns=[])
+case("words with no yes, no day, time or way to remind confirm nothing: she asks again", (d["path"], d.get("kind")), ("C", "again"))
+d = r.decide(msg("Saturday's fine."), pending=_off2, turns=[])
+case("'Saturday's fine' answers her offer", (d["path"], bool(d.get("resume"))), ("A", True))
+d = r.decide(msg("Could you remind me to paint the fence this weekend?"), pending=_off2, turns=[])
+case("a new request while she waits: the waiting add is finished first", (d.get("finish_offer") or {}).get("said"), "remind me to wash the car")
+
+d = r.decide(msg("Oh, could you make it the 15th?"), pending=_off2, turns=[])
+case("'Could you make it the 15th?' to her offer: an answer (a day), not a new request", (d["path"], bool(d.get("resume")), d.get("finish_offer")),
+     ("A", True, None))
+
+# Oct 22: the window (addons/window): a lost seed word, asked about before the words go out
+_body = {"messages": msg("Mark the troll done")}
+case("the corrected words are taken at home; words no app takes, or only by its topic word, aren't",
+     (r.taken_at_home(_body, "Mark the chore done"), r.taken_at_home(_body, "I took a chore of Rome"),
+      r.taken_at_home(_body, "I like the chore")), ("chores", None, None))
+_win = {"kind": "heard_as", "said": "Add a chew to paint the back of the house", "meant": "Add a chore to paint the back of the house",
+        "by": "window"}
+d = r.decide(msg("Yes."), pending=_win, turns=[])
+case("yes to the window's 'I think you meant ...': the corrected words, decided afresh, the mishearing kept",
+     (d["path"], d.get("topic"), d.get("heard_as_yes"), d.get("heard_from"), (d.get("window_answer") or {}).get("answer")),
+     ("A", "chores", _win["meant"], _win["said"], "yes"))
+d = r.decide(msg("No."), pending=_win, turns=[])
+case("no to the window's question: the words go out as heard", (d["path"], d.get("kind"), d.get("rewrite"), d["window_answer"]["answer"]),
+     ("gemini", "ask_yes", _win["said"], "no"))
+d = r.decide(msg("What's the weather tomorrow?"), pending=_win, turns=[])
+case("a new request instead of an answer: recorded as such, handled as new", (d.get("topic"), d["window_answer"]["answer"]),
+     ("weather", "new request"))
+d = r.decide(msg("No."), pending=dict(_win, by=None), turns=[])
+case("no to the Off-Platform model's own 'did you mean?' still does nothing, and isn't an add-on's answer",
+     (d["path"], d.get("kind"), d.get("window_answer")), ("C", "no", None))
+from veil import addons as _ad  # noqa: E402
+_w = _ad.Addons(os.path.join(REPO, "addons"), enabled=["window"])
+_ctx = {"assistant": "iris", "at_home": lambda words: r.taken_at_home(_body, words)}
+case("the window with the real router: 'Add a chew to paint the back of the house' is asked about, the name apart",
+     {k: v for k, v in (_w.run("before_off_platform", "Add a chew to paint the back of the house", _ctx) or {}).items()
+      if k in ("meant", "head", "payload")},
+     {"meant": "Add a chore to paint the back of the house", "head": "Add a chore", "payload": "paint the back of the house"})
+case("the window's offer has its own words: the command, then the name in quotes, never 'I think I heard'",
+     (r.phrase("router", "window_offer_split", "iris").format(head="Add a chore", payload="Pack for the shore"),
+      r.phrase("router", "window_offer", "iris").format(meant="Mark the chore done")),
+     ('Did you mean: Add a chore, "Pack for the shore"? Shall I?', 'Did you mean "Mark the chore done"? Shall I?'))
+
+# #28: who can answer this? Nothing at home claimed it: each app whose find opens it is asked, read only
+import asyncio as _aio28  # noqa: E402
+_real_call = r.call_service
+_asked = []
+
+
+async def _fake_call(topic, said, context=(), action=None, **kw):
+    _asked.append((topic, action))
+    if "walkie" in said:
+        return {"status": "answered", "speech": "Leave the walkie-talkie at school is due Friday."}
+    return {"status": "answered", "speech": "I couldn't find that one.", "not_found": True}
+r.call_service = _fake_call
+_find = [("chores", "find", ["find"])]
+_apps = r.apps_to_ask
+r.apps_to_ask = lambda said: [(t, None, a, f) for t, a, f in _find] if said.lower().split()[2:3] == ["find"] or "find" in said.lower().split()[:3] else []
+
+
+def _who(said, path="gemini", **more):
+    d = dict({"said": said, "path": path, "why": []}, **more)
+    return _aio28.run(r.who_answers(d)), d
+got, d = _who("Can you find the walkie coffee tour?")
+case("#28: nothing claimed it, the chores app's find is asked and finds it", ([(t, a) for t, a, _x in got], _asked[-1]),
+     ([("chores", "find")], ("chores", "find")))
+case("...and the why says so", d["why"][-1].endswith("chores (find): found it"), True)
+got, d = _who("Can you find my car keys?")
+case("#28: its find finds nothing: not the app's, on to Off-Platform", (got, d["why"][-1].endswith("not found")), ([], True))
+_keep_fake = r.call_service
+
+
+async def _which(topic, said, context=(), action=None, **kw):
+    if "faucet" in said:
+        return {"status": "answered", "speech": "Which one: Buy single hole faucet, or Fix the single hole faucet?",
+                "looked_for": "single hole faucet", "ask": {"kind": "rule", "mode": "which", "choices": [
+                    {"name": "Buy single hole faucet"}, {"name": "Fix the single hole faucet"}]}}
+    return {"status": "answered", "speech": "Which one: Remember School Keys, or Bullet car inspection?", "looked_for": "car keys",
+            "ask": {"kind": "rule", "mode": "which", "choices": [{"name": "Remember School Keys"}, {"name": "Bullet car inspection"}]}}
+r.call_service = _which
+got, d = _who("Can you find my car keys?")
+case("#28: only parts fit two of its things (car keys: School Keys, car inspection): not claimed", got, [])
+got, d = _who("Can you find the single hole faucet?")
+case("#28: a tie between two of its things that both fit by enough words: claimed, she asks which",
+     [x[2]["ask"]["mode"] for x in got], ["which"])
+
+
+async def _one_word(topic, said, context=(), action=None, **kw):
+    return {"status": "answered", "speech": "I believe I heard you say Leave the walkie-talkie at school. Is that right?",
+            "ask": {"kind": "rule", "mode": "confirm"}, "looked_for": "walkie coffee tour", "found_item": "Leave the walkie-talkie at school"}
+r.call_service = _one_word
+got, d = _who("Can you find the walkie coffee tour?")
+case("#28 (yours): one word of three fits the thing found (walkie): too few words, not claimed", (got, "too few words" in d["why"][-1]),
+     ([], True))
+case("#28: two words fit (Newton, medicine), or the one word said fits (Easter): claimed",
+     (r.enough_words({"looked_for": "newton medicine attractive applied", "found_item": "Get Newton's Medicine at Tractor Supply"}, None),
+      r.enough_words({"looked_for": "easter", "found_item": "Easter Sunday"}, None),
+      r.enough_words({"looked_for": "car keys", "found_item": "Remember School Keys"}, None)), (True, True, False))
+r.call_service = _keep_fake
+r.call_service = _keep_fake
+_asked.clear()
+case("#28: words sent out by a yes or a no are never asked about again", (_who("Can you find the walkie coffee tour?", rewrite="x")[0], _asked),
+     ([], []))
+case("#28: only a request headed out is asked about", _who("Can you find the walkie coffee tour?", path="A")[0], [])
+case("#28: a long ramble is conversation, never asked of the apps", _who("Can you find the walkie coffee tour " + "and so on " * 8)[0], [])
+_find = [("chores", "find", ["find"]), ("feasts", "when_feast", ["find"])]
+got, d = _who("Can you find the walkie coffee tour?")
+case("#28: two apps find it: both are kept, for her which-app question", [t for t, _a, _x in got], ["chores", "feasts"])
+
+
+async def _slow(*a, **k):
+    await _aio28.sleep(5)
+r.call_service, r.ASK_APPS_SECONDS = _slow, 0.1
+_find = [("chores", "find", ["find"])]
+got, d = _who("Can you find the walkie coffee tour?")
+case("#28: an app that doesn't answer in time passes", (got, "no answer in" in d["why"][-1]), ([], True))
+r.call_service, r.apps_to_ask, r.ASK_APPS_SECONDS = _real_call, _apps, 2.0
+case("#28: the real list of apps to ask: a find rule opening the sentence; never a rule that changes something",
+     ([(t, a) for t, _c, a, _f in r.apps_to_ask("Can you find the paint the back of the house chore?")],
+      r.apps_to_ask("Rename the walkie coffee tour to lunch"), r.apps_to_ask("Tell me a joke")),
+     ([("chores", "find")], [], []))
+
+# #28, Oct 22 later: an app asked whether it's its own (the weather brain's claim), and a brain flea offered
+class _Answers:
+    def __init__(self, reply):
+        self.reply, self.got = reply, None
+
+    def claims(self):
+        return True
+
+    async def ask(self, said, context=(), claim=False):
+        self.got = (said, claim)
+        return self.reply
+
+
+_wb = _Answers({"status": "not_mine", "reason": "not_weather"})
+r.apps_to_ask = lambda said: [("weather", _wb, None, [])]
+got, d = _who("Is it hot?", guarded="weather")
+case("#28: a topic the guard held on purpose ('Is it hot?' alone): its app isn't asked to claim it", (got, _wb.got), ([], None))
+got, d = _who("Tell me a joke")
+case("#28: the weather brain is asked with claim, and says not its own", (got, _wb.got, d["why"][-1].endswith("weather: not its own")),
+     ([], ("Tell me a joke", True), True))
+_wb.reply = {"status": "answered", "speech": "Tomorrow will be sunny."}
+got, d = _who("Will it be nice tomorrow for a walk?")
+case("#28: ...and a weather question is its own, answered as it came", [(t, a, x["speech"]) for t, a, x in got],
+     [("weather", None, "Tomorrow will be sunny.")])
+r.apps_to_ask = _apps
+_cl = r.ADDONS.services.get("brain_fleas.closest")
+case("#28: a brain flea is offered only when words with a meaning fit: never by 'that', 'is', 'very' alone, or a system flea",
+     (_cl("Is it going to be nice for a walk later", r.FUNCTION_WORDS), _cl("She's like well I don't know.", r.FUNCTION_WORDS),
+      _cl("tell me lisas shoe size", r.FUNCTION_WORDS), _cl("delete flea", r.FUNCTION_WORDS)), (None, None, None, None))
+case("#28: ...and one whose meaning words are all said is ('Talking?': who is talking to you)",
+     (_cl("Talking?", r.FUNCTION_WORDS) or [""])[0], "device_who_is_speaking_to_you")
+
+_fo = {"kind": "heard_as", "said": "tell me who is speaking right now", "meant": "who is speaking to you", "by": "brain_fleas",
+       "keep": False}
+d = r.decide(msg("Yes."), pending=_fo, turns=[])
+case("#28: yes to a flea offered: the flea answers, and no mishearing is kept (it was never misheard)",
+     (d["path"], d.get("heard_as_yes"), (d.get("window_answer") or {}).get("answer")), ("flea", None, "yes"))
+d = r.decide(msg("No."), pending=_fo, turns=[])
+case("#28: no to a flea offered: the words go out as heard", (d["path"], d.get("rewrite")), ("gemini", _fo["said"]))
+
+import httpx as _hx  # noqa: E402
+case("Oct 22: no answer in time is slow, a refused connection can't reach",
+     (r.slow_not_down(_hx.ReadTimeout("x")), r.slow_not_down(_hx.ConnectError("x")), r.slow_not_down(_hx.ConnectTimeout("x")),
+      r.phrase("router", "gemini_slow", "iris")), (True, False, False, "My helpers outside the house are slow right now."))
+
+# Oct 22: the shoe size flea, lost twice: "Thank you." to her "Right?", and the question taken for her echo
+case("a thanks to her confirmation is a yes; to anything else it isn't an answer; no thank you stays no",
+     (r.confirm_kind("Thank you."), r.confirm_kind("Thanks so much, Iris."), r.answer_kind("Thank you."), r.confirm_kind("No, thank you.")),
+     ("yes", "yes", None, "no"))
+d = r.decide(msg("Thank you."), pending=_win, turns=[])
+case("'Thank you.' to the window's 'Did you mean ...? Shall I?': yes", (d["path"], d.get("topic")), ("A", "chores"))
+d = r.decide(msg("Thank you."), pending={"kind": "ask_around", "said": "tell me a joke"}, turns=[])
+case("'Thank you.' to 'Want me to ask around?': not a yes", d.get("kind") == "ask_yes", False)
+_her = [{"time": __import__("time").time() - 22, "answer": "I'll remember: Mara's shoe size is eight and a half. Right?"}]
+case("'What's Mara's shoe size?' 22 s after her 'I'll remember: Mara's shoe size ...': a question, not her echo",
+     r.echo_of("What's Mara's shoe size?", _her), None)
+case("...while her own words coming back still are", bool(r.echo_of("Mara's shoe size is eight and a half right", _her)), True)
+
+# #29: the trainer, per person (its services loaded as when it's on; a stand-in People grid)
+import tempfile as _tf29  # noqa: E402
+_tr = _ad.Addons(os.path.join(REPO, "addons"), enabled=["trainer"])
+_trm = sys.modules["addon_trainer"]
+_trm.DB = os.path.join(_tf29.mkdtemp(), "trainer.db")
+r.ADDONS.services.update({k: v for k, v in _tr.services.items() if k.startswith("trainer.")})
+_grid = r.people.grid
+r.people.grid = lambda: {"apps": [], "rows": [{"wepwawet": "Owner", "called": []}, {"wepwawet": "Mara", "called": []},
+                                               {"wepwawet": "Owen", "called": []}]}
+case("#29: trainer mode said by voice: the long way, the short way, someone's, my own; never 'my trainer at the gym'",
+     [r.trainer_command(x) for x in ("Trainer mode.", "Enter trainer mode", "Turn on trainer mode for Mara",
+                                     "Turn on Mara's chore trainer", "Turn off my trainer mode", "My trainer at the gym said hi",
+                                     "Start the dishwasher", "Training mode on for Mara.", "Training mode off.",
+                                     "Turn Mara's training mode on", "Mara's training mode",
+                                     "I went to the gym and my trainer mode of teaching was hard")],
+     [(None, None), (None, None), ("on", "Mara"), ("on", "Mara"), ("off", "me"), None, None, ("on", "Mara"), ("off", None),
+      ("on", "Mara"), (None, "Mara"), None])
+d = r.decide(msg("Turn on trainer mode for Mara"), pending={}, turns=[])
+case("#29: the switch is the trainer's, decided before anything else", (d["path"], d["kind"], d["turn"], d["target"]),
+     ("trainer", "switch", "on", "Mara"))
+case("#29: a chore said as a condition is split; a 'when' that asks isn't one",
+     (r.condition_split("When Owen wakes up and asks for his chores, ask him to go to the post office again and mail my letter."),
+      r.condition_split("When is the trash due?"), r.condition_split("When's the trash due?")),
+     (("When Owen wakes up and asks for his chores", "ask him to go to the post office again and mail my letter."), None, None))
+case("#29: her words offered as the name, the 'ask him to' taken off", r.trainer_name("ask him to go to the post office again and mail my letter."),
+     "Go to the post office again and mail my letter")
+_mara = {"person": "Mara", "speaker": "Mara", "label": "known"}
+_d = {"said": "When Owen wakes up, ask him to go to the post office.", "path": "A", "topic": "chores", "why": []}
+case("#29: trainer mode off: it never steps in", r.trainer_due(dict(_d), _mara), False)
+_trm.set_on("Mara", True, "Owner")
+_d1 = dict(_d, why=[])
+case("#29: on for Mara, a chore said as a condition: she offers to walk it through, her words as the name",
+     (r.trainer_due(_d1, _mara), _d1["trainer_offer"]["origin"], _d1["trainer_offer"]["suggest"]),
+     (True, "condition", "Go to the post office"))
+case("#29: ...not when the voice ID isn't sure it's her, or it's someone else",
+     (r.trainer_due(dict(_d, why=[]), {"person": "Mara", "label": "maybe"}), r.trainer_due(dict(_d, why=[]), {"person": "Owen", "label": "known"})),
+     (False, False))
+case("#29: a request formed right: silent", r.trainer_due({"said": "Add a chore to call the plumber Friday at 9", "path": "A",
+                                                           "topic": "chores", "action": "add", "why": []}, _mara), False)
+case("#29: a statement nothing claims: offered; a question: silent",
+     (r.trainer_due({"said": "I need the plumber called", "path": "gemini", "shape": "need", "why": []}, _mara),
+      r.trainer_due({"said": "Who won the game?", "path": "gemini", "shape": "question", "why": []}, _mara)), (True, False))
+_off = dict(_d1["trainer_offer"])
+d = r.decide(msg("Yes."), pending=_off, turns=[])
+case("#29: yes to her offer: what shall we call it, her words offered", (d["path"], d["kind"], d["trainer_next"]["mode"], d["trainer_q"]),
+     ("trainer", "ask", "name", 'What shall we call it? Shall I call it "Go to the post office"?'))
+d = r.decide(msg("Thank you."), pending=d["trainer_next"], turns=[])
+case("#29: the name taken: what day", (d["trainer_next"]["name"], d["trainer_q"]), ("Go to the post office", "What day should it be due?"))
+d = r.decide(msg("Friday."), pending=d["trainer_next"], turns=[])
+case("#29: the day taken: what time", (bool(d["trainer_next"]["due_date"]), d["trainer_q"]), (True, "What time?"))
+d = r.decide(msg("3 pm."), pending=d["trainer_next"], turns=[])
+case("#29: the time taken: who's it for", (d["trainer_next"]["due_time"]["say"], d["trainer_q"]), ("3 pm", "Do you want to assign it to someone?"))
+_last = d["trainer_next"]
+d = r.decide(msg("Owen."), pending=_last, turns=[])
+case("#29: who it's for: the app's own add runs with all of it", (d["path"], d.get("topic"), d.get("action"), d.get("trainer_done"),
+     "go to the post office" in d["said"].lower() and " at 3 pm" in d["said"] and d["said"].endswith("for Owen")),
+     ("A", "chores", "add", True, True))
+d = r.decide(msg("Never mind."), pending=_last, turns=[])
+case("#29: never mind ends it at any step (a dismissal: her question is dropped)", (d["path"], d["kind"]), ("0", "dismissed"))
+d = r.decide(msg("Scratch that, forget it please"), pending=_last, turns=[])
+case("#29: ...and a cancel inside an answer ends it too", (d["path"], d["kind"]), ("C", "no"))
+d = r.decide(msg("No."), pending=dict(_off, origin="out", said="I need the plumber called"), turns=[])
+case("#29: no to her offer for a statement: the words go out as heard", (d["path"], d.get("rewrite")), ("gemini", "I need the plumber called"))
+d = r.decide(msg("Yes."), pending={"kind": "trainer", "mode": "toggle", "target": "Mara", "to": False}, turns=[])
+case("#29: yes to 'Would you like to turn it off?': switched", (d["path"], d["kind"], d["target"], d["on"]), ("trainer", "set", "Mara", False))
+case("#29: who may switch it: anyone their own; someone else's, only a changer",
+     (r.trainer_may("Mara", "Mara"), r.trainer_may("Owen", "Mara")), (True, False))
+r.people.grid = _grid
+
+_trm.SET["changers"] = ["Owner"]
+r.people.grid = lambda: {"apps": [], "rows": [{"wepwawet": "Owner", "called": []}, {"wepwawet": "Mara", "called": []},
+                                               {"wepwawet": "Owen", "called": []}]}
+_owner = {"person": "Owner", "speaker": "Owner", "label": "known"}
+
+
+def _turn(who, **d):
+    import json as _j
+    resp = r.trainer_turn(dict({"assistant": "iris", "said": "x", "path": "trainer", "why": []}, **d), who, msg("x"),
+                          __import__("time").monotonic(), False)
+    return _j.loads(resp.body)["choices"][0]["message"]["content"], r.pending_for("iris")
+_trm.set_on("Mara", False, "Owner")
+line, p = _turn(_owner, kind="switch", turn=None, target=None)
+case("#29: 'Trainer mode' from a changer: for who?", (line, p.get("mode")), ("Trainer mode for who?", "who"))
+line, p = _turn(_owner, kind="switch", turn=None, target="Mara")
+case("#29: ...Mara: its state, and the opposite offered", (line, p.get("mode"), p.get("to")),
+     ("Trainer mode is off for Mara. Would you like to turn it on?", "toggle", True))
+line, p = _turn(_owner, kind="set", target="Mara", on=True)
+case("#29: ...yes: on for Mara from her next request, no restart", (line, r.ADDONS.services["trainer.is_on"]("Mara")),
+     ("Trainer mode is on for Mara: chores.", True))
+line, p = _turn(_owner, kind="switch", turn="on", target="Mara")
+case("#29: 'Turn on trainer mode for Mara' when it's on already", line, "Trainer mode is already on for Mara.")
+line, p = _turn({"person": "Owen", "label": "known"}, kind="switch", turn="off", target="Mara")
+case("#29: someone who isn't a changer can't switch someone else's", line.startswith("Trainer mode for Mara can only be changed"), True)
+line, p = _turn({"person": "Mara", "label": "known"}, kind="switch", turn="off", target="me")
+case("#29: Mara may switch her own off: she asks first", line, "Turn off trainer mode for Mara? Say yes.")
+line, p = _turn({"person": "Owner", "label": "maybe"}, kind="switch", turn="on", target="Mara")
+case("#29: the voice ID not sure who's asking: left as it is", line, "I'm not sure who's asking, so I'll leave trainer mode as it is.")
+r.people.grid = _grid
 
 print(f"\n{'all pass' if not FAILED else str(len(FAILED)) + ' fail'}")
 sys.exit(1 if FAILED else 0)

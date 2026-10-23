@@ -74,21 +74,9 @@ class Donetick(Connector):
         """Donetick's fields for what's filled (name, who and project are handled by the caller)."""
         tz = dt.datetime.now().astimezone().tzinfo
         body = {}
-        date = filled.get("due_date")
-        time = filled.get("due_time")
         rep = filled.get("repeat")
-        if rep and not date:                  # a repeat needs a first due date: today
-            date = {"date": today.isoformat()}
-        if date:
-            if time:
-                h, m = time["hour"], time["minute"]
-            elif self.opt("default_chore_time"):
-                h, m = map(int, str(self.opt("default_chore_time")).split(":"))
-            else:
-                # no time said and no default chore time (the Defaults tab): due at the start of the day
-                print("  ! donetick: a day with no time and no default_chore_time: due at the start of the day", flush=True)
-                h, m = 0, 0
-            local = dt.datetime.combine(dt.date.fromisoformat(date["date"]), dt.time(h, m), tz)
+        local = self.due_local(filled, today)          # the generic class's (a repeat starts today)
+        if local:
             body["nextDueDate"] = local.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             at = local.isoformat()
         if rep:
@@ -104,17 +92,12 @@ class Donetick(Connector):
                 meta["unit"] = rep["unit"] + "s"
             body["frequencyMetadata"] = meta
         templates, notif = [], {}
-        if filled.get("remind_before"):
-            v, u = _unit(filled["remind_before"]["minutes"])
-            templates.append({"value": -v, "unit": u})
+        for at in self.reminder_minutes(filled):        # the generic class's: before, at due, the nags
+            v, u = _unit(abs(at)) if at else (0, "m")
+            templates.append({"value": -v if at < 0 else v, "unit": u})
         if filled.get("remind_at_due") and filled["remind_at_due"].get("value"):
-            templates.append({"value": 0, "unit": "m"})
             notif["dueDate"] = True
         if filled.get("nag"):
-            step = filled["nag"]["minutes"]
-            for k in range(1, int(self.opt("nag_max") or 0) + 1):
-                v, u = _unit(step * k)
-                templates.append({"value": v, "unit": u})
             notif["nagging"] = True
         if templates:
             body["notification"] = True

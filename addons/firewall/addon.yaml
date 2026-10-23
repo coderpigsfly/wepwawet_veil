@@ -1,0 +1,22 @@
+# addons/firewall - the Firewall: who may use what, by voice; what no language model may ever work (locks,
+# the alarm, a garage, scripts not allowed); and Veil Guard Service's checks of Home Assistant's own commands
+# (issue #25, step 3). Its rules are the household's: firewall.yaml at the router's root, never public.
+# The router's protection from a bad-acting app is the core's, on whether or not this is.
+# Its companion in Home Assistant: ha/custom_components/veil_guard_service (installed there; asks the router).
+name: firewall
+title: Firewall
+version: 1.0.0
+kind: guard
+about: Who may use what by voice (people, devices, topics, going Off-Platform), what no model may ever work, and the checks Veil Guard Service asks for on Home Assistant's own commands.
+serves: on_platform
+serves_how: it keeps what's done on platform safe, so a request may be answered at home without risk
+data: {kind: record}       # its rules (firewall.yaml), read at start and when the page saves them
+path: inbound              # the request coming in: checked before anything is done
+slots: [check]
+provides: [current, make]
+may: [read, block]
+last: true                 # always last on the pile, whatever comes before it
+on_error: block            # it fails closed: an error in it stops the request
+budget_ms: 5
+pages:
+  - {id: firewall, label: Firewall, group: Connect and protect, role: administrator}

@@ -1,0 +1,19 @@
+# addons/brain_fleas - Brain fleas, an action add-on (issue #25, step 4): small true facts of the household
+# ("We only buy pizza from Sal's", "who is talking to you"), each found by its own key words and answered at
+# home: one line, a record kept in learn/fleas.yaml.
+name: brain_fleas
+title: Brain fleas
+version: 1.0.0
+kind: action               # it performs a function: it answers at home, off its key words
+about: Small true facts of the household, each asked its own ways and answered at home (one line), added and changed by voice or on its page.
+serves: on_platform
+serves_how: a household fact is answered at home by its key words, never sent Off-Platform
+data: {kind: record}       # the household's own facts, kept until changed
+path: inbound              # after the integrations' key words, before the Bank
+slots: [key_word]
+provides: [make, names, add, closest]
+may: [read, answer]
+on_error: skip
+budget_ms: 20
+pages:
+  - {id: fleas, label: Brain fleas, group: Teach, role: reviewer}

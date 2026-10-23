@@ -28,7 +28,7 @@ import yaml
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from veil import activity as activity_mod, apps, flairlines, fleas as fleas_mod, frontend, lists, mishearings, openapi, people as people_mod, phases, people_map, rules as rulebook, doors as doorset, access, config, firewall as firewall_mod, security, speakers, version
+from veil import activity as activity_mod, apps, frontend, lists, openapi, people as people_mod, phases, people_map, rules as rulebook, doors as doorset, access, config, security, speakers, version
 from veil.errors import VeilError
 
 log = logging.getLogger("router")
@@ -167,6 +167,95 @@ def index(request: Request):
     return page_file(request, "index.html", "text/html")
 
 
+# ---------- add-ons (issue #25) ----------
+
+@app.on_event("startup")
+def addon_doors():
+    """The doors of the add-ons that are on (their api.py), added once the router is loaded."""
+    router().ADDONS.register_api(app)
+
+
+@app.get("/addons/{name}/page.js")
+def addon_page(name: str, request: Request):
+    """An add-on's page script (its folder's page.js), for an add-on that's on."""
+    if not re.fullmatch(r"[a-z0-9_]{1,40}", name) or name not in router().ADDONS.on:
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    path = config.path("addons", name, "page.js")
+    if not os.path.exists(path):
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    st = os.stat(path)
+    return FileResponse(path, media_type="text/javascript", headers={"Cache-Control": "no-cache", "ETag": f'"{st.st_mtime_ns:x}"'})
+
+
+@app.get("/api/addons")
+def addons_get(request: Request):
+    need(request, "administrator")
+    a = config.settings().get("addons") or {}
+    enabled = list(a.get("enabled") or [])
+    return {"addons": router().ADDONS.listing(enabled), "enabled": enabled, "order": list(a.get("order") or []),
+            "running": list(router().ADDONS.ranked)}
+
+
+@app.post("/api/addons/order")
+async def addons_order(request: Request):
+    """The household's order on the outbound path (settings.yaml addons: order:): the add-ons at the
+    beginning or end of her answer, first to last. One that replaces inside it always runs first."""
+    need(request, "administrator")
+    b = await body_of(request)
+    A = router().ADDONS
+    order = [str(n) for n in b.get("order") or []]
+    if any(n not in A.found for n in order) or len(set(order)) != len(order):
+        raise VeilError("The order names each add-on once, and only add-ons that are there")
+
+    def change(doc):
+        if doc.get("addons") is None:
+            doc["addons"] = {}
+        doc["addons"]["order"] = config.flow_list(order)
+    config.edit_yaml(config.SETTINGS_FILE, change)
+    restart_note("add-ons")
+    audit(request, "add-on order changed", detail=" -> ".join(order))
+    return {"order": order, "restart": True}
+
+
+@app.post("/api/addons")
+async def addons_set(request: Request):
+    """Turn an add-on on or off (settings.yaml addons: enabled:). What it needs comes on with it at the
+    restart; one that an add-on that's on needs can't be turned off."""
+    need(request, "administrator")
+    b = await body_of(request)
+    name, on = str(b.get("name") or ""), bool(b.get("on"))
+    A = router().ADDONS
+    if name not in A.found:
+        raise VeilError(f"There's no add-on called {name}" + (f" that works: {A.broken[name]}" if name in A.broken else ""))
+    enabled = list((config.settings().get("addons") or {}).get("enabled") or [])
+    if not on:
+        users = sorted(n for n in enabled if name in (A.found.get(n, {}).get("needs") or []))
+        if users:
+            raise VeilError(f"{A.found[name].get('title')} is needed by {', '.join(users)}: turn that off first")
+    enabled = sorted((set(enabled) | {name}) if on else (set(enabled) - {name}))
+
+    def change(doc):
+        if doc.get("addons") is None:
+            doc["addons"] = {}
+        doc["addons"]["enabled"] = config.flow_list(enabled)
+    config.edit_yaml(config.SETTINGS_FILE, change)
+    restart_note("add-ons")
+    audit(request, "add-on turned " + ("on" if on else "off"), target=name)
+    return {"enabled": enabled, "restart": True}
+
+
+@app.post("/api/addons/{name}/try")
+async def addon_try(name: str, request: Request):
+    """Try an add-on's dress slot on a sentence (its page): what she'd say."""
+    need(request, "administrator")
+    b = await body_of(request)
+    A = router().ADDONS
+    fn = next((f for n, f, _ in A.slots.get("dress") or [] if n == name), None)
+    if fn is None:
+        raise VeilError(f"{name} isn't on, or doesn't dress her answers")
+    return {"said": fn(str(b.get("text") or "")[:500], {"assistant": "try", "topic": None, "path": "A", "speaker": None})}
+
+
 @app.get("/{name}")
 def static(name: str, request: Request):
     if not re.fullmatch(r"[a-z0-9_-]+\.(js|css|svg|html)", name) or not os.path.exists(os.path.join(STATIC, name)):
@@ -208,8 +297,8 @@ async def sign_in(request: Request):
 
 CAN = {
     "viewer": ["overview", "transactions", "inbound", "outbound", "account", "guide"],
-    "reviewer": ["bank", "misses", "candidates", "try", "fleas", "words"],
-    "administrator": ["topics", "tools", "flair", "integrations", "people", "firewall", "settings"],
+    "reviewer": ["misses", "candidates", "try", "words"],
+    "administrator": ["topics", "tools", "integrations", "people", "settings", "addons", "sayings"],
     "super": ["security", "users", "audit"],
 }
 
@@ -219,7 +308,16 @@ def can(role):
     for r in security.ROLES:
         if security.RANK[r] <= security.RANK[role]:
             out += CAN[r]
+    # the pages of the add-ons that are on, each for the role it names (issue #25)
+    out += [p["id"] for p in addon_pages() if security.RANK.get(p["role"], 99) <= security.RANK[role]]
     return out
+
+
+def addon_pages():
+    try:
+        return router().ADDONS.pages()
+    except Exception:
+        return []
 
 
 @app.get("/api/session")
@@ -228,6 +326,7 @@ def who(request: Request):
     if not actor:
         return {"user": None, "needs_setup": USERS.needs_setup(), "password_min_length": security.MIN_PASSWORD}
     return {"user": {"name": actor["name"], "role": actor["role"]}, "can": can(actor["role"]),
+            "addon_pages": [p for p in addon_pages() if security.RANK.get(p["role"], 99) <= security.RANK[actor["role"]]],
             "grantable": USERS.grantable(actor) if actor["how"] == "session" else [],
             "version": VERSION, "restart_needed": sorted(RESTART_NEEDED),
             "password_min_length": security.MIN_PASSWORD, "assistants": assistants()}
@@ -236,7 +335,7 @@ def who(request: Request):
 def assistants():
     """The assistants (personalities, from personality/*.yaml): for the pages' pick lists."""
     try:
-        return router().FLAIR.names()
+        return router().PERSONAS
     except Exception:
         return []
 
@@ -280,8 +379,8 @@ def overview(request: Request):
         "litellm": r.LITELLM_URL, "topics": {t: v.get("service") for t, v in r.SCORER.topics.items()},
         "services": services, "oread": {"enabled": bool(o.get("enabled")), "url": o.get("url"),
                                         "source": o.get("source", "wyoming")},
-        "firewall": {"enabled": r.FIREWALL.enabled, "rules": len(r.FIREWALL.rules)},
-        "flair": {"on": bool(r.FLAIR.flaired()), "personalities": r.FLAIR.flaired()},
+        "firewall": {"enabled": r.fw().enabled, "rules": len(r.fw().rules)},
+        "addons": list(r.ADDONS.on),
         "connectors": sorted(r.CONNECTORS), "spacy": bool(r.NLP),
         "last_day": counts, "last_week": week, "restart_needed": sorted(RESTART_NEEDED),
         "confidence_local": r.CONFIDENCE,
@@ -317,26 +416,6 @@ def activity_delete(request: Request, activity_id: int):
         raise VeilError(str(e), 404)
     audit(request, "transaction deleted", target=str(activity_id))
     return {"deleted": activity_id}
-
-
-@app.post("/api/activity/{activity_id}/misheard")
-async def activity_misheard(request: Request, activity_id: int):
-    """Misheard on the Transactions page: into learn/mishearings.yaml, the words heard under what
-    was really meant (said; optional: without it, it waits under not given yet). Her answer isn't
-    kept: what matters is catching the mishearing before it's decided."""
-    need(request, "reviewer")
-    b = await body_of(request)
-    r = router()
-    row = r.ACTIVITY.get(activity_id) if r.ACTIVITY else None
-    if not row:
-        raise VeilError("That transaction isn't in the log any more", 404)
-    if not (row.get("heard") or "").strip():
-        raise VeilError("Nothing was heard on that one")
-    said = mishearings.tidy(b.get("said"))
-    p, c = mishearings.add(row["heard"], said, clip=row.get("clip"), device=row.get("device"))
-    r.ACTIVITY.mark(activity_id, "misheard")
-    audit(request, "recorded as misheard", target=str(activity_id), detail={"heard": row["heard"], "said": said})
-    return {"recorded": {"meant": p.get("meant"), "heard": c["said"], "count": c["count"], "total": mishearings.total(p)}}
 
 
 # ---------- stats: counts and Time Routes ----------
@@ -406,174 +485,6 @@ def savings(request: Request, days: int = 30):
     return out
 
 
-# ---------- the Off-Platform bank ----------
-
-@app.get("/api/bank")
-def bank(request: Request, review: str = "", klass: str = "", search: str = "", order: str = "last",
-         limit: int = 200, added: str = "yes", personality: str = ""):
-    """added: yes (the replacement answers you added, the default), no (only counted), all.
-    personality: one personality's bank (each has its own)."""
-    need(request, "reviewer")
-    r = router()
-    if not r.ACTIVITY:
-        return {"rows": [], "classes": [], "off": True}
-    out = r.ACTIVITY.bank(review or None, klass or None, search or None, order, limit,
-                          {"yes": True, "no": False}.get(added), personality or None)
-    out["answer_from_bank"] = r.ACTIVITY.answer_from_bank
-    out["bank_keeps"] = r.BANK_KEEPS
-    return out
-
-
-@app.post("/api/bank/add")
-async def bank_add(request: Request):
-    """The + on the Transactions page: that request becomes a replacement answer in the bank."""
-    need(request, "reviewer")
-    b = await body_of(request)
-    try:
-        row = router().ACTIVITY.bank_add_from(int(b.get("activity_id") or 0))
-    except (TypeError, ValueError) as e:
-        raise VeilError(str(e))
-    audit(request, "added to the bank", target=str(row["id"]), detail=row.get("heard"))
-    return row
-
-
-@app.post("/api/bank/upload")
-async def bank_upload(request: Request):
-    """The generic upload (dump19): {personality, generic, sayings: [{said, answers: [...]}]} or {yaml: the
-    same list as YAML text}: each saying put in the bank, added, with the ways it may be answered, so it's
-    answered at home with no Off-Platform trip."""
-    need(request, "reviewer")
-    if not phases.on("dump19"):
-        raise VeilError("Not here yet", 404)
-    b = await body_of(request)
-    rows = b.get("sayings")
-    if isinstance(b.get("yaml"), str):
-        try:
-            rows = yaml.safe_load(b["yaml"])
-        except yaml.YAMLError as e:
-            raise VeilError(f"That isn't YAML that can be read: {str(e)[:120]}")
-    if not isinstance(rows, list) or not rows:
-        raise VeilError("sayings is a list of {said, answers}")
-    r = router()
-    pers = str(b.get("personality") or (r.FLAIR.names() or [""])[0]).strip().lower()
-    done = []
-    for i, x in enumerate(rows[:500]):
-        said = " ".join(str((x or {}).get("said") or "").split())[:300]
-        answers = [" ".join(str(a).split())[:600] for a in ((x or {}).get("answers") or []) if str(a).strip()]
-        words = r.without_polite(said)
-        if not words or not answers:
-            raise VeilError(f"saying {i + 1}: it needs its words (said) and at least one answer")
-        done.append(r.ACTIVITY.bank_upload(pers, activity_mod.key_of(words), said, answers, b.get("generic", True) is not False))
-    audit(request, "bank upload", detail=f"{len(done)} sayings for {pers}")
-    return {"added": len(done), "personality": pers}
-
-
-@app.post("/api/bank/{bank_id}/flea")
-async def bank_to_flea(request: Request, bank_id: int):
-    """Answer at home: a saying in the bank becomes a brain flea (its words the way it's asked, the answers
-    kept for it her lines), answered at home before anything goes Off-Platform (dump19)."""
-    need(request, "reviewer")
-    if not phases.on("dump19"):
-        raise VeilError("Not here yet", 404)
-    row = router().ACTIVITY.bank_row(bank_id)
-    if not row:
-        raise VeilError("No such bank row", 404)
-    if not row["answers"]:
-        raise VeilError("It has no answers kept yet to say")
-    taken = names_taken()
-    base = re.sub(r"[^a-z0-9]+", "_", str(row["key"]))[:30].strip("_") or "saying"
-    name, n = base, 2
-    while name in taken:
-        name, n = f"{base}_{n}", n + 1
-    flea = {"title": str(row["heard"])[:60], "words": [str(row["key"])], "steps": [{"response": {"lines": row["answers"][:5]}}]}
-
-    def change(doc):
-        from ruamel.yaml.comments import CommentedMap
-        if doc.get("fleas") is None:
-            doc["fleas"] = CommentedMap()
-        doc["fleas"][name] = flea
-    fleas_mod.edit(change)
-    audit(request, "bank saying made a flea", target=name, detail=row["heard"])
-    return {"flea": name}
-
-
-@app.patch("/api/bank/{bank_id}")
-async def bank_review(request: Request, bank_id: int):
-    need(request, "reviewer")
-    b = await body_of(request)
-    try:
-        row = router().ACTIVITY.bank_review(bank_id, b.get("review"), b.get("note"))
-        if "added" in b:
-            row = router().ACTIVITY.bank_set_added(bank_id, bool(b["added"]))
-        if "generic" in b:
-            row = router().ACTIVITY.bank_set_generic(bank_id, bool(b["generic"]))
-    except ValueError as e:
-        raise VeilError(str(e))
-    if not row:
-        raise VeilError("No such bank row", 404)
-    audit(request, "bank reviewed", target=str(bank_id), detail={k: b.get(k) for k in ("review", "note", "added", "generic")})
-    return row
-
-
-@app.get("/api/bank/results")
-def bank_results(request: Request, limit: int = 0, personality: str = ""):
-    """The top things the Off-Platform model turned requests into, with every wording that led there."""
-    need(request, "reviewer")
-    r = router()
-    if not r.ACTIVITY:
-        return {"results": [], "off": True}
-    out = r.ACTIVITY.by_result(limit or getattr(r.ACTIVITY, "bank_top", 25), personality or None)
-    out["knobs"] = {k: getattr(r.ACTIVITY, k, None) for k in
-                    ("answer_from_bank", "answers_kept", "use_from", "bank_top", "trim_days")}
-    return out
-
-
-BANK_EXPORT_HEADER = """# learn/bank.yaml - the Off-Platform Bank, written out for git (Export on the Off-Platform Bank page).
-# The bank itself lives in the database (data/veil.db), which never goes into git; this is a copy
-# to read and commit. Nothing reads it back: changing it changes nothing.
-# Each saying: how often heard, its Off-Platform trips, how often the bank answered it, whether
-# you added it, your review and note, the answers kept for it, and what Gemini turned it into.
-
-"""
-
-
-@app.post("/api/bank/export")
-def bank_export(request: Request):
-    """Export on the bank page: the bank written to learn/bank.yaml, to commit and push."""
-    need(request, "reviewer")
-    r = router()
-    if not r.ACTIVITY:
-        raise VeilError("The activity log is off, so there's no bank")
-    rows = r.ACTIVITY.bank_export()
-    file = config.path("learn", "bank.yaml")
-    config.make_dirs(os.path.dirname(file))
-    tmp = file + ".tmp"
-    with open(tmp, "w") as f:
-        f.write(BANK_EXPORT_HEADER + f"# Exported {time.strftime('%Y-%m-%d %H:%M')}: {len(rows)} sayings.\n\n")
-        yaml.safe_dump({"bank": rows}, f, sort_keys=False, allow_unicode=True, width=120)
-    os.replace(tmp, file)
-    config.hand_back(file)
-    audit(request, "bank exported", detail=f"{len(rows)} sayings")
-    return {"file": "learn/bank.yaml", "sayings": len(rows), "added": sum(1 for x in rows if x["added"])}
-
-
-@app.post("/api/bank/trim")
-def bank_trim(request: Request):
-    need(request, "administrator")
-    r = router()
-    n = r.ACTIVITY.trim(getattr(r.ACTIVITY, "trim_days", 30) or 30) if r.ACTIVITY else 0
-    audit(request, "bank trimmed", detail=f"{n} one-offs")
-    return {"trimmed": n}
-
-
-@app.delete("/api/bank/{bank_id}")
-def bank_delete(request: Request, bank_id: int):
-    need(request, "administrator")
-    router().ACTIVITY.bank_delete(bank_id)
-    audit(request, "bank row deleted", target=str(bank_id))
-    return {"deleted": bank_id}
-
-
 # ---------- try a sentence (the same decision a real request gets; calls nothing) ----------
 
 @app.post("/api/try")
@@ -635,88 +546,8 @@ def misses(request: Request):
         items = config.load_yaml(config.path("learn", "misses.yaml")).get("misses") or []
     except FileNotFoundError:
         items = []
-    return {"misses": [dict(m) for m in items if m.get("kind") != "misheard"]}
-
-
-@app.get("/api/mishearings")
-def mishearings_list(request: Request):
-    """Each intention (what was really meant) with what speech-to-text heard for it, each with
-    its count, the words that differ, and whether today's router still decides differently
-    because of them. Not given yet comes first; then the most heard."""
-    need(request, "reviewer")
-    out = []
-    for p in mishearings.load():
-        meant = p.get("meant")
-        now_meant = decision_of(meant, None) if meant else None
-        heard = []
-        for c in p.get("heard") or []:
-            c = dict(c)
-            if meant:
-                c["diff"] = word_diff(c.get("said"), meant)
-                c["now_heard"] = decision_of(c.get("said") or "", None)
-                same = all(c["now_heard"].get(k) == now_meant.get(k) for k in ("path", "topic", "action"))
-                c["verdict"] = "harmless now: the router decides the same for both" if same \
-                    else "still matters: the router decides differently for what was heard"
-            heard.append(c)
-        heard.sort(key=lambda c: (-int(c.get("count", 1)), str(c.get("said"))))
-        out.append({"meant": meant, "now_meant": now_meant, "total": mishearings.total(p), "heard": heard})
-    out.sort(key=lambda p: (p["meant"] is not None, -p["total"]))
-    r = router()
-    sw = [dict(x) for x in mishearings.swaps()]
-    uses = r.ACTIVITY.swap_uses([x["heard"] for x in sw]) if r.ACTIVITY else {}
-    for x in sw:
-        x["used"], x["last_used"] = uses.get(x["heard"], (0, None))
-    return {"mishearings": out, "swaps": sw, "swap_days": r.ACTIVITY.keep_days if r.ACTIVITY else 0}
-
-
-@app.post("/api/mishearings/swap")
-async def mishearings_swap(request: Request):
-    """{heard, meant, on, line}: use one difference of a mishearing before anything is decided (learn/swaps.yaml),
-    or stop using it: a word fix (Use it) or a phrase fix (Use a phrase). line: the heard line a phrase is
-    taken from, which must hold it as whole words. Used at once."""
-    need(request, "reviewer")
-    b = await body_of(request)
-    if b.get("on", True):
-        if not " ".join(str(b.get("meant") or "").split()):
-            raise VeilError("Say what was meant")
-        if b.get("line") is not None:
-            said = re.findall(r"[a-z0-9']+", str(b.get("line") or "").lower())
-            want = re.findall(r"[a-z0-9']+", str(b.get("heard") or "").lower())
-            if not want or not any(said[i:i + len(want)] == want for i in range(len(said) - len(want) + 1)):
-                raise VeilError("Those words aren't in what was heard, as whole words: it would never be swapped")
-    try:
-        got = mishearings.use(b.get("heard"), b.get("meant"), bool(b.get("on", True)))
-    except ValueError as e:
-        raise VeilError(str(e).capitalize())
-    audit(request, "mishearing swap " + ("used" if b.get("on", True) else "stopped"), detail={"heard": b.get("heard"), "meant": b.get("meant")})
-    return {"swaps": got}
-
-
-@app.post("/api/mishearings/meant")
-async def mishearings_meant(request: Request):
-    """What was really said, for a heard line: it moves under that intention, count and all
-    (typing it for one not given yet, or moving one filed under the wrong intention)."""
-    need(request, "reviewer")
-    b = await body_of(request)
-    try:
-        p, c = mishearings.set_meant(str(b.get("heard") or ""), b.get("meant"))
-    except ValueError as e:
-        raise VeilError(str(e).capitalize())
-    if not c:
-        raise VeilError("That mishearing isn't there any more (reload the page)", 404)
-    audit(request, "mishearing filed", detail={"heard": c["said"], "meant": p.get("meant")})
-    return {"meant": p.get("meant"), "total": mishearings.total(p)}
-
-
-@app.post("/api/mishearings/drop")
-async def mishearings_drop(request: Request):
-    """Take one heard line out (by its words, never its place in the list)."""
-    need(request, "reviewer")
-    b = await body_of(request)
-    if not mishearings.drop(str(b.get("heard") or "")):
-        raise VeilError("That mishearing isn't there any more (reload the page)", 404)
-    audit(request, "mishearing dropped", detail={"heard": b.get("heard")})
-    return {"dropped": True}
+    on = "mishearings" in router().ADDONS.on      # off: a mishearing waits here, and moves when it's on
+    return {"misses": [dict(m) for m in items if not (on and m.get("kind") == "misheard")]}
 
 
 @app.post("/api/misses/drop")
@@ -1070,7 +901,17 @@ JOB_LOCK = threading.Lock()
 
 
 def tools_spec():
-    return (config.load_yaml(config.path("tools", "tools.yaml")).get("tools")) or {}
+    """The core's tools (tools/tools.yaml), and the tools of each add-on that's on (its addon.yaml tools:,
+    run from its own folder): an add-on that's off brings none (issue #25)."""
+    out = dict((config.load_yaml(config.path("tools", "tools.yaml")).get("tools")) or {})
+    try:
+        A = router().ADDONS
+        for name in A.on:
+            for key, t in (A.found[name].get("tools") or {}).items():
+                out[str(key)] = dict(t, addon=name)
+    except Exception:
+        pass
+    return out
 
 
 def choices(kind):
@@ -1207,287 +1048,15 @@ def jobs(request: Request):
                          for j in sorted(JOBS.values(), key=lambda j: -j["started"])]}
 
 
-# ---------- flair: each personality's file, her book candidates, how the books are combed ----------
+# ---------- personalities: each assistant's file (its add-ons' pages edit it: Flair, Name Sparkle) ----------
 
 PERS = config.path("personality")
-SLOTS = ("any", "opener", "closer", "aside")
-MOODS = ("plain", "warning", "sorry")
 
 
 def assistant_ok(who):
     if not re.fullmatch(r"[a-z][a-z0-9_-]{0,30}", who or "") or who in ("sources", "combing", "candidates", "approved"):
         raise VeilError("Assistant names are lowercase letters, digits, _ or -")
     return who
-
-
-def clean_flourish(f):
-    text = " ".join(str(f.get("text") or "").split())
-    if not text or len(text) > 200:
-        raise VeilError("Each flourish needs text (200 characters at most)")
-    if text.endswith("?"):
-        raise VeilError(f"\"{text}\": a flourish is never a question (the persona must end on its own question)")
-    slot = str(f.get("slot") or "opener").lower()
-    if slot not in SLOTS:
-        raise VeilError(f"slot is one of {', '.join(SLOTS)}")
-    topics_ = [str(t).lower() for t in (f.get("topics") or ["any"])] or ["any"]
-    mood = [str(m).lower() for m in (f.get("mood") or ["plain"])] or ["plain"]
-    if any(m not in MOODS for m in mood):
-        raise VeilError(f"mood is one or more of {', '.join(MOODS)}")
-    out = {"text": text, "slot": slot, "topics": topics_, "mood": mood}
-    if f.get("placeholder"):
-        out["placeholder"] = True
-    return out
-
-
-@app.get("/api/flair")
-def flair_all(request: Request):
-    need(request, "viewer")
-    r = router()
-    names = sorted(set(r.FLAIR.names()) | set(choices("assistants")))
-    out = []
-    for who in names:
-        try:
-            spec = config.plain(config.load_yaml(os.path.join(PERS, f"{who}.yaml")))
-        except FileNotFoundError:
-            spec = {}
-        try:
-            approved = len(config.load_yaml(os.path.join(PERS, "approved", f"{who}.yaml")).get("flourishes") or [])
-        except FileNotFoundError:
-            approved = 0
-        try:
-            cands = config.load_yaml(os.path.join(PERS, "candidates", f"{who}.yaml")).get("candidates") or []
-        except FileNotFoundError:
-            cands = []
-        out.append({"name": who, "rate": spec.get("rate"), "max_in_a_row": spec.get("max_in_a_row"),
-                    "flourishes": len(spec.get("flourishes") or []), "approved": approved,
-                    "candidates": len(cands), "kept": sum(str(c.get("keep")).lower() in ("yes", "true") for c in cands),
-                    "has_file": bool(spec), "names": spec.get("names") or {}})
-    return {"personalities": out, "names_in_replies": config.settings().get("names_in_replies")}
-
-
-@app.get("/api/flair/{who}")
-def flair_one(request: Request, who: str):
-    need(request, "viewer")
-    assistant_ok(who)
-    try:
-        spec = config.plain(config.load_yaml(os.path.join(PERS, f"{who}.yaml")))
-    except FileNotFoundError:
-        spec = {"rate": 0, "max_in_a_row": 1, "flourishes": []}
-    try:
-        approved = config.plain(config.load_yaml(os.path.join(PERS, "approved", f"{who}.yaml")).get("flourishes") or [])
-    except FileNotFoundError:
-        approved = []
-    try:
-        src = config.plain((config.load_yaml(os.path.join(PERS, "sources.yaml")) or {}).get(who) or {})
-    except FileNotFoundError:
-        src = {}
-    return {"name": who, "personality": spec, "approved": approved, "sources": src}
-
-
-@app.put("/api/flair/{who}")
-async def flair_save(request: Request, who: str):
-    """Her personality file: rate, max_in_a_row, names (rate, max_in_a_row, enabled), flourishes."""
-    need(request, "administrator")
-    assistant_ok(who)
-    b = await body_of(request)
-    try:
-        rate = float(b.get("rate", 0))
-        streak = int(b.get("max_in_a_row", 1))
-    except (TypeError, ValueError):
-        raise VeilError("rate is a number from 0 to 1; max_in_a_row a whole number")
-    if not 0 <= rate <= 1 or not 0 <= streak <= 10:
-        raise VeilError("rate is 0 to 1; max_in_a_row 0 to 10")
-    # her lines bank is edited line by line now (PATCH /lines); a whole list only if one is sent
-    flourishes = [clean_flourish(f) for f in (b.get("flourishes") or [])] if "flourishes" in b else None
-    names = b.get("names")
-    if names is not None:
-        if not isinstance(names, dict):
-            raise VeilError("names is a set of knobs (rate, max_in_a_row, min_score)")
-        names = {k: names[k] for k in ("rate", "max_in_a_row", "min_score") if k in names}
-    file = os.path.join(PERS, f"{who}.yaml")
-    header = (f"# personality/{who}.yaml - {who.title()}'s flair. Read by flair.py; edited on the Flair page.\n"
-              "# (See defaults/examples/personality/assistant.yaml for what each knob means.)")
-
-    def change(doc):
-        from ruamel.yaml.comments import CommentedMap
-        doc["rate"] = rate
-        doc["max_in_a_row"] = streak
-        if names is not None:
-            if names:
-                doc["names"] = CommentedMap(names)
-            elif "names" in doc:
-                del doc["names"]
-        if flourishes is not None:
-            doc["flourishes"] = flairlines.lines_seq(flourishes)
-    config.edit_yaml(file, change, header=header)
-    audit(request, "flair saved", target=who, detail=f"rate {rate}" + (f", {len(flourishes)} flourishes" if flourishes is not None else ""))
-    restart_note("flair")
-    return {"saved": who}
-
-
-@app.get("/api/flair/{who}/candidates")
-def candidates(request: Request, who: str):
-    need(request, "viewer")
-    assistant_ok(who)
-    try:
-        cands = config.plain(config.load_yaml(os.path.join(PERS, "candidates", f"{who}.yaml")).get("candidates") or [])
-    except FileNotFoundError:
-        cands = []
-    for i, c in enumerate(cands):
-        c["index"] = i
-        c["keep"] = str(c.get("keep")).lower() in ("yes", "true")
-    return {"candidates": cands}
-
-
-@app.post("/api/flair/{who}/candidates/accept")
-async def candidates_accept(request: Request, who: str):
-    """Accept on Lines from her books: {found, slot?, mood?, topics?} moves that line into her lines bank."""
-    need(request, "reviewer")
-    assistant_ok(who)
-    b = await body_of(request)
-    changes = {k: b[k] for k in ("slot", "topics", "mood") if b.get(k)}
-    if "slot" in changes and changes["slot"] not in SLOTS:
-        raise VeilError(f"slot is one of {', '.join(SLOTS)}")
-    if any(m not in MOODS for m in changes.get("mood") or []):
-        raise VeilError(f"mood is one or more of {', '.join(MOODS)}")
-    line = flairlines.accept(who, str(b.get("found") or ""), changes)
-    if not line:
-        raise VeilError("That line isn't in the persona's books list any more (reload the page)", 404)
-    audit(request, "book line accepted into the lines bank", target=who, detail=line["text"])
-    restart_note(f"flair: {who}")
-    return {"banked": line}
-
-
-@app.post("/api/flair/{who}/candidates/clear")
-def candidates_clear(request: Request, who: str):
-    """Empty Lines from her books; combing the books again fills it (leaving out what's taken)."""
-    need(request, "reviewer")
-    assistant_ok(who)
-    n = flairlines.clear_candidates(who)
-    audit(request, "book lines cleared", target=who, detail=f"{n} lines")
-    return {"cleared": n}
-
-
-@app.patch("/api/flair/{who}/lines")
-async def lines_edit(request: Request, who: str):
-    """One line of her lines bank: {index, text_was, text, slot, topics, mood} saves it;
-    {index, text_was, delete: true} deletes it."""
-    need(request, "administrator")
-    assistant_ok(who)
-    b = await body_of(request)
-    try:
-        i = int(b.get("index"))
-    except (TypeError, ValueError):
-        raise VeilError("Which line? (reload the page)")
-    line = None if b.get("delete") else clean_flourish({"text": b.get("text"), "slot": b.get("slot"),
-                                                        "topics": b.get("topics"), "mood": b.get("mood")})
-    try:
-        lines = flairlines.edit_bank(who, i, b.get("text_was"), line)
-    except LookupError as e:
-        raise VeilError(str(e), 409)
-    audit(request, "lines bank: line deleted" if line is None else "lines bank: line saved", target=who,
-          detail={"was": b.get("text_was"), "now": line and line["text"]})
-    restart_note(f"flair: {who}")
-    return {"lines": lines}
-
-
-@app.post("/api/flair/{who}/lines")
-async def lines_add(request: Request, who: str):
-    """Lines typed on the page into her lines bank: {lines: [{text, slot?, topics?, mood?}]}."""
-    need(request, "administrator")
-    assistant_ok(who)
-    b = await body_of(request)
-    new = [clean_flourish(f) for f in (b.get("lines") or [])]
-    if not new:
-        raise VeilError("Type a line (or many, separated by |)")
-    n = flairlines.add_to_bank(who, new)
-    audit(request, "lines bank: lines added", target=who, detail=f"{n} added")
-    restart_note(f"flair: {who}")
-    return {"added": n, "already": len(new) - n}
-
-
-@app.get("/api/combing")
-def combing_get(request: Request):
-    need(request, "viewer")
-    try:
-        return {"combing": config.plain(config.load_yaml(os.path.join(PERS, "combing.yaml")))}
-    except FileNotFoundError:
-        return {"combing": {}}
-
-
-@app.put("/api/combing")
-async def combing_set(request: Request):
-    """The whole combing.yaml, as JSON: each list a list of words or phrases."""
-    need(request, "administrator")
-    b = (await body_of(request)).get("combing")
-    if not isinstance(b, dict):
-        raise VeilError("combing is a set of word lists")
-    lists = ("said_words", "speaker_adjectives", "never", "story_words", "allowed_capitals",
-             "closer_words", "interjections")
-
-    def words(v, what):
-        if not isinstance(v, list) or not all(isinstance(x, str) and 0 < len(x) <= 40 for x in v):
-            raise VeilError(f"{what} is a list of words or short phrases")
-        return [" ".join(x.split()) for x in v]
-    clean = {k: words(b[k], k) for k in lists if k in b}
-    if "max_words" in b:
-        clean["max_words"] = int(b["max_words"])
-    for group in ("moods", "topics"):
-        if group in b:
-            if not isinstance(b[group], dict):
-                raise VeilError(f"{group} is a set of word lists")
-            clean[group] = {str(k): words(v, f"{group}.{k}") for k, v in b[group].items()}
-    if "score" in b:
-        clean["score"] = {k: int(v) for k, v in (b["score"] or {}).items()}
-
-    def change(doc):
-        for k, v in clean.items():
-            if isinstance(v, list):
-                s_ = config.flow_list(v)
-                doc[k] = s_
-            elif isinstance(v, dict):
-                node = config.map_in(doc, k)
-                for kk in list(node):
-                    if kk not in v:
-                        del node[kk]
-                for kk, vv in v.items():
-                    if isinstance(vv, list):
-                        s_ = config.flow_list(vv)
-                        node[kk] = s_
-                    else:
-                        node[kk] = vv
-            else:
-                doc[k] = v
-    config.edit_yaml(os.path.join(PERS, "combing.yaml"), change)
-    audit(request, "combing saved")
-    return {"saved": True}
-
-
-@app.put("/api/flair/{who}/sources")
-async def flair_sources(request: Request, who: str):
-    """Her books, speakers and near words (personality/sources.yaml)."""
-    need(request, "administrator")
-    assistant_ok(who)
-    b = await body_of(request)
-    speakers_ = [str(x).strip().lower() for x in (b.get("speakers") or []) if str(x).strip()]
-    near = [str(x).strip().lower() for x in (b.get("near") or []) if str(x).strip()]
-    books = []
-    for bk in b.get("books") or []:
-        title, url, local = (str(bk.get(k) or "").strip() for k in ("title", "url", "local"))
-        if not (title and url.startswith(("https://", "http://")) and local):
-            raise VeilError("Each book needs a title, an http(s) address and a local path")
-        books.append({"title": title, "url": url, "local": local})
-
-    def change(doc):
-        from ruamel.yaml.comments import CommentedMap, CommentedSeq
-        node = config.map_in(doc, who)
-        for k, v in (("speakers", speakers_), ("near", near)):
-            s_ = config.flow_list(v)
-            node[k] = s_
-        node["books"] = CommentedSeq([CommentedMap(x) for x in books])
-    config.edit_yaml(os.path.join(PERS, "sources.yaml"), change)
-    audit(request, "flair sources saved", target=who, detail=f"{len(books)} books")
-    return {"saved": who}
 
 
 # ---------- integrations: Oread, the weather brain, Donetick, LiteLLM ----------
@@ -1507,6 +1076,7 @@ def integrations(request: Request):
                           "title": svc.get("title") or name.replace("_", " ").capitalize(),
                           "connector": bool(connector_file(name)),
                           "keeps_copy": name in r.CONNECTORS, "cache_refresh_seconds": svc.get("cache_refresh_seconds", 60),
+                          "rolls_forward": bool(name in r.CONNECTORS and r.CONNECTORS[name].rolls_forward()),
                           "spec_prefix": svc.get("spec_prefix") or "", "test_said": svc.get("test_said") or "",
                           "spoken_name": svc.get("spoken_name") or "", "pages_max": svc.get("pages_max", 1),
                           "send_only_accepted": bool(svc.get("send_only_accepted")),
@@ -2140,20 +1710,25 @@ def clean_step(i, x):
 
 def names_taken(skip_app=None, skip_fleas=False):
     """{name: where} for every voice map action, user rule and brain flea, so no two share a name
-    (skip_app: the app whose rules are being saved; skip_fleas: the fleas are being saved)."""
+    (skip_app: the app whose rules are being saved; skip_fleas: the fleas are being saved). An app
+    switched off doesn't count: a second app with the same voice map (Vikunja beside Donetick) waits off."""
     out = {}
+    services = config.section(config.settings(), "services")
     for f in sorted(os.listdir(config.path("connectors"))):
         if not f.endswith(".yaml"):
             continue
         app_name = f[:-5]
+        if app_name != skip_app and not (services.get(app_name) or {}).get("enabled"):
+            continue
         hand = config.load_yaml(config.path("connectors", f))
         for a in hand.get("actions") or {}:
             out.setdefault(str(a), f"an action on {app_name}'s Voice map")
         if app_name != skip_app:
             for r in hand.get("rules") or {}:
                 out.setdefault(str(r), f"a user rule of {app_name}")
-    if not skip_fleas:
-        for n in (fleas_mod.load().get("fleas") or {}):
+    flea_names = router().ADDONS.services.get("brain_fleas.names")      # the Brain fleas add-on, when it's on
+    if not skip_fleas and flea_names:
+        for n in flea_names():
             out.setdefault(str(n), "a brain flea")
     return out
 
@@ -2243,8 +1818,6 @@ async def integration_rules(request: Request, name: str):
     return {"saved": [n for n, _ in clean], "stamp": config.stamp(path, "rules")}
 
 
-# ---------- brain fleas: the household's small true facts (learn/fleas.yaml; veil/fleas.py) ----------
-
 # ---------- the people grid: one row per person, a column per attached app (veil/people.py) ----------
 
 def people_columns(s):
@@ -2295,67 +1868,6 @@ async def people_save(request: Request):
     config.edit_yaml(config.SETTINGS_FILE, write)
     audit(request, "people grid saved", detail=f"{len(rows)} rows; columns {', '.join(apps_)}")
     return dict(people_mod.grid(), columns=people_columns(config.settings()))
-
-
-@app.get("/api/fleas")
-def fleas_list(request: Request):
-    """The fleas as the Brain fleas page edits them, the steps they can use, the router's own commands
-    for fleas, its settings (match_at, changers) and the voices that can be named as changers."""
-    need(request, "reviewer")
-    s = config.settings()
-    book = fleas_mod.Fleas().fresh()
-    doc = book.doc
-    return {"rules": rules_rows(doc.get("fleas") or {}, book.broken), "rule_steps": rulebook.STEPS,
-            "commands": list(fleas_mod.COMMANDS.values()), "file": os.path.relpath(fleas_mod.FILE, config.path()),
-            "match_at": doc.get("match_at", 0.8), "changers": doc.get("changers") or [],
-            "never_count": doc.get("never_count") or [], "voices": people_map.voices(s),
-            "stamp": config.stamp(fleas_mod.FILE, "fleas")}
-
-
-@app.put("/api/fleas")
-async def fleas_save(request: Request):
-    """Save the fleas from the page: {rules: [...]}, the same rows as an app's User rules. Used at once."""
-    need(request, "administrator")
-    b = await body_of(request)
-    clean = clean_rules(b.get("rules"), set(fleas_mod.COMMANDS), names_taken(skip_fleas=True))
-    old = fleas_mod.load().get("fleas") or {}
-    keep = {n: {k: old[n][k] for k in ("title", "system") if k in (old.get(n) or {})} for n, _ in clean if n in old}
-    for r in b.get("rules") or []:          # a title typed on the page
-        n = str((r or {}).get("name") or "").strip().lower()
-        if str(r.get("title") or "").strip():
-            keep.setdefault(n, {})["title"] = " ".join(str(r["title"]).split())
-
-    def write(doc):
-        doc["fleas"] = rules_node(clean, keep)
-    config.check_stamp(fleas_mod.FILE, "fleas", b.get("stamp"))
-    config.edit_yaml(fleas_mod.FILE, write, width=4096)
-    config.hand_back(fleas_mod.FILE)
-    audit(request, "brain fleas saved", target="fleas", detail=", ".join(n for n, _ in clean))
-    return {"saved": [n for n, _ in clean], "stamp": config.stamp(fleas_mod.FILE, "fleas")}
-
-
-@app.patch("/api/fleas/settings")
-async def fleas_settings(request: Request):
-    """{match_at: 0..1, changers: [voice names]}: how closely a sentence must fit, and who may change fleas by voice."""
-    need(request, "administrator")
-    b = await body_of(request)
-    m = b.get("match_at")
-    if m is not None and (isinstance(m, bool) or not isinstance(m, (int, float)) or not 0 < m <= 1):
-        raise VeilError("match at is a share from 0 to 1 (like 0.75)")
-    voices = {v.lower(): v for v in people_map.voices(config.settings())}
-    who = b.get("changers")
-    if who is not None and (not isinstance(who, list) or any(str(x).lower() not in voices for x in who)):
-        raise VeilError("changers are voices the voice ID knows (Name Sparkle)")
-
-    def write(doc):
-        if m is not None:
-            doc["match_at"] = m
-        if who is not None:
-            doc["changers"] = config.flow_list([voices[str(x).lower()] for x in who])
-    config.edit_yaml(fleas_mod.FILE, write, width=4096)
-    config.hand_back(fleas_mod.FILE)
-    audit(request, "brain flea settings", target="fleas", detail=str(b))
-    return {"match_at": m, "changers": who}
 
 
 # word lists every app's matching reads (veil/match.py), shown on every app's Clean-up words tab even
@@ -2564,8 +2076,10 @@ async def integration_set(request: Request, name: str):
             raise VeilError("pages_max is how many pages it reads, from 1 to 20")
         if k == "spec_prefix" and v and not re.fullmatch(r"(/[A-Za-z0-9_.{}-]+)+", v):
             raise VeilError("spec_prefix is the start of its spec's paths, like /{domain}/v1")
-        if k in ("timeout", "cache_refresh_seconds") and not 1 <= v <= 3600:
+        if k == "timeout" and not 1 <= v <= 3600:
             raise VeilError(f"{k} is seconds, from 1 to 3600")
+        if k == "cache_refresh_seconds" and not 0 <= v <= 3600:
+            raise VeilError(f"{k} is seconds, from 0 (none kept: read live each time) to 3600")
         if k == "source" and v not in ("wyoming", "oread", "home_assistant"):
             raise VeilError("source is wyoming, oread or home_assistant")
         if k == "wyoming":                 # key by key, so the comments on the others stay
@@ -2624,6 +2138,32 @@ def wyoming_checked(w):
         else:
             raise VeilError(f"wyoming {k} can't be changed here")
     return out
+
+
+def _rolling(name):
+    conn = router().CONNECTORS.get(name)
+    if not conn or not conn.rolls_forward():
+        raise VeilError(f"{name} has no repeating things to bring forward", 404)
+    return conn
+
+
+@app.get("/api/integrations/{name}/overdue")
+async def overdue_list(request: Request, name: str):
+    """The repeating things past their due date, each with its next date from now on (#27): what the clean-up
+    button would move, shown first."""
+    need(request, "administrator")
+    return {"items": await _rolling(name).overdue_forward()}
+
+
+@app.post("/api/integrations/{name}/overdue")
+async def overdue_bring_forward(request: Request, name: str):
+    """Bring them forward (#27): each repeating thing past due moved to its next date from now on, its time kept;
+    one that doesn't repeat is never touched (a real miss stays seen)."""
+    need(request, "administrator")
+    moved = await _rolling(name).overdue_forward(apply=True)
+    audit(request, "overdue repeating things brought forward", target=name,
+          detail=[f"{x['name']}: {x['from'][:16]} -> {x['to'][:16]}" for x in moved])
+    return {"moved": moved}
 
 
 @app.post("/api/integrations/{name}/test")
@@ -2736,10 +2276,11 @@ def integration_lists(request: Request, name: str):
 
 
 @app.get("/api/integrations/{name}/lists/{word}")
-async def integration_list(request: Request, name: str, word: str, source: str = "", id: str = "", label: str = ""):
+async def integration_list(request: Request, name: str, word: str, source: str = "", id: str = "", label: str = "",
+                           fill: str = ""):
     """One list card: where it comes from, its items as the app lists them now, its default, and
     for a list of people, who each is in the house (saved, or matched by name until saved).
-    source, id and label try other choices before saving."""
+    source, id, label and fill (its path's values, as JSON) try other choices before saving."""
     need(request, "viewer")
     s = config.settings()
     where, svc = apps.node(s, name)
@@ -2748,6 +2289,10 @@ async def integration_list(request: Request, name: str, word: str, source: str =
     conf = dict(lists.card(svc, word, declared_lists(name)))
     if source:
         conf.update({"from": source, "id": id, "name": label})
+        try:
+            conf["fill"] = {str(k): str(v) for k, v in (json.loads(fill) if fill else {}).items()}
+        except (ValueError, AttributeError):
+            raise VeilError("fill is its path's values, as JSON")
     house = people_map.household(s, conf)
     out = {"word": word, "card": {k: v for k, v in conf.items() if k != "map"}, "exists": word in lists.cards(svc),
            "declared": bool(conf.get("declared")),
@@ -2797,6 +2342,16 @@ async def integration_list_set(request: Request, name: str, word: str):
         raise VeilError("Its items are people in the house, or nothing in the house")
     keys = set(people_map.household(s, lists.people_card(svc))) | {str(v) for v in (b.get("names") or {})}
     entry = {"from": src, "id": str(b["id"]).strip(), "name": str(b["name"]).strip()}
+    # a command whose path takes a value ("GET /projects/{id}/projectusers"): each value, in fill:
+    given = b.get("fill") if isinstance(b.get("fill"), dict) else {}
+    fill = {}
+    for p in re.findall(r"\{(\w+)\}", src):
+        v = str(given.get(p) or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", v):
+            raise VeilError(f"{src} needs its {{{p}}}: a value (letters, digits, _ . : -)")
+        fill[p] = v
+    if fill:
+        entry["fill"] = fill
     if house:
         entry["house"] = house
     skip = {}                    # kinds of things kept out of the list: {field: value} (is_vigil_mass: true)
@@ -2829,6 +2384,9 @@ async def integration_list_set(request: Request, name: str, word: str):
             if dfields and str(dfd.get(k) or k) not in dfields:
                 raise VeilError(f"Its usual {k} is one of the fields {dsrc} answers with ({dfd.get(k) or k} isn't)")
         entry["defined"] = {"from": dsrc, "month": str(dfd.get("month") or "month"), "day": str(dfd.get("day") or "day")}
+    shared = str(b.get("shared", lists.card(svc, word).get("shared")) or "").strip()
+    if shared and house != "people":      # the group everyone shares (House): "my list" has its no one's (kept when the page doesn't send it)
+        entry["shared"] = shared
     default = str(b.get("default") or "").strip()
     if default:
         if house == "people" and default not in keys:
@@ -3105,354 +2663,6 @@ async def phrases_asking(request: Request):
     restart_note("vocab: asking words")
     audit(request, "asking words saved", detail=words)
     return {"words": words}
-
-
-# ---------- Name Sparkle: saying people's names (Oct 14) ----------
-# The house rule (names_in_replies: on, how sure the voice ID must be, how often, most in a row),
-# where the names come from (voice_id_from: an integration with a people list, Oread here), each
-# device's own switch and rate (personality/<who>.yaml names:), and what she calls each person the
-# voice ID knows (names_in_replies: calls: {their voice ID name: [what she may call them]}).
-
-def voice_id_sources(s):
-    """Integrations and apps that can name people: those offering who spoke first, then any with a
-    people list. [{name, title, who_spoke, people}]"""
-    out = []
-    names = [n for n, v in (s.get("integrations") or {}).items() if isinstance(v, dict)] + list(s.get("services") or {})
-    for name in names:
-        w = apps.wepwawet(name) or {}
-        node = apps.node(s, name)[1] or {}
-        card = lists.people_card(node, (w.get("lists") or {}))
-        who = "who_spoke" in (w.get("offers") or {})
-        if who or card:
-            try:
-                title = apps.info(s, name)["title"]
-            except VeilError:
-                title = name
-            out.append({"name": name, "title": title, "who_spoke": who, "people": bool(card)})
-    out.sort(key=lambda x: (not x["who_spoke"], x["title"].lower()))
-    return out
-
-
-async def voice_id_people(s, name):
-    """The names the chosen integration knows, from its people list (x-wepwawet lists:), or why not."""
-    if not name:
-        return [], "Pick where the names come from (Voice ID from)."
-    w = apps.wepwawet(name) or {}
-    node = apps.node(s, name)[1] or {}
-    card = lists.people_card(node, (w.get("lists") or {}))
-    if not card:
-        return [], f"{name} has no people list (read its spec on Integrations)."
-    try:
-        got = await lists.items(lambda m, p: apps.call(s, name, m, p), card)
-    except Exception as e:
-        return [], f"Couldn't ask {name}: {e}"
-    seen, out = set(), []
-    for _, n in got:
-        if n and n.lower() not in seen:
-            seen.add(n.lower())
-            out.append(n)
-    return out, None
-
-
-def device_names():
-    r = router()
-    return sorted(set(r.FLAIR.names()) | set(choices("assistants")))
-
-
-@app.get("/api/sparkle")
-async def sparkle_get(request: Request):
-    need(request, "viewer")
-    s = config.settings()
-    n = config.plain(s.get("names_in_replies") or {})
-    sources = voice_id_sources(s)
-    src = n.get("voice_id_from") or (sources[0]["name"] if sources and sources[0]["who_spoke"] else "")
-    calls = n.get("calls") or {}
-    devices = []
-    for who in device_names():
-        try:
-            spec = config.plain(config.load_yaml(os.path.join(PERS, f"{who}.yaml")))
-        except FileNotFoundError:
-            spec = {}
-        devices.append({"name": who, "names": spec.get("names") or {}, "has_file": bool(spec)})
-    return {"settings": {k: n.get(k) for k in ("labels",)},
-            "voice_id_from": src, "saved_from": n.get("voice_id_from"), "sources": sources,
-            "people": list(calls), "calls": calls, "devices": devices}
-
-
-@app.post("/api/sparkle/pull")
-async def sparkle_pull(request: Request):
-    """Pull the names from the voice ID integration now: anyone not saved yet is added (with no
-    names under them yet); saved people stay until you delete them, whether or not it still knows them."""
-    need(request, "administrator")
-    s = config.settings()
-    n = config.plain(s.get("names_in_replies") or {})
-    sources = voice_id_sources(s)
-    src = n.get("voice_id_from") or (sources[0]["name"] if sources and sources[0]["who_spoke"] else "")
-    if not src:
-        raise VeilError("Pick where the names come from (Voice ID from) and save first")
-    people, why = await voice_id_people(s, src)
-    if why:
-        raise VeilError(why, 502)
-    have = {str(k).lower() for k in (n.get("calls") or {})}
-    new = [p for p in people if p.lower() not in have]
-
-    def change(doc):
-        node = config.map_in(doc, "names_in_replies")
-        calls = config.map_in(node, "calls", block=True)      # one to a line
-        for p in new:
-            seq = config.flow_list()
-            calls[p] = seq
-    if new:
-        config.edit_yaml(config.SETTINGS_FILE, change)
-    audit(request, "voice names pulled", detail={"from": src, "added": new})
-    return {"from": src, "known": people, "added": new}
-
-
-@app.put("/api/sparkle")
-async def sparkle_set(request: Request):
-    """Where the names come from (how often, how sure and each persona's own names are the
-    persona's: /api/sparkle/device)."""
-    need(request, "administrator")
-    b = await body_of(request)
-    s = config.settings()
-    vals = {}
-    if "voice_id_from" in b:
-        v = str(b.get("voice_id_from") or "")
-        if v and v not in {x["name"] for x in voice_id_sources(s)}:
-            raise VeilError(f"{v} can't name people (it has no people list)")
-        vals["voice_id_from"] = v
-
-    def change(doc):
-        for k, v in vals.items():
-            config.set_in(doc, ["names_in_replies", k], v)
-    config.edit_yaml(config.SETTINGS_FILE, change)
-    audit(request, "user sparkle saved", detail=vals)
-    restart_note("names")
-    return {"saved": vals}
-
-
-def call_names(raw):
-    """The names to call someone, tidied: no blanks, no duplicates, no questions, 40 characters each."""
-    names, seen = [], set()
-    for x in raw or []:
-        x = " ".join(str(x or "").split())
-        if not x:
-            continue
-        if len(x) > 40:
-            raise VeilError(f'"{x[:20]}...": a name is 40 characters at most')
-        if x.endswith("?"):
-            raise VeilError(f'"{x}": a name, not a question')
-        if x.lower() not in seen:
-            seen.add(x.lower())
-            names.append(x)
-    return names
-
-
-@app.put("/api/sparkle/calls")
-async def sparkle_calls(request: Request):
-    """What she calls one person the voice ID knows: {person, names: [...]}; {person, remove: true}
-    deletes the person (a saved voice stays until then, even with no names under it)."""
-    need(request, "administrator")
-    b = await body_of(request)
-    person = " ".join(str(b.get("person") or "").split())
-    if not person or len(person) > 40:
-        raise VeilError("Whose names? (the voice ID's name for them, 40 characters at most)")
-    names = call_names(b.get("names"))
-
-    def change(doc):
-        n = config.map_in(doc, "names_in_replies")
-        calls = config.map_in(n, "calls", block=True)      # one to a line
-        if b.get("remove"):
-            if person in calls:
-                del calls[person]
-        else:
-            seq = config.flow_list(names)
-            calls[person] = seq
-    config.edit_yaml(config.SETTINGS_FILE, change)
-    audit(request, "voice person deleted" if b.get("remove") else "names the persona calls someone", target=person, detail=names)
-    restart_note("names")
-    return {"person": person, "names": names, "removed": bool(b.get("remove"))}
-
-
-@app.put("/api/sparkle/device/{who}/calls")
-async def sparkle_device_calls(request: Request, who: str):
-    """One persona's own names for one voice: {person, names: [...]} (personality/<who>.yaml
-    names: calls:). The persona uses these first, and the shared ones when it has none for them."""
-    need(request, "administrator")
-    assistant_ok(who)
-    b = await body_of(request)
-    person = " ".join(str(b.get("person") or "").split())
-    if not person or len(person) > 40:
-        raise VeilError("Whose names? (the voice ID's name for them, 40 characters at most)")
-    names = call_names(b.get("names"))
-    file = os.path.join(PERS, f"{who}.yaml")
-
-    def change(doc):
-        n = config.map_in(doc, "names")
-        calls = config.map_in(n, "calls", block=True)
-        if names:
-            calls[person] = config.flow_list(names)
-        elif person in calls:
-            del calls[person]
-        if not calls:
-            del n["calls"]
-    config.edit_yaml(file, change)
-    audit(request, "persona's own names", target=f"{who}: {person}", detail=names)
-    restart_note(f"names: {who}")
-    return {"name": who, "person": person, "names": names}
-
-
-@app.put("/api/sparkle/device/{who}")
-async def sparkle_device(request: Request, who: str):
-    """One persona's own names rate, most in a row and optional least score (personality/<who>.yaml
-    names:). A rate above 0 is the switch; an empty min_score leaves it to the voice ID's "known"."""
-    need(request, "administrator")
-    assistant_ok(who)
-    b = await body_of(request)
-    names = {}
-    if "min_score" in b and b["min_score"] not in (None, ""):
-        try:
-            ms = float(b["min_score"])
-        except (TypeError, ValueError):
-            raise VeilError("min_score is a number from 0 to 1, or empty")
-        if not 0 <= ms <= 1:
-            raise VeilError("min_score is from 0 to 1, or empty")
-        names["min_score"] = ms
-    for k, lo, hi in (("rate", 0, 1), ("max_in_a_row", 0, 10)):
-        v = b.get(k)
-        if v in (None, ""):
-            continue
-        try:
-            v = float(v) if k == "rate" else int(v)
-        except (TypeError, ValueError):
-            raise VeilError(f"{k} is a number")
-        if not lo <= v <= hi:
-            raise VeilError(f"{k} is from {lo} to {hi}")
-        names[k] = v
-    file = os.path.join(PERS, f"{who}.yaml")
-    header = (f"# personality/{who}.yaml - {who.title()}'s flair. Read by flair.py; edited on the Persona Flair page.\n"
-              "# (See defaults/examples/personality/assistant.yaml for what each knob means.)")
-
-    def change(doc):
-        from ruamel.yaml.comments import CommentedMap
-        doc.setdefault("rate", 0)
-        doc.setdefault("max_in_a_row", 1)
-        was = doc.get("names") if isinstance(doc.get("names"), dict) else {}
-        keep = {k: v for k, v in was.items() if k not in ("enabled", "rate", "max_in_a_row", "min_score")}
-        doc["names"] = CommentedMap({**names, **keep})
-    config.edit_yaml(file, change, header=header)
-    audit(request, "device names saved", target=who, detail=names)
-    restart_note(f"names: {who}")
-    return {"name": who, "names": names}
-
-
-# ---------- the firewall ----------
-
-@app.get("/api/firewall")
-def firewall_get(request: Request):
-    need(request, "viewer")
-    try:
-        spec = config.plain(config.load_yaml(config.FIREWALL_FILE))
-    except FileNotFoundError:
-        spec = {"enabled": False, "rules": []}
-    s = config.settings()
-    return {"firewall": spec, "oread_on": bool(config.section(config.section(s, "integrations"), "oread").get("enabled")),
-            "people": people_map.voices(s),      # the voice ID's own names (saved on Name Sparkle)
-            "assistants": sorted(set(router().FLAIR.names()) | set(choices("assistants"))),
-            "words": frontend.words(s),
-            "topics": sorted((s.get("topics") or {}).keys())}
-
-
-@app.get("/api/firewall/devices")
-async def firewall_devices(request: Request):
-    """The rules' device names checked against Home Assistant's own devices (their names and entity
-    ids, read with its token): {devices: how many it has, unknown: [{rule, name, device}]}, or
-    {error} when it can't be read. Only the saved rules."""
-    need(request, "viewer")
-    s = config.settings()
-    ha = dict(config.section(config.section(s, "integrations"), "home_assistant"))
-    url, token = (ha.get("url") or "").rstrip("/"), config.secret(ha.get("token") or "HA_TOKEN")
-    if not url or not token:
-        return {"error": "Home Assistant's address or token isn't set (Integrations, Home Assistant)"}
-    try:
-        async with access.client(8) as c:
-            resp = await c.get(url + "/api/states", headers={"Authorization": f"Bearer {token}"})
-        if resp.status_code >= 300:
-            return {"error": f"Home Assistant answered {resp.status_code}" + (" (the token was refused)" if resp.status_code == 401 else "")}
-        states = resp.json()
-    except Exception as e:
-        return {"error": f"Couldn't reach Home Assistant: {e}"}
-    names = []
-    for st in states if isinstance(states, list) else []:
-        names.append(str((st.get("attributes") or {}).get("friendly_name") or ""))
-        names.append(str(st.get("entity_id") or "").split(".", 1)[-1].replace("_", " "))
-    try:
-        spec = config.plain(config.load_yaml(config.FIREWALL_FILE))
-    except FileNotFoundError:
-        spec = {}
-    return {"devices": len(states) if isinstance(states, list) else 0,
-            "unknown": firewall_mod.unknown_devices(spec.get("rules"), [n for n in names if n])}
-
-
-@app.put("/api/firewall")
-async def firewall_set(request: Request):
-    need(request, "administrator")
-    b = (await body_of(request)).get("firewall")
-    if not isinstance(b, dict):
-        raise VeilError("firewall is a set of rules")
-    rules = []
-    for i, r in enumerate(b.get("rules") or []):
-        if not isinstance(r, dict):
-            raise VeilError(f"rule {i + 1} isn't a rule")
-        rule = {"name": " ".join(str(r.get("name") or "").split())[:80], "enabled": r.get("enabled", True) is not False}
-        for k in ("people", "assistants", "voice_devices", "devices", "commands", "topics", "domains"):
-            rule[k] = word_list([str(x) for x in (r.get(k) or [])], f"rule {i + 1} {k}") \
-                if k not in ("topics", "domains") else [str(x).lower().strip() for x in (r.get(k) or []) if str(x).strip()]
-        rule["intents"] = []
-        for it in r.get("intents") or []:
-            it = str(it).strip()
-            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{1,40}(:[a-z_]{1,40})?", it):
-                raise VeilError(f"rule {i + 1}: '{it}' isn't a Home Assistant command (HassTurnOn, or HassTurnOn:lock)")
-            rule["intents"].append(it)
-        for dm in rule["domains"]:
-            if not re.fullmatch(r"[a-z_]{1,40}", dm):
-                raise VeilError(f"rule {i + 1}: '{dm}' isn't a kind of device (lock, cover, light...)")
-        if not rule["people"]:
-            raise VeilError(f"rule {i + 1} needs people (a name, unknown, or anyone)")
-        rule["gemini"] = bool(r.get("gemini"))
-        rule["message"] = " ".join(str(r.get("message") or "").split())[:200]
-        if not (rule["gemini"] or any(rule[k] for k in ("voice_devices", "devices", "commands", "topics",
-                                                         "domains", "intents"))):
-            raise VeilError(f"rule {i + 1} ({rule['name'] or 'unnamed'}) stops nothing: give it devices, commands, "
-                            "topics, kinds of device, Home Assistant commands, voice devices, or Off-Platform")
-        rules.append(rule)
-    spec = {"enabled": bool(b.get("enabled")), "sure_score": float(b.get("sure_score", 0.8)),
-            "sure_labels": [str(x) for x in (b.get("sure_labels") or ["known"])],
-            "when_oread_down": "allow" if b.get("when_oread_down") == "allow" else "unknown", "rules": rules,
-            "off_platform_never": [str(x) for x in b.get("off_platform_never", router().FIREWALL.off_platform_never) or []]}
-    firewall_mod.Firewall(spec)          # it must load
-
-    def change(doc):
-        from ruamel.yaml.comments import CommentedMap, CommentedSeq
-        for k in ("enabled", "sure_score", "when_oread_down"):
-            doc[k] = spec[k]
-        sl = config.flow_list(spec["sure_labels"])
-        doc["sure_labels"] = sl
-        seq = CommentedSeq()
-        for r in rules:
-            m = CommentedMap()
-            for k, v in r.items():
-                if isinstance(v, list):
-                    s_ = config.flow_list(v)
-                    m[k] = s_
-                else:
-                    m[k] = v
-            seq.append(m)
-        doc["rules"] = seq
-    config.edit_yaml(config.FIREWALL_FILE, change)
-    router().FIREWALL = firewall_mod.Firewall(spec)       # takes effect at once
-    audit(request, "firewall saved", detail=f"{'on' if spec['enabled'] else 'off'}, {len(rules)} rules")
-    return {"saved": True, "active": spec["enabled"]}
 
 
 # ---------- security: users, tokens, the vault, permitted addresses, the audit log ----------

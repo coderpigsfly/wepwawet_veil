@@ -46,7 +46,11 @@ def load():
         spec = yaml.safe_load(f) or {}
     spec["version"] = version_of(REPO)
     if not spec["version"]:
-        sys.exit("veil/version.py has no VERSION (like 0.1.0).")
+        sys.exit("veil/version.py has no VERSION (like 2026.10.0).")
+    if not re.fullmatch(r"20\d\d\.(?:[1-9]|1[0-2])\.\d+", spec["version"]):
+        sys.exit(f"veil/version.py's VERSION {spec['version']} isn't year.month.release (like 2026.10.0, issue #26).")
+    if f"## {spec['version']}" not in open(os.path.join(REPO, "CHANGELOG.md")).read():
+        sys.exit(f"CHANGELOG.md has no section for {spec['version']} (## {spec['version']}): say what changed first.")
     return spec
 
 

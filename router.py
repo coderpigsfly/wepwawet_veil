@@ -7,7 +7,7 @@
 # through the router to the device that asked, which speaks it.
 #
 # Before deciding: who spoke (Oread, when on: veil/speakers.py) and the firewall
-# (firewall.yaml: veil/firewall.py). After: her flair, and now and then the person's name.
+# (firewall.yaml: the Firewall add-on, addons/firewall). After: her flair, and now and then the person's name.
 # Every request is written to the activity log and Gemini's answers to the answer bank
 # (data/veil.db: veil/activity.py), for the pages (veil/web.py, port 8771).
 #
@@ -28,12 +28,14 @@
 import asyncio
 import collections
 import contextvars
+import copy
 import hashlib
 import json
 import logging
 import os
 import random
 import re
+import sys
 import time
 import uuid
 
@@ -43,12 +45,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 import connector
-import flair as flairs
+import fields as fields_mod
 import learn as misslog
 import scoring
 import series
 import shape
-from veil import access, activity, config, doors, firewall, fleas, hadebug, match, mishearings, netcheck, people, phases, resources, rules, security, speakers, util, version, wyoming
+from veil import access, activity, config, doors, hadebug, match, netcheck, people, phases, resources, rules, security, speakers, util, version, wyoming
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -160,30 +162,60 @@ READ_LIST_MAX = int(SETTINGS.get("read_list_max", 5))
 READ_LIST_NUMBERS = bool(SETTINGS.get("read_list_numbers", False))   # "1, Check pool filter. 2, ..." (dump14)
 ANSWER_MAX_WORDS = int(SETTINGS.get("answer_max_words", 4))
 GEMINI_CONVERSATION = float(SETTINGS.get("gemini_conversation_minutes", 2)) * 60
-FLAIR = flairs.Flair(PERSONALITY_DIR, moods=VOCAB.get("moods", {}))
-log.info("loaded personalities: %s (flair on for %s)", ", ".join(FLAIR.names()) or "(none)",
-         ", ".join(FLAIR.flaired()) or "none")
+from veil import personas  # noqa: E402
+PERSONAS = personas.names(PERSONALITY_DIR)        # the assistants (personality/<name>.yaml)
+# add-ons (issue #25, veil/addons.py): what isn't the router's own job, each in its slots on the path
+from veil import addons as _addons  # noqa: E402
+ADDONS = _addons.Addons(config.path("addons"), enabled=(SETTINGS.get("addons") or {}).get("enabled") or [],
+                        order=(SETTINGS.get("addons") or {}).get("order") or [])
+log.info("loaded personalities: %s", ", ".join(PERSONAS) or "(none)")
 log.info("loaded topics: %s (answer locally at %.0f%%)",
          ", ".join(f"{t} -> {v['service']}" for t, v in SCORER.topics.items()) or "(none)",
          CONFIDENCE * 100)
 
 
-def _personality_files():
-    out = {}
-    for name in FLAIR.names():
-        try:
-            out[name] = load_yaml(os.path.join(PERSONALITY_DIR, f"{name}.yaml"))
-        except Exception:
-            out[name] = {}
-    return out
-
-
 OREAD = config.section(config.section(SETTINGS, "integrations"), "oread")
-NAMES = speakers.Names(SETTINGS, _personality_files())
-try:
-    FIREWALL = firewall.Firewall(load_yaml(config.FIREWALL_FILE))
-except FileNotFoundError:
-    FIREWALL = firewall.Firewall({})
+# how sure the voice ID must be to count a voice as that person: its own label (known). Who spoke is
+# core (issue #25); what's done with it (a name said, a rule) is an add-on's
+WHO_LABELS = list(((SETTINGS.get("names_in_replies") or {}).get("labels")) or ["known"])
+
+
+def who_sure(who):
+    """Is the voice ID sure who spoke (a person named, its label one that counts as known)?"""
+    return bool(who and (who.get("person") or who.get("speaker")) and who.get("label") in WHO_LABELS)
+
+
+def addon_aliases(who, assistant):
+    """What an add-on that says people's names calls them with this persona (name_sparkle.aliases), else []."""
+    fn = ADDONS.services.get("name_sparkle.aliases")
+    try:
+        return fn(who, assistant) if fn else []
+    except Exception:
+        return []
+class NoFirewall:
+    """The Firewall add-on is off (issue #25): no rule, nothing a model may never work, every command allowed.
+    The router's own protection from a bad-acting app is the core's and doesn't depend on it."""
+    enabled, rules, off_platform_never, never_domains = False, [], [], set()
+
+    def has_command_rules(self):
+        return False
+
+    def watches_tools(self, *a):
+        return False
+
+    def check(self, *a, **k):
+        return None
+
+    check_tools = check_off_platform = check_command = check_model_command = check
+
+
+NO_FIREWALL = NoFirewall()
+
+
+def fw():
+    """The Firewall add-on's rules when it's on, else none (NoFirewall)."""
+    get = ADDONS.services.get("firewall.current")
+    return (get() if get else None) or NO_FIREWALL
 _ACT = config.section(SETTINGS, "activity")
 try:
     ACTIVITY = activity.Activity(os.path.join(config.DATA_DIR, "veil.db"),
@@ -205,8 +237,8 @@ BANK_KEEPS = int(_ACT.get("bank_answers_kept", 5)) > 0
 _SEC = config.section(SETTINGS, "security")
 TOKENS = security.Tokens(config.DATA_DIR)
 log.info("who spoke (Oread): %s; firewall: %s (%d rules); activity log: %s",
-         "on" if OREAD.get("enabled") else "off", "on" if FIREWALL.enabled else "off",
-         len(FIREWALL.rules), "on" if ACTIVITY else "off")
+         "on" if OREAD.get("enabled") else "off", "on" if fw().enabled else "off",
+         len(fw().rules), "on" if ACTIVITY else "off")
 
 
 class ShuffleBag:
@@ -235,8 +267,19 @@ STAYS_HOME = bool(SETTINGS.get("tree_stays_home"))     # a request in a tree nev
 
 
 def tree_name(topic):
-    """The tree's name as she says it (settings topics: <topic>: spoken), else the topic's own."""
-    return str((config.section(SETTINGS, "topics").get(topic) or {}).get("spoken") or topic or "")
+    """The tree's name as she says it (settings topics: <topic>: spoken), else its app's own spoken name
+    (its x-wepwawet spoken:, #24), else the topic's own."""
+    own = (config.section(SETTINGS, "topics").get(topic) or {})
+    app = APPS.get(own.get("service") or "") if "APPS" in globals() else None
+    return str(own.get("spoken") or (getattr(app, "wepwawet", None) or {}).get("spoken") or topic or "")
+
+
+PLAIN_DAYS = set(fields_mod.WEEKDAYS) | set(fields_mod.MONTHS) | {"today", "tonight", "tomorrow"}
+
+
+def without_plain_days(said):
+    """The words without the plain day words (weekdays, months, today): the core's dates, never a topic's."""
+    return " ".join(w for w in said.split() if clean(w) not in PLAIN_DAYS)
 
 
 def stay_home(d, conn, said, where):
@@ -298,7 +341,9 @@ for _name, _svc in SERVICES.items():
             _file = (_svc or {}).get("phrases") or _name
             APPS[_name] = connector.make(
                 _name, _svc, SETTINGS,
-                lambda section, _f=_file, **v: app_phrase(_f, section).format(**v),
+                # {app}: the app's own title, so a shared file (chores: Donetick, Vikunja) names the one answering
+                lambda section, _f=_file, _t=(_svc or {}).get("title") or _name.replace("_", " ").capitalize(), **v:
+                    app_phrase(_f, section).format(**dict({"app": _t}, **v)),
                 actions_dir=config.path("actions"), connectors_dir=config.path("connectors"),
                 has_line=lambda section, _f=_file: section in (PHRASES.get(_f) or {}) or section in (PHRASES.get("router") or {}))
             log.info("loaded connector: %s", _name)
@@ -312,9 +357,8 @@ OUTSIDE_APPS = {n for n, v in SERVICES.items() if n in APPS and access.outside((
 OUTSIDE_NOTE = str(_ROUTER.get("outside_answer_note") or "(answered at home)")
 
 
-# ---------- brain fleas: the household's small true facts (veil/fleas.py, learn/fleas.yaml) ----------
-PERSONA_WORDS = flairs.persona_words(PERSONALITY_DIR)     # the assistants' names, as heard: filler
-FLEAS = fleas.Fleas(filler=list(VOCAB.get("path0", {}).get("filler_words", [])) + sorted(PERSONA_WORDS))
+# ---------- brain fleas: the household's small true facts, an add-on (addons/brain_fleas, learn/fleas.yaml) ----------
+PERSONA_WORDS = personas.words(PERSONALITY_DIR)     # the assistants' names, as heard: filler
 
 
 def _house_which(ask):
@@ -322,7 +366,10 @@ def _house_which(ask):
     return phrase("router", "thing_which", "any").format(items=or_list([c["name"] for c in choices]))
 
 
-HOUSE = fleas.House(FLEAS, lambda section, **v: phrase("router", section, HOUSE.assistant).format(**v), _house_which)
+_make_house = ADDONS.services.get("brain_fleas.make")      # None: Brain fleas is off, and no flea is found
+HOUSE = _make_house(list(VOCAB.get("path0", {}).get("filler_words", [])) + sorted(PERSONA_WORDS),
+                    lambda section, **v: phrase("router", section, HOUSE.assistant).format(**v), _house_which) if _make_house else None
+FLEAS = HOUSE.fleas if HOUSE else None
 
 
 def speaker_info(who, assistant):
@@ -332,16 +379,15 @@ def speaker_info(who, assistant):
     own = str((who or {}).get("speaker") or (who or {}).get("person") or "")
     if not own:
         return None
-    k = NAMES.knobs(assistant)
-    return {"own": own if own[:1].isupper() else own.title(), "nicknames": NAMES.aliases(who, assistant),
-            "score": float(who.get("score") or 0), "known": who.get("label") in (k.get("labels") or ["known"])}
+    return {"own": own if own[:1].isupper() else own.title(), "nicknames": addon_aliases(who, assistant),
+            "score": float(who.get("score") or 0), "known": who.get("label") in WHO_LABELS}
 
 
 def spoken_name(who, assistant):
-    """Who spoke, as Name Sparkle calls them for this persona, when Oread is sure; else None."""
-    if not who or not NAMES.sure(who, NAMES.knobs(assistant)):
+    """Who spoke, as Name Sparkle calls them for this persona (when it's on), when Oread is sure; else None."""
+    if not who_sure(who):
         return None
-    names = NAMES.aliases(who, assistant)
+    names = addon_aliases(who, assistant)
     return random.choice(names) if names else str(who.get("speaker") or who.get("person") or "").title() or None
 
 
@@ -403,6 +449,33 @@ def without_filler(text):
     return [w for w in clean(text).split() if w not in filler]
 
 
+def object_question(assistant):
+    """Her "in reference to what?", naming the apps that could answer ("chores, the weather, or the feast days")."""
+    apps = []
+    for t in SCORER.topics:
+        name = app_spoken(t)
+        if name and name not in apps:
+            apps.append(name)
+    return phrase("router", "object_which", assistant).format(apps=or_list(apps))
+
+
+def missing_object(said):
+    """A question whose thing is left unsaid ("What does Mara have?", "What do I have tomorrow?"):
+    (its words up to the verb, the day words after it), else None. vocab/requests.yaml object_left_verbs;
+    the day words after the verb (vocab/language.yaml weekdays, object_day_words) stay with it (issue #19)."""
+    words = without_filler(said)
+    req, lang = VOCAB.get("requests", {}), VOCAB.get("language", {})
+    verbs = {str(w) for w in req.get("object_left_verbs") or []}
+    days = {str(w) for w in (lang.get("weekdays") or []) + (lang.get("object_day_words") or [])}
+    end = len(words)
+    while end and words[end - 1] in days:
+        end -= 1
+    opens = {str(w) for w in (req.get("question_words") or []) + (req.get("asking_words") or [])}
+    if 2 < end <= 6 and words[end - 1] in verbs and words[0] in opens and not SCORER.rank(" ".join(words)):
+        return " ".join(words[:end]), " ".join(words[end:])
+    return None
+
+
 def name_words(text):
     """The words of a name said on its own ("what's it called?"): filler taken out anywhere, and the
     name of the assistant being answered only when it opens the answer ("Iris, feed the cat"); any
@@ -438,6 +511,10 @@ LOG_LABEL = {"false_wake": "false wake", "dismissed": "dismissed", "echo": "an e
              "fragment": "fragment (no verb and noun)", "polite": "polite words only"}
 
 
+ECHO_NEVER_OPENS = {clean(w) for w in VOCAB.get("language", {}).get("question_openers") or []}
+NO_ON_DAYS = {str(w).lower() for w in VOCAB.get("language", {}).get("no_on_days") or []}   # "tomorrow", not "on tomorrow"
+
+
 def echo_of(said, turns, now=None):
     """Her own words coming back: a weak device (a Voice PE) hears her through its open mic. What
     was heard (echo_min_words or more) has echo_overlap of its words in her last answer on this
@@ -457,12 +534,23 @@ def echo_of(said, turns, now=None):
     n_said = len(clean(said).split())
     if n_said < least:
         return None
+    from veil import spoken as _spoken
+    asked = _spoken.asked_of_you(said)
     best = None
     for t in turns or []:
         ago = (now or time.time()) - float(t.get("time") or 0)
         if not t.get("answer") or ago > float(SETTINGS.get("echo_seconds")):
             continue
-        answer = flairs.strip(t["answer"])
+        answer = util.unslot(t["answer"])
+        opener = (clean(said).split() or [""])[0]
+        if opener in ECHO_NEVER_OPENS and opener not in clean(answer).split():
+            # a question word she didn't say opens it ("What's Mara's shoe size?" after "I'll remember: Mara's shoe
+            # size is eight and a half. Right?", Oct 22): a question asked about her words, not her words coming back
+            continue
+        if asked and not _spoken.asked_of_you(answer):
+            # her words asked back of her ("Did you delete paint the house?" after "Delete Paint the
+            # house?", Oct 21): a question to her, not her answer coming back
+            continue
         share = speakers.in_order(said, answer)
         for part in [answer] + re.split(r"(?<=[.?!])\s+", answer):
             n = len(clean(part).split())
@@ -473,13 +561,21 @@ def echo_of(said, turns, now=None):
     return best
 
 
-def answer_after_echo(said, answer):
-    """The person's yes or no at the end of her own words coming back ("...Want me to ask around?
-    No."): the last sentence, when it isn't hers and is a short answer. None otherwise."""
-    tail = next((x for x in reversed(re.split(r"[.?!]+", said)) if x.strip()), "")
-    if tail.strip() == said.strip() or speakers.covered(tail, answer) >= 0.5:
-        return None
-    return tail.strip() if answer_kind(tail) in ("yes", "no") else None
+def after_echo(said, answer):
+    """The person's own words after her words coming back, the mic still open while she spoke: (a yes or no
+    said first, or None; the rest, or None). "...Want me to ask around? No." -> ("No", None); "...Is that
+    right? Yes. Could you change the time on that to 3:45?" -> ("Yes", "Could you change ...") (Oct 21: the
+    whole of it was taken for her echo, and the person's yes and request were lost)."""
+    parts = [x.strip() for x in re.split(r"(?<=[.?!])\s+", said) if x.strip()]
+    hers = [i for i, x in enumerate(parts) if speakers.covered(x, answer) >= 0.5]
+    if not hers:
+        return None, None
+    mine = parts[hers[-1] + 1:]
+    if not mine:
+        return None, None
+    yes = mine[0].rstrip(".?!,") if answer_kind(mine[0]) in ("yes", "no") else None
+    rest = " ".join(mine[1:] if yes else mine).strip()
+    return yes, rest or None
 
 
 def answers_waiting(p, said):
@@ -497,6 +593,34 @@ def answers_waiting(p, said):
         if changes:
             return True
     return bool(answer_kind(said) or (p.get("kind") == "ask_around" and about_asking(said)))
+
+
+def offered_request(d, said):
+    """Her question dropped by a request that opens with yes or no: a yes takes the thing she offered as the
+    one meant, a no doesn't, and the request goes on without it. The words to decide on."""
+    kind, rest = leading_yes(said)
+    if not kind:
+        return said
+    if kind == "no":
+        d.pop("offered", None)
+    step(d, "question", f"'{kind}' to her question, then a request of its own: \"{rest}\""
+                        + (f" ({d['offered']['name']} is 'that')" if d.get("offered") else ""))
+    d["said"] = rest
+    return rest
+
+
+def leading_yes(said):
+    """(yes or no, the request after it) when a request opens with one ("Yes, could you change the time on that
+    to 3:45?", Oct 21: her speaker stopped when he spoke, so it came as one sentence, not after her echo), else
+    (None, said)."""
+    words = said.strip().split()
+    for n in (1, 2):              # "Yes, could you": one word first; "Of course, could you": two
+        if len(words) <= n + 2:
+            continue
+        kind = answer_kind(" ".join(words[:n]).rstrip(",.!"))
+        if kind in ("yes", "no"):
+            return kind, " ".join(words[n:]).lstrip(",. ")
+    return None, said
 
 
 def leading_answer(said):
@@ -620,10 +744,7 @@ def opens_on_app_things(said):
         if not conn:
             continue
         action, score, found = conn.pick_action(" ".join(words))
-        if not action or not found:
-            continue
-        # one of its action words starts within the first three words ("how many days until", four words long, too)
-        if not any((" ".join(words[i:]) + " ").startswith(f + " ") for f in found for i in range(min(3, len(words)))):
+        if not action or not found or not opens_with(words, found):
             continue
         if action in getattr(conn, "rules", {}) and conn.changes(action):
             continue          # a user rule that changes something stays inside its topic ("rename that")
@@ -632,6 +753,95 @@ def opens_on_app_things(said):
         if conn.names_thing(said) or (noun and conn.names_thing(noun)):
             out.append((topic, conn, action, found))
     return out
+
+
+def opens_with(words, found):
+    """One of the action words found starts within the first three words ("how many days until", four words long, too)."""
+    return any((" ".join(words[i:]) + " ").startswith(f + " ") for f in found for i in range(min(3, len(words))))
+
+
+# ---------- who can answer this? (#28): the apps asked before a request goes Off-Platform ----------
+
+ASK_APPS = bool(_ROUTER.get("ask_apps_first", True))
+FUNCTION_WORDS = {str(w).lower() for w in VOCAB.get("language", {}).get("function_words") or []}
+ASK_APPS_SECONDS = float(_ROUTER.get("ask_apps_seconds", 2))
+ASK_APPS_MAX_WORDS = int(_ROUTER.get("ask_apps_max_words", 15))
+
+
+def apps_to_ask(said):
+    """[(topic, connector, action, words)]: each app with a rule that looks a thing up by what was said (a Match
+    step) and changes nothing, whose own words open the request ("Can you FIND the walkie coffee tour?"); and
+    each app that takes the words as said and can be asked whether they're its own at all (action None: the
+    weather brain's claim)."""
+    out = []
+    words = without_filler(said)
+    for topic in SCORER.topics:
+        app = APPS.get(SCORER.topics[topic].get("service"))
+        if app and getattr(app, "claims", lambda: False)():
+            out.append((topic, app, None, []))
+            continue
+        conn = connector_for(topic)
+        if not conn or not getattr(conn, "rules", None):
+            continue
+        action, _score, found = conn.pick_action(" ".join(words))
+        if action in conn.rules and found and rules.finds(conn.rules[action]) and not conn.changes(action) \
+                and opens_with(words, found):
+            out.append((topic, conn, action, found))
+    return out
+
+
+def enough_words(reply, conn):
+    """The words looked up fit the thing found by enough of them to claim a request nothing else did (#28, yours:
+    "1 word is less than 2"): two words, or every word looked for when only one was said ("When is Easter?").
+    A reply that doesn't say what it looked up (an app's own code) is taken as it comes."""
+    looked, item = reply.get("looked_for"), reply.get("found_item")
+    if not looked or not item:
+        return True
+    drop = conn.drop_words() | conn.never_words() if conn else set()
+    said = [w for w in re.findall(r"[a-z0-9]+", looked.lower()) if len(w) > 2 and w not in drop]
+    name = {w[:4] for w in re.findall(r"[a-z0-9]+", item.lower()) if len(w) > 2}
+    hits = sum(1 for w in said if w[:4] in name)
+    return hits >= 2 or (hits >= 1 and hits == len(said))
+
+
+async def who_answers(d):
+    """Nothing at home claimed the request: each app whose find opens it is asked at once, read only, each within
+    ask_apps_seconds. [(topic, action, reply)] for those that found what was said; one that found nothing, didn't
+    answer in time or failed passes. A yes or no sent out as asked is never asked about again."""
+    if not ASK_APPS or d["path"] not in ("gemini", "ask") or d.get("rewrite") or not (d.get("said") or "").strip() \
+            or len(d["said"].split()) > ASK_APPS_MAX_WORDS:     # a long ramble is conversation, not a request for an app
+        return []
+
+    async def ask(topic, _conn, action, _found):
+        try:
+            reply = await asyncio.wait_for(_conn.ask(d["said"], claim=True) if action is None else
+                                           call_service(topic, d["said"], action=action), ASK_APPS_SECONDS)
+        except Exception as e:
+            step(d, "apps", f"{topic} ({action}): no answer in {ASK_APPS_SECONDS:g} s ({e.__class__.__name__})")
+            return None
+        if action is None and (reply or {}).get("status") in ("answered", "out_of_reach", "need"):
+            step(d, "apps", f"{topic}: its own ({reply['status']})")
+            return topic, None, reply
+        if not reply or reply.get("status") != "answered" or reply.get("not_found") or reply.get("node_down") \
+                or not (reply.get("speech") or reply.get("ask")):
+            step(d, "apps", f"{topic} ({action or 'asked'}): not found" if action else f"{topic}: not its own")
+            return None
+        if not enough_words(reply, _conn):
+            step(d, "apps", f"{topic} ({action}): \"{reply.get('looked_for')}\" fits {reply.get('found_item')} by too few "
+                            f"words, not claimed")
+            return None
+        ask = reply.get("ask") or {}
+        if ask.get("mode") in ("which", "main") and not any(
+                enough_words({"looked_for": reply.get("looked_for"), "found_item": c.get("name")}, _conn)
+                for c in ask.get("choices") or [] if isinstance(c, dict)):
+            # a tie among its things she'd ask about ("Which one: ...?") is claimed only when one of them fits by enough
+            # words; only parts fitting each ("my car keys": School Keys, car inspection) isn't
+            step(d, "apps", f"{topic} ({action}): only parts fit several of its things, not claimed")
+            return None
+        step(d, "apps", f"{topic} ({action}): found it")
+        return topic, action, reply
+    asked = [c for c in apps_to_ask(d["said"]) if c[0] != d.get("guarded")]     # the guard's hold stands
+    return [x for x in await asyncio.gather(*(ask(*c) for c in asked)) if x]
 
 
 def or_list(items):
@@ -668,7 +878,9 @@ def opens_new_request(p, said):
     if not any(lead.startswith(f) or (" " + f + " ") in (" " + lead + " ") for f in found):
         return False
     thing = conn.spoken_value(said, action)
-    return len(thing.split()) >= 2 and not names_its_extra(p, said, thing, conn)
+    from veil import spoken as _spoken
+    # a thing to do of its own (an action with its noun: "take Newton to the vet"), not just its fields
+    return len(thing.split()) >= 2 and _spoken.is_task(thing) and not names_its_extra(p, said, thing, conn)
 
 
 def names_its_extra(p, said, thing, conn):
@@ -717,6 +929,34 @@ def clear_pending(assistant, why=""):
         log.info("  pending question cleared (%s)%s", assistant, f": {why}" if why else "")
 
 
+def clarified(p, said):
+    """What's asked now that her clarification is answered: the words with the day put in ("yes" to the one
+    offered; "the first one", "the martyr" for one of a few; a day said, "Saturday"), or None (not an answer)."""
+    choices, kind = p.get("choices") or [], answer_kind(said)
+    pick = choices[0] if kind == "yes" and len(choices) == 1 else None
+    if pick is None and len(choices) > 1:
+        lang = VOCAB.get("language", {})
+        order = dict(lang.get("ones") or {})
+        order.update(lang.get("ordinals") or {})
+        pick = match.pick(said, choices, LITTLE_WORDS, order)
+    if pick is None:
+        got = fields_mod.parse_date(fields_mod.Words(said), now_local().date())
+        if not got or got.get("span"):
+            return None
+        pick = {"say": got["say"]}
+    asked = p.get("said") or ""
+    if pick.get("replace") and pick["replace"] in asked:     # Time's: the feast's name becomes its day
+        return asked.replace(pick["replace"], pick["say"], 1)
+    about = p.get("about") or ""
+    at = asked.lower().find(about.lower()) if about else -1
+    first = (str(pick["say"]).split() or [""])[0].lower()
+    day = pick["say"] if first in NO_ON_DAYS else f"on {pick['say']}"       # "tomorrow", never "on tomorrow"
+    if at < 0:
+        return f"{asked.rstrip('?.! ')} {day}"
+    end = at + len(about)
+    return f"{asked[:end]} {day}{asked[end:]}"
+
+
 def answer_kind(said):
     """'yes' or 'no' if the words are a short answer (vocab/answers.yaml), else None."""
     words = without_filler(said)
@@ -730,6 +970,48 @@ def answer_kind(said):
             if pc and (text == pc or text.startswith(pc + " ")):
                 found.add(kind)
     return found.pop() if len(found) == 1 else None
+
+
+def confirm_kind(said):
+    """answer_kind, and a thanks said to her confirmation is a yes ("I'll remember: Mara's shoe size is eight and a
+    half. Right?" "Thank you."): only where she asks whether she has it right, never to "Want me to ask around?"
+    (vocab/answers.yaml confirm_thanks). "No, thank you" stays a no."""
+    kind = answer_kind(said)
+    if kind:
+        return kind
+    text = " ".join(without_filler(said))
+    return "yes" if text and text in {clean(p) for p in VOCAB.get("answers", {}).get("confirm_thanks") or []} else None
+
+
+def offer_detail(said):
+    """Does this answer give a day, a time or how to be reminded (vocab/language.yaml)?"""
+    import datetime as _dt
+    F = series.F
+    w = F.Words(said)
+    low = " ".join(F.words_of(said))
+    return bool(F.parse_time(w) or F.parse_date(w, _dt.date.today()) or any(
+        re.search(r"\b" + re.escape(str(x).lower()) + r"\b", low) for ws in (VOCAB.get("language", {}).get("remind_by") or {}).values() for x in ws))
+
+
+def affirmed(said):
+    """A yes said more loosely ("Saturday's fine", "great", "that works": vocab/answers.yaml affirm_words)."""
+    words = set(without_filler(said))
+    return bool(words & {clean(w) for w in VOCAB.get("answers", {}).get("affirm_words") or []})
+
+
+def bare_yes(said):
+    """Only a yes ("Okay.", "Sure."), nothing after it (vocab/answers.yaml)."""
+    text = " ".join(without_filler(said))
+    return bool(text) and any(clean(p) == text for p in VOCAB.get("answers", {}).get("yes", []))
+
+
+def own_request(conn, action, said):
+    """Is this answer to her question a request of its own ("can you mark the chore spray weeds
+    complete", "What's on my list to do today?" to "Which one?", Oct 21)? Asked of her, or two or
+    more words of another of the app's actions."""
+    from veil import spoken as _spoken
+    other = conn.pick_action(" ".join(without_filler(said))) if hasattr(conn, "pick_action") else (None, 0, [])
+    return _spoken.requested_of_you(said) or (other[0] not in (None, action) and len(other[2]) >= 2)
 
 
 def about_asking(said):
@@ -793,6 +1075,9 @@ def series_say(assistant):
 
 def answer_pending(p, kind, assistant):
     """(what she says, the next pending question or None) for an answer to her question."""
+    if kind == "again":        # her question asked again, still waiting: she asks for it another way first (the owner, Oct 21)
+        q = p.get("question")
+        return (phrase("router", "ask_rephrase", assistant) + " " + q) if q else phrase("router", "rule_ask_again", assistant), p
     if p.get("kind") == "list_rest":
         if kind == "no":
             return phrase("router", "list_no", assistant), None
@@ -805,7 +1090,7 @@ def answer_pending(p, kind, assistant):
         return phrase("router", "ask_around_no", assistant), None
     if p.get("kind") == "heard_as":
         return phrase("router", "heard_as_no", assistant), None
-    if p.get("kind") in ("thing", "add_name", "need"):
+    if p.get("kind") in ("thing", "add_name", "need", "offer", "object"):
         return phrase("router", "thing_no", assistant), None
     if p.get("kind") == "rule" and p.get("mode") == "main" and len(p.get("choices") or []) > 1:
         # no to "the main one is ... Is that the one?": she names the others
@@ -1088,11 +1373,11 @@ def followup_shape(said):
 # ---------- the decision (used by real requests and by /explain) ----------
 # Every step logs one numbered line, in the order the code runs, saying what it looked at and what
 # it concluded, so a wrong turn is visible on Transactions (Why), Try it and tools/regress.py --why.
-TRACE = ["words", "path 0", "learn", "question", "topics", "follow-up", "app thing", "fleas", "conversation",
-         "shape", "bank", "off-platform"]
+TRACE = ["words", "path 0", "learn", "question", "topics", "follow-up", "app thing", "fleas", "object", "conversation",
+         "shape", "apps", "bank", "off-platform"]
 TRACE_NAMES = {"words": "the words", "path 0": "path 0", "learn": "learn level", "question": "a question waiting (path C)",
                "topics": "topics (path A)", "follow-up": "follow-up (path B)", "app thing": "an app's own thing", "fleas": "brain fleas",
-               "conversation": "Off-Platform conversation", "shape": "request shape", "bank": "Off-Platform Bank",
+               "conversation": "Off-Platform conversation", "object": "the thing left unsaid", "shape": "request shape", "apps": "who can answer this (the apps asked)", "bank": "Off-Platform Bank",
                "off-platform": "Off-Platform"}
 
 
@@ -1116,7 +1401,7 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
     # her own name, said to her, is filler like "um": only a real name, an assistant with a personality
     # file or instructions opening "<Name> Personality" (Home Assistant's default ones open "You are...",
     # and "you" is no name)
-    ADDRESSED.set(d["assistant"] if d["assistant"] in FLAIR.names() or named_persona(messages) else "")
+    ADDRESSED.set(d["assistant"] if d["assistant"] in PERSONAS or named_persona(messages) else "")
 
     if messages and messages[-1].get("role") != "user":
         d["path"] = "tool"
@@ -1128,8 +1413,10 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         d["why"].append(f"second trip of an Off-Platform tool call (round {d['tool_rounds']} of {TOOL_ROUNDS}): straight through")
         return d
 
-    said, swapped = mishearings.swap(said)
-    if swapped:       # mishearings marked Use it on the Misses page (learn/swaps.yaml)
+    # the words first (the Mishearings add-on: the ones marked Use it, learn/swaps.yaml), before any key word
+    swapped = []
+    said = ADDONS.run("understand", said, {"assistant": d["assistant"], "swapped": swapped})
+    if swapped:
         d.update(said=said, heard_raw=heard(messages), swaps=swapped)
     # the words as the person said them: said may become the request an answer goes on with ("Yes."
     # to "Rotisserie diagram?"), but the log, who spoke and the audio path's match go by these
@@ -1147,10 +1434,21 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         step(d, "path 0", f"answers her waiting question ({waiting.get('kind')}): tried as an answer, not as an echo")
     else:
         echo = echo_of(said, turns if turns is not None else [t for ts in _load_turns().values() for t in ts or []])
-    tail = answer_after_echo(said, echo[2]) if echo else None
-    if tail and waiting:
-        step(d, "path 0", f"{LOG_LABEL['echo']} {echo[1]} s ago, then an answer of the person's own: \"{tail}\"")
-        said = d["said"] = tail
+    yes, rest = after_echo(said, echo[2]) if echo else (None, None)
+    if rest and yes and waiting and leading_answer(f"{yes}. {rest}"):
+        from veil import spoken as _sp
+        if not (_sp.asked_of_you(rest) or _sp.requested_of_you(rest)):
+            rest = None              # "Yes. Thanks.": the yes is the answer, the rest asks for nothing
+    if rest:
+        # the person's own request after her words came back ("... Is that right? Yes. Could you change the
+        # time on that to 3:45?"): that request, her offered thing taken as the one meant (offered, below)
+        step(d, "path 0", f"{LOG_LABEL['echo']} {echo[1]} s ago, then the person's own words: \"{rest}\""
+                          + (f" (after \"{yes}\")" if yes else ""))
+        said = d["said"] = rest
+        d["after_yes"] = yes
+    elif yes and waiting:
+        step(d, "path 0", f"{LOG_LABEL['echo']} {echo[1]} s ago, then an answer of the person's own: \"{yes}\"")
+        said = d["said"] = yes
     elif echo:
         d.update(path="0", kind="echo")
         step(d, "path 0", f"{LOG_LABEL['echo']} {echo[1]} s ago ({echo[0]:.2f} of the words): not answered")
@@ -1172,6 +1470,11 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         return d
 
     step(d, "learn", "not a learn command")
+    switch = trainer_command(said)
+    if switch:          # "Trainer mode", "Turn on trainer mode for Mara" (#29): who may is checked on the answer's side
+        d.update(path="trainer", kind="switch", turn=switch[0], target=switch[1])
+        step(d, "learn", f"trainer mode, said by voice: {switch[0] or 'its state'} for {switch[1] or 'whom?'}")
+        return d
     p = pending_for(d["assistant"]) if pending is None else pending
     if p:
         step(d, "question", f"waiting: {p.get('kind')}" + (f", asked {age_of(p.get('time'))} ago" if p.get("time") else ""))
@@ -1198,19 +1501,50 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         p = None
         d["pending_dropped"] = True
         step(d, "question", "the 'anything else?' is left unanswered: handled as a new request")
+    if p and p.get("kind") == "object":
+        # her "in reference to what?": the answer is the thing, put after the verb ("what does Mara have" +
+        # "chores"), and the whole request decided afresh; no, or a request of its own, leaves it
+        words = without_filler(said)
+        if answer_kind(said) == "no":
+            d.update(path="C", kind="no", pending=p)
+            step(d, "question", "no to 'in reference to what?': nothing more")
+            return d
+        if words and len(words) <= ADD_NAME_MAX_WORDS and not own_request(None, None, said):
+            whole = " ".join(x for x in (p.get("head"), " ".join(words), p.get("tail")) if x)
+            msgs = [m for m in messages if m.get("role") == "system"][:1] + [{"role": "user", "content": whole}]
+            d2 = decide(msgs, fresh, {}, memory, [])
+            d2["why"].insert(0, f"'{' '.join(words)}' answers 'in reference to what?' for \"{p.get('said')}\": \"{whole}\"")
+            return d2
+        p = None
+        d["pending_dropped"] = True
+        step(d, "question", "the 'in reference to what?' is left unanswered: handled as a new request")
+    if p and p.get("kind") == "trainer":
+        return trainer_answer(d, p, said, messages, fresh, memory)
     if p and p.get("kind") == "heard_as":
         # "I think you meant 'mark it complete'. Shall I?" (dump13): yes is that request, decided afresh
-        kind = answer_kind(said)
+        kind = confirm_kind(said)
         if kind == "yes":
             msgs = [m for m in messages if m.get("role") == "system"][:1] + [{"role": "user", "content": p.get("meant") or ""}]
             d2 = decide(msgs, fresh, {}, memory, [])
-            d2.update(spoken=said, heard_as_yes=p.get("meant"), heard_from=p.get("said"))
-            d2["why"].insert(0, f"yes to 'did you mean \"{p.get('meant')}\"?' (the Off-Platform model's hearing of \"{p.get('said')}\")")
+            d2.update(spoken=said, heard_as_yes=p.get("meant") if p.get("keep", True) else None, heard_from=p.get("said"),
+                      heard_clip=p.get("clip"),
+                      heard_device=p.get("device"),
+                      window_answer={"by": p["by"], "answer": "yes", "heard": d.get("heard_raw") or said} if p.get("by") else None)
+            d2["why"].insert(0, f"yes to 'did you mean \"{p.get('meant')}\"?' (" + (f"the {p['by']} add-on's" if p.get("by") else
+                                                                                      "the Off-Platform model's") + f" hearing of \"{p.get('said')}\")")
             return d2
+        if kind == "no" and p.get("by"):
+            # an add-on's guess (the window): no means the words were meant as heard, and they go out as asked
+            d.update(path="gemini", kind="ask_yes", rewrite=p.get("said"), topic=None,
+                     window_answer={"by": p["by"], "answer": "no", "heard": d.get("heard_raw") or said})
+            step(d, "question", f"no to 'did you mean?' ({p['by']}): sending \"{p.get('said')}\" Off-Platform as heard")
+            return d
         if kind == "no":
             d.update(path="C", kind="no", pending=p)
             step(d, "question", "no to 'did you mean?': nothing done")
             return d
+        if p.get("by"):
+            d["window_answer"] = {"by": p["by"], "answer": "new request", "heard": d.get("heard_raw") or said}
         p = None
         d["pending_dropped"] = True
         step(d, "question", "the 'did you mean?' is left unanswered: handled as a new request")
@@ -1227,6 +1561,17 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         p = None
         d["pending_dropped"] = True
         step(d, "question", "the 'ask around?' is left unanswered: handled as a new request")
+    if p and p.get("kind") == "clarify":
+        # her clarification ("You mean the picnic on Wednesday?"): the answer fills the blank, and the app
+        # that claimed it is asked again with it
+        filled = clarified(p, said)
+        if filled:
+            d.update(path="A", topic=p.get("topic"), score=1.0, action=None, said=filled, clarified=True)
+            step(d, "question", f"path C: '{' '.join(without_filler(said))}' fills {p.get('need')} for {p.get('about')}: \"{filled}\"")
+            return d
+        p = None
+        d["pending_dropped"] = True
+        step(d, "question", "her clarification is left unanswered: handled as a new request")
     if p and p.get("kind") == "which_app":
         answer_words = set(without_filler(said))
         pick = None
@@ -1249,7 +1594,7 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         # her "which one?" (two of an app's things fit) or "...? Say yes" (one fit, not surely)
         choices, pick = p.get("choices") or [], None
         if p.get("mode") == "confirm":
-            k = answer_kind(said)
+            k = confirm_kind(said)
             if k == "yes" and choices:
                 pick = choices[0]
             elif k == "no":
@@ -1268,15 +1613,29 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
             step(d, "question", f"path C: '{' '.join(without_filler(said))}' picks {pick.get('name')}"
                             + (f" in {pick['group']}" if pick.get("group") else "") + f" for {p.get('action')}")
             return d
+        if p.get("mode") == "confirm" and choices and choices[0].get("id") is not None:
+            d["offered"] = {"topic": p.get("topic"), "id": choices[0]["id"], "name": choices[0].get("name")}   # "that", now
+        said = offered_request(d, said)
         p = None
         d["pending_dropped"] = True
         step(d, "question", "the 'which one?' is left unanswered: handled as a new request")
     if p and p.get("kind") == "rule":
         # a user rule waits on her question (confirm, which one, ask): the answer goes on with it
         conn = HOUSE if p.get("flea") else connector_for(p.get("topic"), p.get("node"))
+        if p.get("mode") == "ask" and bare_yes(said):
+            # "Okay." to "What should I call it?": the start of an answer the mic cut off (Oct 21), asked again
+            d.update(path="C", kind="again", topic=p.get("topic"), pending=p)
+            step(d, "question", "a bare yes to her question: it isn't an answer, she asks again")
+            return d
+        if p.get("mode") != "confirm" and own_request(conn, p.get("action"), said):
+            p = None
+            d["pending_dropped"] = True
+            step(d, "question", "the answer is a request of its own: handled as a new request")
+    if p and p.get("kind") == "rule":
+        conn = HOUSE if p.get("flea") else connector_for(p.get("topic"), p.get("node"))
         lang = VOCAB.get("language", {})
         order = dict(lang.get("ones") or {}, **(lang.get("ordinals") or {}))
-        state, stop = rules.resume(p, said, answer_kind,
+        state, stop = rules.resume(p, said, confirm_kind if p.get("mode") == "confirm" else answer_kind,
                                    lambda a, c: match.pick(a, c, conn.never_words() if conn else (), order),
                                    name_words(said), ADD_NAME_MAX_WORDS)
         if stop:
@@ -1290,21 +1649,71 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
             step(d, "question", f"path C: '{' '.join(without_filler(said))}' answers the rule {p.get('action')}'s "
                             f"{p.get('mode')} question: it goes on at step {state.get('at', 0) + 1}")
             return d
+        item = (p.get("state") or {}).get("item") or {}
+        if item.get("id") is not None:
+            # "Did you change the time on that task?" after "...Leave the walkie-talkie at school. Is that right?":
+            # the thing she offered is "that" (Oct 21)
+            d["offered"] = {"topic": p.get("topic"), "id": item["id"], "name": item.get("name")}
+        said = offered_request(d, said)
         p = None
         d["pending_dropped"] = True
         step(d, "question", "the rule's question is left unanswered: handled as a new request")
+    if p and p.get("kind") == "offer":
+        # her offer for loose language ("Is 6 AM OK, and by voice, by alert or both?", issue #19): the add
+        # again with the answer ("yes", "no, make it 8, both"); a plain no stops it; a request of its own drops it
+        from veil import spoken as _spoken
+        words = without_filler(said)
+        if answer_kind(said) == "no" and len(words) <= 2:
+            d.update(path="C", kind="no", topic=p.get("topic"), pending=p)
+            step(d, "question", "no to her offer: nothing is added")
+            return d
+        if said.strip().endswith("?") and not answer_kind(said) and not offer_detail(said):
+            # "What was that? I'm sorry?": a question back with nothing in it, so she asks again (Oct 21)
+            d.update(path="C", kind="again", topic=p.get("topic"), pending=p)
+            step(d, "question", "a question back with no answer in it: she asks again")
+            return d
+        # asked of her but giving only a day, time or way to remind ("Could you make it the 15th?") is an answer
+        new_one = bool(words) and (opens_new_request(p, said) or (_spoken.asked_of_you(said) and not offer_detail(said)))
+        # her own questions about the day's kind ("the day to remind you, or the day it's due?") take any words:
+        # Loose language reads them, and asks for them another way when it can't
+        own_words = bool(set(p.get("offer") or {}) & {"which", "before", "after"})
+        if words and not new_one and not own_words and not (answer_kind(said) or offer_detail(said) or affirmed(said)):
+            # "Minded by Rock": no yes or no, no day, time or way to remind in it, so it confirms nothing:
+            # she asks again (Oct 21: it was taken as yes)
+            d.update(path="C", kind="again", topic=p.get("topic"), pending=p)
+            step(d, "question", "no yes, no day, time or way to remind in it: she asks again")
+            return d
+        if words and not new_one:
+            d.update(path="A", topic=p.get("topic"), score=1.0, action=p.get("action") or "add", said=p.get("said") or said,
+                     resume={"offer": p.get("offer"), "answer": said, "chosen": p.get("chosen"), "for": p.get("for"),
+                             "event": p.get("event")},
+                     thing_answered=True, node=p.get("node"))
+            step(d, "question", f"path C: '{' '.join(words)}' answers her offer ({', '.join(p.get('offer') or {})})")
+            return d
+        if new_one and (p.get("chosen") or {}):
+            d["finish_offer"] = p          # what was settled isn't lost: it's added with her offers, said first
+            step(d, "question", "a new request while she waits: the add is finished with what she offered")
+        p = None
+        d["pending_dropped"] = True
+        step(d, "question", "her offer is left unanswered: handled as a new request")
     if p and p.get("kind") in ("add_name", "need"):
         words = without_filler(said)
+        parts = [x for x in re.split(r"(?<=[.?!])\s+", said.strip()) if x.strip()]
+        if len(parts) > 1 and len(words) > ADD_NAME_MAX_WORDS and not own_request(None, None, parts[-1]):
+            # "You already have a name for it. Get my tuxedo clean.": the name is the last sentence
+            said = d["said"] = parts[-1]
+            words = without_filler(said)
         if answer_kind(said) == "no":        # "No, cancel" to "what should I call it?": it stops there
             d.update(path="C", kind="no", topic=p.get("topic"), pending=p)
             step(d, "question", "no to her question: nothing is added")
             return d
-        from veil import spoken as _spoken
-        conn = connector_for(p.get("topic"), p.get("node"))
-        other = conn.pick_action(" ".join(words)) if conn else (None, 0, [])
-        if _spoken.asked_of_you(said) or (other[0] not in (None, p.get("action") or "add") and len(other[2]) >= 2):
+        if own_request(connector_for(p.get("topic"), p.get("node")), p.get("action") or "add", said):
             words = []        # "can you mark the chore spray weeds complete": a request, not a name
             step(d, "question", "the answer is a request of its own, not a name")
+        from veil import spoken as _spoken
+        if p["kind"] == "add_name" and words and not _spoken.is_task(" ".join(name_words(said))):
+            words = []        # "That's very fun. Thank you.": no action with its noun, so not a chore's name (Oct 21)
+            step(d, "question", "the answer isn't something to do (an action with its noun): not a name")
         if 0 < len(words) <= ADD_NAME_MAX_WORDS:
             d.update(path="C", kind=p["kind"], topic=p.get("topic"), pending=p, action=p.get("action") or "add")
             step(d, "question", f"path C: '{' '.join(words)}' answers the question"
@@ -1313,6 +1722,11 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         p = None
         d["pending_dropped"] = True
         step(d, "question", "the question is left unanswered: handled as a new request")
+    if p and p.get("kind") == "list_rest" and set(without_filler(said)) & set(VOCAB.get("answers", {}).get("rest_words") or []) \
+            and len(without_filler(said)) <= 6:
+        d.update(path="C", kind="yes", topic=p.get("topic"), pending=p)
+        step(d, "question", "asks for the others she offered to read: the rest")
+        return d
     if p:
         kind = answer_kind(said)
         if kind:
@@ -1330,10 +1744,20 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
         top_svc = SCORER.topics.get(ranked[0][0], {}).get("service")
         for i, (t2, s2, m2, why2) in enumerate(ranked[1:], 1):
             app2 = APPS.get(SCORER.topics.get(t2, {}).get("service"))
-            dated = thing_dated(said, t2) if app2 and app2.answers() and why2 == "ok" and s2 >= CONFIDENCE else None
+            dated = thing_dated(said, t2) if app2 and app2.answers() else None
+            few = ADDONS.services.get("time.fits")
+            if not dated and app2 and app2.answers() and few:
+                # two saints called Stephen: still the calendar's day, the weather to ask which (its blank, step 6)
+                f = few(said, supply_ctx(said, t2))
+                dated = (f"{said} on {f[1]}", "a few of its things", f[0]) if f else None
             if dated and dated[2] == top_svc:
-                step(d, "topics", f"{t2} asks about {dated[1]}: {t2}'s, with that date")
-                ranked = [ranked[i]] + ranked[:i] + ranked[i + 1:]
+                # weather(litcal(the words)): the topic is scored again on the words with the date put in ("snow on
+                # Saturday, December 26 when I am at the picnic"), as the app will be asked
+                again = next(((s3, why3) for t3, s3, _, why3 in SCORER.rank(dated[0]) if t3 == t2), (0, ""))
+                if again[1] != "ok" or again[0] < CONFIDENCE:
+                    continue
+                step(d, "topics", f"{t2} asks about {dated[1]}: {t2}'s, with that date ({again[0]:.0%} asked that way)")
+                ranked = [(t2, again[0], m2, "ok")] + ranked[:i] + ranked[i + 1:]
                 break
     if not ranked:
         step(d, "topics", f"no door of any topic in the words ({', '.join(SCORER.topics) or 'no topics'})")
@@ -1366,6 +1790,11 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
                                     f"(your own word, or an action that changes something)")
             step(d, "topics", f"action: {d['action']} ({', '.join(vwords) or 'default'})"
                             + (", a user rule, reached by the topic word" if d["action"] in conn.rules else ""))
+            if not confident and why == "guard" and conn.action_opening(said) == d["action"]:
+                # "Remind me to tell Nora ...": a long sentence with one topic word, held by the guard, but it
+                # opens with the action's own word (Oct 21: it went to Gemini during an outage)
+                confident = True
+                step(d, "topics", f"held by the guard, but it opens with {d['action']}'s own words: that action")
             if not confident and why == "guard" and phases.on("dump15") and conn.rule_opening(said) == d["action"]:
                 # "rename the dishes": a guarded word, but the sentence opens with the rule's own word (dump15)
                 confident = True
@@ -1374,6 +1803,8 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
             d["path"] = "A"
         else:
             step(d, "topics", f"below the {CONFIDENCE:.0%} line or held by the guard -> Off-Platform")
+            if why == "guard":
+                d["guarded"] = topic        # held on purpose ("Is it hot?" alone): its app isn't asked to claim it (#28)
         return d
 
     topic, context, source = last_topic(messages, d["assistant"], fresh, memory)
@@ -1404,7 +1835,12 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
     if topic and not followup_shape(said):
         step(d, "follow-up", f"not shaped like a follow-up (no cue, more than {FOLLOWUP_MAX_WORDS} words)")
     if topic and followup_shape(said):
-        s, m = scoring.followup(said, SCORER.topics[topic]["items"])
+        # a day said is no one's seed word: "Mow the lawn Saturday." right after chores, a request with its own
+        # verb, isn't chores' for its Saturday (the owner, Oct 21: no one claims it without a seed word);
+        # "What about Sunday?" after the weather, with no verb of its own, still asks about that day
+        from veil import spoken as _spoken
+        own_verb = _spoken.main_verb(said, VOCAB.get("language", {}).get("strip_away") or ())
+        s, m = scoring.followup(without_plain_days(said) if own_verb else said, SCORER.topics[topic]["items"])
         d.update(topic=topic, score=round(s, 3), context=context)
         step(d, "follow-up", f"follow-up to {topic}: {s:.0%} from: {', '.join(w for w, _ in m) or 'no topic words'}")
         if s >= CONFIDENCE:
@@ -1452,9 +1888,9 @@ def _decide(messages, fresh=False, pending=None, memory=None, turns=None):
 try:
     import spacy
     SPACY_MODEL = config.section(SETTINGS, "language").get("spacy_model", "en_core_web_sm")
-    NLP = spacy.load(SPACY_MODEL)
-    log.info("loaded sentence diagramming: spaCy %s, %s", spacy.__version__, SPACY_MODEL)
     from veil import spoken as _spoken
+    NLP = _spoken.Diagrams(spacy.load(SPACY_MODEL))     # each sentence diagrammed once, shared by every check
+    log.info("loaded sentence diagramming: spaCy %s, %s", spacy.__version__, SPACY_MODEL)
     _spoken.set_nlp(NLP)              # the same diagram finds the names said for apps' things
 except Exception as e:            # without spaCy the router still runs; nothing is held back
     NLP = None
@@ -1565,7 +2001,7 @@ def holding_now():
     now = time.time()
     pend, mem, turns = _load_pending(), _load_state(), _load_turns()
     out = {}
-    for who in sorted(set(FLAIR.names()) | set(pend) | set(mem) | set(turns)):
+    for who in sorted(set(PERSONAS) | set(pend) | set(mem) | set(turns)):
         p, m = pend.get(who), mem.get(who)
         out[who] = {
             "pending": dict(kind=p.get("kind"), age=round(now - p.get("time", 0)),
@@ -1588,15 +2024,19 @@ def decide(messages, fresh=False, pending=None, memory=None, turns=None):
     if answering_gemini(messages, d["said"]):
         step(d, "conversation", "a yes or no to the Off-Platform answer's own question: back Off-Platform")
         return d
-    flea, fs, how = FLEAS.find(d["said"])
-    if flea and how == "all its key words heard" and telling_a_fact(d["said"]):
-        step(d, "fleas", f"{flea}'s key words are heard, but the sentence tells a fact rather than asking: not the flea")
-        flea = None
-    if flea:
-        d.update(path="flea", flea=flea, action=flea, score=round(fs, 3))
-        step(d, "fleas", f"{flea} {fs:.0%} ({how})")
+    # an action add-on's own key word (Brain fleas), the integrations' having found nothing
+    hit = ADDONS.run("key_word", d["said"], {"assistant": d["assistant"], "telling": telling_a_fact,
+                                             "step": lambda text: step(d, "fleas", text)})
+    if hit:
+        d.update(path="flea", flea=hit["action"], action=hit["action"], score=hit["score"])
         return d
-    step(d, "fleas", f"none fits (best {fs:.0%}, they answer at {float(FLEAS.doc.get('match_at', 0.8)):.0%})")
+    if FLEAS is None:
+        step(d, "fleas", "Brain fleas is off")
+    left = missing_object(d["said"])
+    if left:
+        d.update(path="object", kind="object", object_left=left)
+        step(d, "object", f"its thing is left unsaid ('{left[0]} ...'): she asks in reference to what")
+        return d
     words = without_polite(d["said"])
     talking = bool(words) and in_gemini_conversation(d["assistant"], turns)
     if talking:
@@ -1616,6 +2056,7 @@ def decide(messages, fresh=False, pending=None, memory=None, turns=None):
         return d
     kind, parts = shape.classify(d["said"], words, NLP, VOCAB.get("requests", {})) if NLP \
         else ("question", "no diagramming")
+    d["shape"] = kind               # the trainer (#29) steps in for a statement, never a question
     if kind == "fragment":
         d.update(path="0", kind="fragment")
         step(d, "shape", f"too little to act on ({parts}): answered locally")
@@ -1630,75 +2071,153 @@ def decide(messages, fresh=False, pending=None, memory=None, turns=None):
 
 # ---------- services ----------
 
-def thing_dated(said, topic):
-    """(what was said with another app's thing put as its date, why) when it names one of another app's
-    things that has a date ("Will it rain on Ash Wednesday?" -> "... on Wednesday, February 17, 2027"),
-    for an app that takes the words as said (the weather brain); None otherwise (dump18)."""
+def suppliers(said, topic):
+    """The other integrations' things on hand (their copies, no call), for the Time add-on to find a day in what
+    was said: each with its name, its never-in-names and same-meaning words, its card's weight (most important
+    first) and its own topic words said ("feast")."""
+    from veil import lists
     own = SCORER.topics.get(topic, {}).get("service")
+    out = []
     for name, conn in CONNECTORS.items():
         items = conn.things_on_hand() if hasattr(conn, "things_on_hand") else []
         if name == own or not items:
             continue
-        # a thing named whole: every word of its name said ("Ash Wednesday", "paint the fence"; two words at
-        # least, so one common word isn't taken for a thing), the longest
-        heard = set(match.words(said))       # every word, a weekday too (the "Wednesday" of Ash Wednesday)
-        whole = [x for x in items if isinstance(x, dict) and len(match.words(conn.name_of(x))) >= 2
-                 and set(match.words(conn.name_of(x))) <= heard]
-        item = max(whole, key=lambda x: len(match.words(conn.name_of(x))), default=None)
-        if item is None:
-            # or the one thing whose name holds every word left once the asking topic's own words, the
-            # little words and this app's never-in-names are taken out ("rain on the feast of the Assumption")
-            own_words = {w for x, _ in scoring.score(said, SCORER.topics.get(topic, {}).get("items") or [])[1] for w in match.words(str(x))}
-            rest = heard - own_words - set(match.words(" ".join(LITTLE_WORDS))) - set(match.words(" ".join(conn.never_words())))
-            fits = [x for x in items if isinstance(x, dict) and rest and rest <= set(match.words(conn.name_of(x)))]
-            names_ = {conn.name_of(x) for x in fits}
-            item = fits[0] if len(names_) == 1 else None
-        f = rules.date_field([item]) if item else None
-        if not f:
+        w = next((c.get("weight") for c in lists.cards(conn.svc).values() if (c.get("weight") or {}).get("field")), None)
+        anchors = {x for t, v in SCORER.topics.items() if v.get("service") == name
+                   for x in match.words(" ".join(str(i) for i, _ in scoring.score(said, v.get("items") or [])[1]))}
+        out.append({"name": name, "items": items, "name_of": conn.name_of, "never": conn.never_words(),
+                    "alike": conn.alike, "anchors": anchors,
+                    "weight": (lambda x, conn=conn, w=w: conn.weight_of(x, w)) if w else (lambda x: 0)})
+    return out
+
+
+def supply_ctx(said, topic, step_=None):
+    """What the Time add-on is handed for a request the topic claimed (the supply slot)."""
+    own_words = {w for x, _ in scoring.score(said, SCORER.topics.get(topic, {}).get("items") or [])[1] for w in match.words(str(x))}
+    return {"topic": topic, "suppliers": suppliers(said, topic), "own_words": own_words, "little": LITTLE_WORDS,
+            "not_action": {str(w).lower() for w in VOCAB.get("language", {}).get("not_action_words") or []},
+            "plain": set(fields_mod.WEEKDAYS) | set(fields_mod.MONTHS) | {"today", "tomorrow", "tonight"},
+            "step": step_ or (lambda text: log.info("  %s", text))}
+
+
+def thing_dated(said, topic):
+    """(what was said with another app's thing put as its date, why, the app) when it names one of another
+    app's things that has a date ("Will it rain on Ash Wednesday?"), through the Time add-on; None when it's
+    off or there's none (dump18)."""
+    dated = ADDONS.services.get("time.dated")
+    return dated(said, supply_ctx(said, topic)) if dated else None
+
+
+def merge_tool_delta(calls, tc):
+    """One streamed piece of a tool call, added to the call it belongs to (#13): by the call's own id
+    when it has one; a new function name at the same index is a new call, never merged into the last."""
+    fn = tc.get("function") or {}
+    idx = tc.get("index", 0)
+    key = calls.setdefault("_at", {}).get(idx)
+    if tc.get("id") and tc["id"] != key:
+        key = tc["id"]
+    elif key is None or (fn.get("name") and calls[key]["name"] and fn.get("name") != calls[key]["name"]):
+        key = f"{idx}#{len(calls)}"
+    calls["_at"][idx] = key
+    c = calls.setdefault(key, {"name": "", "arguments": ""})
+    c["name"] = c["name"] or fn.get("name") or ""
+    c["arguments"] += fn.get("arguments") or ""
+
+
+def tool_list(calls):
+    """The tool calls collected from a stream, in the order they began."""
+    return [c for k, c in calls.items() if k != "_at"]
+
+
+async def finish_offer(p):
+    """The add she was asking about, finished with what she offered (her offer taken as yes), when a
+    new request comes before the answer (Oct 21: "wash Owen's mouth out" was lost). Her line for it,
+    said before the new answer, or "" when it couldn't be finished."""
+    try:
+        a = await call_service(p.get("topic"), p.get("said") or "", (), action=p.get("action") or "add",
+                               resume={"offer": p.get("offer"), "answer": "yes", "chosen": p.get("chosen"), "for": p.get("for"),
+                                       "event": p.get("event")},
+                               voice=True, node=p.get("node"))
+    except Exception as e:
+        log.info("  ! couldn't finish her offer: %s", e)
+        return ""
+    r = (a or {}).get("record") or {}
+    if r.get("status") != "closed":
+        return ""
+    log.info("  finished her offer first: %s", r)
+    when = " ".join(x for x in (r.get("day") if r.get("day") != "none" else "", f"at {r['time']}" if r.get("time") not in (None, "none") else "") if x)
+    return phrase("router", "offer_finished", "any").format(chore=r.get("chore"), when=(", " + when) if when else "")
+
+
+async def chain(topic, said, reply, again):
+    """The chaining protocol (issue #25, the owner's design): the claimer couldn't answer and names its blank
+    ({status: need, need: when, about: the picnic}); each add-on with its flag still on is asked to fill it (the
+    fill slot), one that does turns its flag off, and the claimer is asked again (again: said -> its reply).
+    When no one can fill it, she asks (clarification, held: no dress add-on touches it); her question is saved,
+    and the answer fills the blank (path C, kind clarify). Every module contributes once: nothing loops."""
+    off = set()
+    for _ in range(len(ADDONS.slots.get("fill") or []) + 1):
+        if (reply or {}).get("status") != "need":
+            return reply
+        blank = {"need": reply.get("need"), "about": reply.get("about")}
+        ctx = dict(supply_ctx(said, topic), said=said)
+        filled = asked = None
+        for name, fn, _m in ADDONS.slots.get("fill") or []:
+            if name in off:
+                continue
+            try:
+                got = fn(blank, ctx)
+            except Exception as e:
+                log.info("  ! add-on %s failed to fill %s: %s", name, blank, e)
+                continue
+            if not got:
+                continue
+            off.add(name)          # it answered: its flag is off
+            if got.get("words"):
+                filled = got
+                break
+            asked = asked or dict(got, by=name)
+        if filled:
+            log.info("  %s filled %s: %s, asked again as \"%s\"", name, blank["need"], filled.get("why") or "", filled["words"])
+            said = filled["words"]
+            reply = await again(said)
             continue
-        day = rules._spoken(item[f])
-        names = set(clean(conn.name_of(item)).split())
-        toks = said.split()
-        hit = [i for i, t in enumerate(toks) if clean(t) in names]
-        if not hit:
-            continue
-        lo, hi = hit[0], hit[-1]
-        # "the feast of All Saints Day": the app's own words around the name go with it (when one of them is
-        # more than a little word: "when I paint the fence" keeps its "I")
-        never, little = conn.never_words(), {str(w).lower() for w in VOCAB.get("language", {}).get("not_action_words") or []}
-        a, b = lo, hi
-        while a > 0 and clean(toks[a - 1]) in never:
-            a -= 1
-        while b + 1 < len(toks) and clean(toks[b + 1]) in never:
-            b += 1
-        if any(clean(t) not in little for t in toks[a:lo]):
-            lo = a
-        if any(clean(t) not in little for t in toks[hi + 1:b + 1]):
-            hi = b
-        tail = re.search(r"[?.!,]+$", toks[hi])
-        return " ".join(toks[:lo] + [day + (tail.group(0) if tail else "")] + toks[hi + 1:]), f"{conn.name_of(item)} ({name}) is {day}", name
-    return None
+        q = asked or {"ask": phrase("router", "clarify_when", "any").format(about=blank.get("about") or "that"), "choices": []}
+        log.info("  %s needs %s: %s asks \"%s\"", topic, blank["need"], q.get("by") or "the router", q["ask"])
+        return {"status": "answered", "speech": util.HOLD + q["ask"],
+                "ask": {"kind": "clarify", "said": said, "need": blank["need"], "about": blank.get("about"),
+                        "choices": q.get("choices") or [], "question": q["ask"]}}
+    return dict(reply, status="out_of_reach") if (reply or {}).get("status") == "need" else reply
 
 
 async def call_service(topic, said, context=(), action=None, memory=None, speaker=None, chosen=None, resume=None,
-                       speaker_info=None, node=None):
+                       speaker_info=None, node=None, voice=False, chained=False):
     """Ask the topic's service. Returns its reply (with a status), or None if it can't answer.
     Nodes of the same nature (dump9): the topic's apps in order; one at its limit (it asked us to wait,
     or didn't answer) passes the request to the next, which picks its own action; she says nothing of it
     unless every one is busy. node: the app her question came from (its answer goes back to it)."""
     first_app = APPS.get(SCORER.topics.get(topic, {}).get("service"))
+    if first_app and first_app.answers() and not chained:
+        reply = await call_service(topic, said, context, action, memory, speaker, chosen, resume, speaker_info, node, voice,
+                                   chained=True)
+        return await chain(topic, said, reply, lambda s: call_service(topic, s, context, action, memory, speaker, chosen,
+                                                                      resume, speaker_info, node, voice, chained=True))
     if phases.on("dump18") and first_app and first_app.answers():
-        dated = thing_dated(said, topic)
-        if dated:          # another app's thing, put as its date for this one (the weather on a feast day)
-            log.info("  %s: asked as \"%s\"", dated[1], dated[0])
-            said = dated[0]
+        # another app's thing, put as its date for this one (the weather on a feast day: the Time add-on)
+        said = ADDONS.run("supply", said, supply_ctx(said, topic))
+    elif first_app and action == "add" and not resume and ADDONS.services.get("loose_language.days"):
+        # an add: loose language(time(the words)), a day another app names put as its date ("on Palm Sunday")
+        said, event = ADDONS.services["loose_language.days"](said, supply_ctx(said, topic))
+        connector.EVENT_DAY.set(event)       # "for Easter Sunday": the chore is done before it (before_event)
+    elif first_app and isinstance(resume, dict) and resume.get("event"):
+        connector.EVENT_DAY.set(resume["event"])     # her offer answered: the same event, kept to the end
     if phases.on("dump9"):
         order = [node] if node in APPS else NODES.get(topic) or [SCORER.topics[topic]["service"]]
         reply = None
         for i, name in enumerate(order):
             first = i == 0
             reply = await _call_one(name, said, context, action if first else None, memory, speaker,
-                                    chosen if first else None, resume if first else None, speaker_info)
+                                    chosen if first else None, resume if first else None, speaker_info, voice)
             if reply is not None:
                 reply["service"] = name
             if not (reply or {}).get("node_down") or i == len(order) - 1:
@@ -1706,10 +2225,10 @@ async def call_service(topic, said, context=(), action=None, memory=None, speake
             log.info("  %s is %s: the next of the same nature, %s", name, reply["node_down"], order[i + 1])
         return reply
     return await _call_one(SCORER.topics[topic]["service"], said, context, action, memory, speaker, chosen, resume,
-                           speaker_info)
+                           speaker_info, voice)
 
 
-async def _call_one(name, said, context, action, memory, speaker, chosen, resume, speaker_info):
+async def _call_one(name, said, context, action, memory, speaker, chosen, resume, speaker_info, voice=False):
     svc = SERVICES.get(name)
     if not svc:
         log.info("  ! no service '%s' in settings.yaml - passing on", name)
@@ -1719,7 +2238,7 @@ async def _call_one(name, said, context, action, memory, speaker, chosen, resume
         return None
     try:
         return await conn.handle(said, context, memory=memory, action=action, speaker=speaker, chosen=chosen,
-                                 resume=resume, speaker_info=speaker_info)
+                                 resume=resume, speaker_info=speaker_info, voice=voice)
     except Exception as e:
         log.info("  ! %s %s (%s) - passing on", name, "didn't answer" if conn.answers() else "failed", e)
         return None
@@ -1768,7 +2287,7 @@ def stream_chunks(text):
 
 
 def local_reply(text, streaming):
-    text = flairs.strip(text)          # a [[slot]] is never spoken, flair or not
+    text = util.unslot(text)          # a [[slot]] is never spoken, flair or not
     rid = "chatcmpl-" + uuid.uuid4().hex
     now = int(time.time())
 
@@ -1812,7 +2331,7 @@ def gemini_turn(d, messages, text):
 # It writes first, on its own line, the request as it understood it, misheard words corrected (router:
 # heard_instruction). That line is never passed on. When what it heard is answered at home, it's
 # answered here instead (a change asks first: "I think you meant ... Shall I?"), and kept as a
-# mishearing on the Misses page, where Use it fixes it before anything is decided next time.
+# mishearing on the Mishearings page, where Use it fixes it before anything is decided next time.
 
 HEARD_TAG = str(_ROUTER.get("heard_tag") or "").strip()
 HEARD_INSTRUCTION = str(_ROUTER.get("heard_instruction") or "").strip()
@@ -1861,10 +2380,14 @@ def claimed_change(text, calls):
     return phrase("router", "claimed_change", "any")
 
 
-def keep_heard(said, meant):
-    """What was said, kept as a mishearing of what the Off-Platform model heard (the Misses page)."""
+def keep_heard(said, meant, clip=None, device=None):
+    """What was said, kept as a mishearing of what was meant (the Mishearings page), with Oread's clip of it
+    when the question came from the audio path (the window's yes), so Oread can find it."""
+    add = ADDONS.services.get("mishearings.add")      # None: Mishearings is off, and none is kept
+    if not add:
+        return
     try:
-        mishearings.add(said, meant)
+        add(said, meant, clip=clip, device=device)
         log.info("  kept as a mishearing: \"%s\" -> \"%s\" (Misses: Use it to fix it at home)", said, meant)
     except Exception as e:
         log.info("  ! couldn't keep the mishearing: %s", e)
@@ -2125,34 +2648,298 @@ def bank_count(d):
         return None
 
 
-# ---------- answering from the bank (activity: answer_from_bank) ----------
-# Your formula (veil/activity.py has it whole): for an added saying, N = its Off-Platform trips
-# - 1, T = answers kept per saying, Q = N / T (at most 100%); with Q >= U (bank_use_from) the
-# bank answers Q of the time, at random, with one of the words kept for it (never a device
-# command, Oct 14).
-
-# Since Oct 14 the bank keeps only words (activity.bank_answer): it never hands out a device command.
-
-
 def from_bank(d, body, who, key):
-    """The bank's answer for this request this time ({kind: answer | tool, ...}), else None.
-    The reason goes into the request's why either way."""
-    if not (ACTIVITY and BANK_KEEPS and getattr(ACTIVITY, "answer_from_bank", False)) or d.get("rewrite") or not key:
-        step(d, "bank", "not looked in: " + ("the activity log is off" if not ACTIVITY else
-                                            "answers kept is 0" if not BANK_KEEPS else
-                                            "Use the bank (answer_from_bank) is off" if not getattr(ACTIVITY, "answer_from_bank", False) else
-                                            "a yes to ask around goes out as asked" if d.get("rewrite") else "no words to look up"))
+    """An add-on's answer in place of going out (the before_off_platform slot: the Bank, issue #25), or its
+    question (the window: {kind: ask, meant}), else None. Its reasons go into the request's why."""
+    return ADDONS.run("before_off_platform", d.get("said") or "", {
+        "assistant": d.get("assistant"), "key": key, "rewrite": bool(d.get("rewrite")), "activity": ACTIVITY,
+        "keeps": BANK_KEEPS, "step": lambda text: step(d, "bank", text),
+        "at_home": lambda words: taken_at_home(body, words),
+        "clip": (d.get("hops") or {}).get("clip"), "device": (d.get("hops") or {}).get("device")}) or None
+
+
+def taken_at_home(body, words):
+    """The app or brain flea that would take these words at home in place of what was heard (decided afresh,
+    changing nothing), else None. An app takes them only with one of its own action words: words it would
+    take for its topic word alone ("I like the chore") make no sense of their own."""
+    msgs = list(body.get("messages") or [])
+    for i in range(len(msgs) - 1, -1, -1):
+        if msgs[i].get("role") == "user":
+            msgs = msgs[:i] + [dict(msgs[i], content=words)] + msgs[i + 1:]
+            break
+    d2 = decide(msgs, pending={}, turns=[])
+    if d2["path"] not in ("A", "B", "flea"):
         return None
-    try:
-        hit, why = ACTIVITY.bank_choose(d["assistant"], key)
-    except Exception as e:
-        log.info("  ! couldn't look in the answer bank: %s", e)
+    conn = connector_for(d2.get("topic"), d2.get("node")) if d2["path"] != "flea" else None
+    if conn and not conn.pick_action(words)[0]:
         return None
-    step(d, "bank", why)
+    return d2.get("topic") or d2.get("flea")
+
+
+def asks_first(d, hit, who, messages, started, streaming):
+    """An add-on's question before going out (the window's offer: "Did you mean ...? Shall I?", its own words),
+    answered as the core's did-you-mean (pending heard_as): yes does it at home and keeps the mishearing, no sends
+    the words out."""
+    line = (phrase("router", "window_offer_split", d["assistant"]).format(head=hit["head"], payload=hit["payload"])
+            if hit.get("payload") else phrase("router", "window_offer", d["assistant"]).format(meant=hit["meant"]))
+    ask_later(d["assistant"], {"kind": "heard_as", "said": d["said"], "meant": hit["meant"], "by": hit.get("by"),
+                               "clip": (d.get("hops") or {}).get("clip"), "device": (d.get("hops") or {}).get("device"),
+                               "keep": hit.get("keep", True)})
+    d.update(path="ask", kind=hit.get("by") or "heard_as")
+    log.info("  -> local, %s asks first: %s", hit.get("by") or "an add-on", line)
+    record_turn(d["assistant"], d, messages, "router", line)
+    log_activity(d, who, "router", line, started)
+    return local_reply(line, streaming)
+
+
+def slow_not_down(e):
+    """Did LiteLLM take the call but not answer in time (read, write or pool timeout), rather than refuse it?"""
+    return isinstance(e, (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout))
+
+
+# ---------- the trainer (#29): a person's requests walked through the house's routine, per person ----------
+# Switched per person (by voice or on the Trainer page), read on every request: no restart. When the voice ID is
+# sure a request is that person's and it wasn't formed fully, she announces trainer mode and walks it through:
+# a chore's name, date, time and who it's for; then the app's own add runs with all of it. Formed right: silent.
+
+def trainer_set():
+    """The Trainer add-on's settings, or None when it's off."""
+    fn = ADDONS.services.get("trainer.settings")
+    return fn() if fn else None
+
+
+def grid_person(text):
+    """The People grid person a name in the words belongs to ("mara's", "nora": their row's name), else None."""
+    low = " " + " ".join(clean(text).split()) + " "
+    best = None
+    for row in people.grid()["rows"]:
+        for n in people.row_names(row):
+            if n and re.search(r"\b" + re.escape(n) + r"(?:'s|s)?\b", low) and (best is None or len(n) > best[0]):
+                best = (len(n), row.get("wepwawet") or n)
+    return best[1] if best else None
+
+
+def trainer_command(said):
+    """(on | off | None, the person, "me" or None) for trainer mode switched by voice, else None: "Trainer mode",
+    "Enter training mode" (neither: she asks for whom, then says its state), "Turn on Mara's chore trainer",
+    "Training mode on for Mara", "Turn off my trainer mode". Its words (command_words: trainer or training mode,
+    chore trainer) must come within the first few words, so "my trainer at the gym" isn't one."""
+    t = trainer_set()
+    if not t:
+        return None
+    text = " ".join(clean(said).split())
+    words = text.split()
+    hit = None
+    for w in sorted((clean(x) for x in t.get("command_words") or []), key=len, reverse=True):
+        m = re.search(r"(?:^| )" + re.escape(w) + r"(?= |$)", text)
+        if m and len(text[:m.start()].split()) <= int(t.get("command_within", 4)) and (hit is None or m.start() < hit[0]):
+            hit = (m.start(), m.end())
     if not hit:
         return None
-    # words only (Oct 14): a device command is never kept, so never handed out
-    return hit if hit.get("kind") == "answer" and (hit.get("text") or "").strip() else None
+    before, after = text[:hit[0]].split(), text[hit[1]:].split()
+    turn = next((x for x, ws in (("on", t.get("on_words")), ("off", t.get("off_words")))
+                 for w in ws or [] if text.startswith(clean(w) + " ")), None)
+    if turn is None and after and after[0] in ("on", "off"):          # "Training mode on for Mara"
+        turn = after[0]
+    if turn is None and words[-1] in ("on", "off") and len(words) > 2:     # "Turn Mara's trainer mode on"
+        turn = words[-1]
+    target = "me" if re.search(r"\b(my|me|myself)\b", " ".join(before + after)) else grid_person(text)
+    return turn, target
+
+
+def trainer_name(text):
+    """Her words offered as the chore's name: the leading "ask him to", "I need" taken off, the first letter up."""
+    t = trainer_set() or {}
+    out = " ".join((text or "").strip().strip(" .,;:!?").split())
+    for lead in sorted((str(x) for x in t.get("name_leads") or []), key=len, reverse=True):
+        if out.lower().startswith(lead.lower() + " "):
+            out = out[len(lead) + 1:]
+            break
+    return out[:1].upper() + out[1:] if out else ""
+
+
+def condition_split(said):
+    """(the condition, the rest) when a request opens with one ("When Owen wakes up and asks for his chores, ask
+    him to go to the post office"), else None. A "when" that asks ("When is the trash due?") isn't one."""
+    t = trainer_set() or {}
+    low = " ".join(clean(said).split())
+    for opener in sorted((clean(x) for x in t.get("condition_openers") or []), key=len, reverse=True):
+        if low.startswith(opener + " "):
+            nxt = (low[len(opener) + 1:].split() or [""])[0]
+            if nxt in {clean(x) for x in t.get("asking_after") or []} or nxt.endswith("'s"):
+                return None
+            i = said.find(",")
+            return (said[:i].strip(), said[i + 1:].strip()) if i > 0 else (said.strip(), "")
+    return None
+
+
+def trainer_due(d, who):
+    """Does the trainer step in here? The voice ID is sure who spoke, trainer mode is on for them, and the request
+    wasn't formed fully: a chore said as a condition, a chores sentence with none of its actions (it stays home),
+    or a statement nothing at home claims (never a question). Sets d's trainer offer; True when it does."""
+    t = trainer_set()
+    person = (who or {}).get("person") if who_sure(who) else None
+    on = ADDONS.services.get("trainer.is_on")
+    if not (t and person and on and on(person)) or d.get("rewrite") or d.get("kind") in ("ask_yes", "echo"):
+        return False
+    topics = list(t.get("topics") or [])
+    cond = condition_split(d.get("said") or "")
+    if d["path"] in ("A", "B", "home") and d.get("topic") in topics and cond:
+        origin, topic, words = "condition", d["topic"], cond[1]
+    elif d["path"] == "home" and d.get("topic") in topics:
+        origin, topic, words = "home", d["topic"], d.get("said")
+    elif d["path"] in ("gemini", "ask") and topics and (d["path"] == "ask" or d.get("shape") in ("command", "need", "telling")):
+        origin, topic, words = "out", topics[0], d.get("said")
+    else:
+        return False
+    d["trainer_offer"] = {"kind": "trainer", "mode": "offer", "origin": origin, "topic": topic, "said": d.get("said"),
+                          "person": person, "suggest": trainer_name(words)}
+    d["why"].append(f"trainer: on for {person}, and the request wasn't formed fully ({origin}): she offers to walk it through")
+    return True
+
+
+def trainer_thing(topic):
+    return str(topic or "chore")[:-1] if str(topic or "").endswith("s") else str(topic or "chore")
+
+
+def trainer_answer(d, p, said, messages, fresh, memory):
+    """An answer to the trainer's question (pending kind trainer, mode: who, toggle, offer, name, date, time, assign).
+    The next question as d's trainer_q and trainer_next (path trainer, kind ask), a switch to make (kind set or
+    switch), or, after who it's for, the whole request decided afresh: the app's own add, with all of it."""
+    a = d["assistant"]
+    words = " ".join(without_filler(said))
+    lang = VOCAB.get("language", {})
+    if any(re.search(r"\b" + re.escape(clean(w)) + r"\b", words) for w in lang.get("cancel_phrases") or []):
+        d.update(path="C", kind="no", pending=p)
+        step(d, "question", "the trainer's routine: never mind, it stops")
+        return d
+    yes = confirm_kind(said)
+
+    def ask(section, nxt, **values):
+        d.update(path="trainer", kind="ask", trainer_q=phrase("router", section, a).format(**values), trainer_next=nxt)
+        step(d, "question", f"the trainer's routine: {p.get('mode')} answered, next: {nxt.get('mode')}")
+        return d
+    mode = p.get("mode")
+    if mode == "who":
+        target = "me" if re.search(r"\b(me|myself)\b", words) else grid_person(said)
+        if not target:
+            return ask("trainer_who_again", dict(p))
+        d.update(path="trainer", kind="switch", turn=p.get("turn"), target=target)
+        step(d, "question", f"trainer mode for {target}")
+        return d
+    if mode == "toggle":
+        if yes == "yes":
+            d.update(path="trainer", kind="set", target=p.get("target"), on=p.get("to"))
+            step(d, "question", f"yes: trainer mode {'on' if p.get('to') else 'off'} for {p.get('target')}")
+            return d
+        d.update(path="C", kind="no", pending=p)
+        step(d, "question", "no to trainer mode's question: left as it is")
+        return d
+    if mode == "offer":
+        if yes == "yes":
+            nxt = dict(p, mode="name")
+            return ask("trainer_name", nxt, name=p["suggest"]) if p.get("suggest") else ask("trainer_name_plain", nxt)
+        if p.get("origin") == "out":      # not a chore after all: the words go out as heard
+            d.update(path="gemini", kind="ask_yes", rewrite=p.get("said"), topic=None)
+            step(d, "question", "no to the trainer's offer: the words go out as heard")
+            return d
+        d.update(path="C", kind="no", pending=p)
+        step(d, "question", "no to the trainer's offer: left as it is")
+        return d
+    if mode == "name":
+        name = p.get("suggest") if yes == "yes" and p.get("suggest") else " ".join(name_words(said)).strip()
+        if not name or yes == "no":
+            return ask("trainer_name_plain", dict(p, suggest=""))
+        return ask("trainer_date", dict(p, mode="date", name=name))
+    if mode in ("date", "time"):
+        W = fields_mod.Words(said)
+        got = fields_mod.parse_date(W, __import__("datetime").date.today()) if mode == "date" else fields_mod.parse_time(W)
+        none = answer_kind(said) == "no" or bool(re.search(r"\b(no|none|any|whenever|anytime)\b", words))
+        if not got and not none and not p.get("again"):
+            return ask("trainer_again", dict(p, again=True), question=phrase("router", "trainer_" + mode, a))
+        nxt = dict(p, again=False, **{"due_" + mode: got or None})     # due_date, due_time ("time" is when she asked)
+        nxt["mode"] = "time" if mode == "date" else "assign"
+        return ask("trainer_time" if mode == "date" else "trainer_assign", nxt)
+    if mode == "assign":
+        who_for = p.get("person") if re.search(r"\b(me|myself)\b", words) else grid_person(said)
+        if yes == "yes" and not who_for:
+            return ask("trainer_assign_who", dict(p))
+        text = f"add a {trainer_thing(p.get('topic'))} {p.get('name')}"
+        if p.get("due_date"):
+            day = __import__("datetime").date.fromisoformat(p["due_date"]["date"])
+            text += f" on {day.strftime('%B')} {day.day}"
+        if p.get("due_time"):
+            text += f" at {p['due_time']['say']}"
+        if who_for:
+            text += f" for {who_for}"
+        msgs = [m for m in messages if m.get("role") == "system"][:1] + [{"role": "user", "content": text}]
+        d2 = decide(msgs, fresh, {}, memory, [])
+        d2.update(spoken=said, trainer_done=True)
+        d2["why"].insert(0, f"the trainer's routine finished: \"{text}\"")
+        return d2
+    p = None
+    d["pending_dropped"] = True
+    step(d, "question", "the trainer's question is left unanswered: handled as a new request")
+    return d
+
+
+def trainer_may(speaker, target):
+    """May the speaker switch trainer mode for the target? Their own, always; anyone's, a changer (the brain
+    fleas' changers, and the Trainer's own)."""
+    t = trainer_set() or {}
+    if str(speaker or "").lower() == str(target or "").lower():
+        return True
+    own = {str(x).lower() for x in t.get("changers") or []}
+    return bool(people.names(speaker) & own) or bool(FLEAS and FLEAS.may_change(speaker))
+
+
+def trainer_turn(d, who, messages, started, streaming):
+    """Say the trainer's line: its routine's next question, its offer, or trainer mode switched by voice (who may is
+    checked here, with the voice ID sure of the speaker: not of the person being trained)."""
+    a, nxt = d["assistant"], None
+    on = ADDONS.services.get("trainer.is_on")
+    if d.get("trainer_offer"):
+        p = d["trainer_offer"]
+        line, nxt = phrase("router", "trainer_offer", a).format(thing=trainer_thing(p["topic"])), p
+    elif d["kind"] == "ask":
+        line, nxt = d["trainer_q"], d["trainer_next"]
+    elif not (on and who_sure(who)):
+        line = phrase("router", "trainer_not_sure", a)
+    else:
+        speaker = who.get("person") or who.get("speaker")
+        target = speaker if d.get("target") == "me" else d.get("target")
+        if not target:
+            if trainer_may(speaker, "\0"):          # a changer: anyone, so she asks whom
+                line, nxt = phrase("router", "trainer_who", a), {"kind": "trainer", "mode": "who", "turn": d.get("turn")}
+            else:
+                target = speaker
+        if target and not trainer_may(speaker, target):
+            line = phrase("router", "trainer_not_allowed", a).format(person=target)
+        elif target and d["kind"] == "set":
+            ADDONS.services["trainer.set_on"](target, bool(d.get("on")), speaker)
+            topics = ", ".join((trainer_set() or {}).get("topics") or [])
+            line = phrase("router", "trainer_now_on" if d.get("on") else "trainer_now_off", a).format(person=target, topics=topics)
+            log.info("  trainer mode %s for %s, by %s", "on" if d.get("on") else "off", target, speaker)
+        elif target:
+            state = on(target)
+            base = {"kind": "trainer", "mode": "toggle", "target": target}
+            if d.get("turn") is None:
+                line = phrase("router", "trainer_state", a).format(person=target, state="on" if state else "off",
+                                                                   other="off" if state else "on")
+                nxt = dict(base, to=not state)
+            elif (d["turn"] == "on") == state:
+                line = phrase("router", "trainer_already", a).format(person=target, state=d["turn"])
+            else:
+                line = phrase("router", "trainer_confirm", a).format(person=target, turn=d["turn"])
+                nxt = dict(base, to=d["turn"] == "on")
+    if nxt:
+        ask_later(a, nxt)
+    else:
+        clear_pending(a, "trainer")
+    log.info("  -> local, trainer: %s", line)
+    record_turn(a, d, messages, "router", line)
+    log_activity(d, who, "router", line, started)
+    return local_reply(line, streaming)
 
 
 def tool_calls_of(message):
@@ -2248,7 +3035,9 @@ def answered_by_home_assistant(assistant, h):
 
 wyoming.ON_UNCLAIMED = answered_by_home_assistant
 # the mishearings marked Use it, fixed in Oread's words on their way to Home Assistant too
-wyoming.SWAP = mishearings.swap if (OREAD.get("wyoming") or {}).get("fix_mishearings", True) else None
+misslog.MISHEARD = sys.modules.get("mishearings") if "mishearings" in ADDONS.on else None     # "What did you hear?"
+connector.LOOSE = sys.modules.get("loose") if "loose_language" in ADDONS.on else None        # an add said loosely
+wyoming.SWAP = ADDONS.services.get("mishearings.swap") if (OREAD.get("wyoming") or {}).get("fix_mishearings", True) else None
 
 
 @app.on_event("startup")
@@ -2259,24 +3048,13 @@ async def start_sampling():
 
 
 @app.on_event("startup")
-async def approved_lines_moved():
-    """Once: flair lines approved from her books before the Approved step was dropped (Oct 14)
-    move into her lines bank (what she says doesn't change)."""
-    from veil import flairlines
-    for who in FLAIR.names():
-        try:
-            n = flairlines.approved_into_bank(who)
-            if n:
-                log.info("flair: %d approved lines moved into %s's lines bank", n, who)
-        except Exception as e:
-            log.info("  ! moving %s's approved lines: %s", who, e)
-
-
-@app.on_event("startup")
 async def mishearings_moved():
     """Once: mishearings recorded in the miss log before they had a file of their own move there."""
+    move = ADDONS.services.get("mishearings.from_misses")
+    if not move:
+        return
     try:
-        n = mishearings.from_misses(misslog.MISSES_FILE)
+        n = move(misslog.MISSES_FILE)
         if n:
             old = [m for m in misslog.load() if m.get("kind") != "misheard"]
             misslog.save(old)
@@ -2314,13 +3092,69 @@ async def start_refreshing():
     async def loop(name, conn, every):
         while True:
             try:
-                await conn.refresh()
+                await conn.refresh(anew=True)
             except Exception as e:
                 log.info("  ! couldn't refresh %s: %s", name, e)
             await asyncio.sleep(every)
     for name, conn in CONNECTORS.items():
-        svc = config.section(config.section(SETTINGS, "services"), name)
-        asyncio.create_task(loop(name, conn, max(5.0, float(svc.get("cache_refresh_seconds", 60) or 60))))
+        if conn.keeps_for() > 0:             # 0: no copy on a clock, read live before each request (refresh_live)
+            asyncio.create_task(loop(name, conn, max(5.0, conn.keeps_for())))
+
+
+def live_apps():
+    """The apps that keep no copy on a clock (cache_refresh_seconds: 0): read live when they're involved."""
+    return {n for n, c in CONNECTORS.items() if getattr(c, "keeps_for", lambda: None)() == 0}
+
+
+def involves(d):
+    """The apps a decision may call: its topic's, and the one her waiting question came from."""
+    p = d.get("pending") or {}
+    return {SCORER.topics.get(d.get("topic") or "", {}).get("service"), p.get("node"), p.get("service"),
+            SCORER.topics.get(p.get("topic") or "", {}).get("service")} - {None}
+
+
+async def decide_live(messages, **kw):
+    """decide() on the copies on hand; an app that keeps no copy is read live only when the decision involves
+    it, and the request decided again on what it has now (Oct 21: reading the chores list before every
+    request cost 0.2 s, the weather and the calendar too). The others are read after, in the background, so
+    the next decision has them fresh: no one waits for a list their request doesn't use."""
+    d = decide(messages, **kw)
+    need = involves(d) & live_apps()
+    if need:
+        await refresh_live(need)
+        d = decide(messages, **kw)
+    rest = live_apps() - need
+    if rest:
+        asyncio.create_task(refresh_live(rest))
+    claims = await who_answers(d)          # #28: nothing claimed it; the apps are asked before it goes out
+    if len(claims) == 1:
+        topic, action, reply = claims[0]
+        d.update(path="A", topic=topic, action=action, score=1.0, context=[])
+        if reply.get("status") != "need":       # a blank it names is filled or asked as any claimer's (the chain)
+            d["claimed_answer"] = reply
+        step(d, "apps", f"{app_title(topic)} found it ({action or 'its own'}): answered at home")
+    elif claims:
+        d.update(path="which", kind="which_app", apps=[{"topic": t, "title": app_title(t), "spoken": app_spoken(t),
+                                                         "action": a} for t, a, _r in claims])
+        step(d, "apps", "more than one app found it (" + ", ".join(app_title(t) for t, _a, _r in claims) + "): the router asks which")
+    elif ASK_APPS and d["path"] in ("gemini", "ask") and not d.get("rewrite") and not d.get("guarded") \
+            and ADDONS.services.get("brain_fleas.closest") \
+            and len((d.get("said") or "").split()) <= ASK_APPS_MAX_WORDS:
+        near = ADDONS.services["brain_fleas.closest"](d["said"], FUNCTION_WORDS)   # a flea that fits by enough words: offered
+        if near:
+            d.update(path="offer", offer={"kind": "ask", "meant": near[1], "by": "brain_fleas", "keep": False})
+            step(d, "apps", f"brain flea {near[0]} fits by {near[2]} words (\"{near[1]}\"): offered, never answered on a guess")
+    return d
+
+
+async def refresh_live(only=None):
+    """Every app that keeps no copy (cache_refresh_seconds: 0) read live (only: these)."""
+    for name, conn in CONNECTORS.items():
+        if getattr(conn, "keeps_for", lambda: None)() == 0 and (only is None or name in only):
+            try:
+                await conn.refresh(anew=True)        # the start of a request: read live, once
+            except Exception as e:
+                log.info("  ! couldn't read %s live: %s", name, e)
 
 
 @app.get("/health")
@@ -2356,6 +3190,82 @@ async def litellm_models():
         data = _LITELLM_MODELS["data"]
     _LITELLM_MODELS.update(at=time.monotonic(), data=data)
     return data
+
+
+def reading_on():
+    """Is an add-on on that reads inside the words (positions: replace: Roman numerals)? Only those dress an
+    Off-Platform answer: what she reads must be read right; her flair and a name are for her own answers."""
+    return any("replace" in (m.get("positions") or []) for _n, _f, m in ADDONS.slots.get("dress") or [])
+
+
+def read_right(text, assistant):
+    """An Off-Platform answer's words through the reading add-ons (plain: never flair or a name), its spacing kept."""
+    m = re.match(r"(\s*)(.*?)(\s*)$", text or "", re.S)
+    core = m.group(2)
+    if not core:
+        return text
+    return m.group(1) + util.unslot(ADDONS.run("dress", core, {"assistant": assistant, "topic": None, "path": "gemini",
+                                                             "plain": True})) + m.group(3)
+
+
+class SpokenStream:
+    """A streamed Off-Platform answer read right by the reading add-ons (Roman numerals: "Henry VIII" is
+    "Henry the Eighth", issue #25), a sentence at a time: its words wait only until their sentence ends, so a
+    numeral split across two pieces is still read right; everything else (tool calls, its end) passes as it
+    came. Text-to-speech speaks a sentence at a time anyway."""
+    END = re.compile(r"[.!?][)\"']*\s+|\n")
+
+    def __init__(self, assistant):
+        self.assistant, self.raw, self.text, self.template = assistant, b"", "", None
+
+    def feed(self, piece):
+        """The lines to send for this piece of the stream (a piece may end inside a line: it waits)."""
+        self.raw += piece if isinstance(piece, bytes) else piece.encode()
+        out = []
+        while b"\n" in self.raw:
+            line, self.raw = self.raw.split(b"\n", 1)
+            out += self._line(line)
+        return out
+
+    def _line(self, line):
+        s = line.decode("utf-8", "replace")
+        if not s.startswith("data: ") or s[6:].strip() == "":
+            return [line + b"\n"]
+        if s[6:].strip() == "[DONE]":
+            return self._flush() + [line + b"\n"]
+        try:
+            ev = json.loads(s[6:])
+            ch = (ev.get("choices") or [{}])[0]
+            delta = ch.get("delta") or {}
+        except Exception:
+            return [line + b"\n"]
+        content = delta.get("content")
+        if not isinstance(content, str):
+            return (self._flush() if ch.get("finish_reason") or delta.get("tool_calls") else []) + [line + b"\n"]
+        self.template = self.template or ev
+        self.text += content
+        ends = [m.end() for m in self.END.finditer(self.text)]
+        cut = len(self.text) if ch.get("finish_reason") else (ends[-1] if ends else 0)
+        ready, self.text = self.text[:cut], self.text[cut:]
+        delta["content"] = read_right(ready, self.assistant) if ready else ""
+        return [("data: " + json.dumps(ev) + "\n").encode()]
+
+    def _flush(self):
+        if not self.text or self.template is None:
+            return []
+        ev = copy.deepcopy(self.template)
+        ev["choices"][0]["delta"] = {"content": read_right(self.text, self.assistant)}
+        ev["choices"][0]["finish_reason"] = None
+        self.text = ""
+        return [("data: " + json.dumps(ev) + "\n\n").encode()]
+
+    def close(self):
+        """What's left at the stream's end."""
+        rest = self._flush()
+        if self.raw:
+            rest.append(self.raw)
+            self.raw = b""
+        return rest
 
 
 async def pass_through(body):
@@ -2412,10 +3322,30 @@ def learn_mishearings(request: Request):
         return JSONResponse({"detail": "No door covers /learn/mishearings yet: add the oread door "
                                        "(Settings, New in the starting copies) and give Oread its token"},
                             status_code=403)
-    out = {"router": version.VERSION, "mishearings": mishearings.load()}
+    load = ADDONS.services.get("mishearings.load")
+    if not load:
+        return JSONResponse({"detail": "Mishearings is off (the Add-ons page)"}, status_code=404)
+    out = {"router": version.VERSION, "mishearings": load()}
     if phases.on("dump23") and ACTIVITY:     # her words brought back, each with its clip: Oread learns her voice from them
         out["echoes"] = [dict(e, by="voice" if BY_VOICE in (e.pop("why") or "") else "words") for e in ACTIVITY.echoes()]
     return out
+
+
+@app.get("/learn/windows", summary="The windows Did you mean weighed, with their answers, for a speech-to-text program to pull (read-only)")
+def learn_windows(request: Request, since: float = 0, limit: int = 1000):
+    """Each window the Did you mean add-on weighed since a time (seconds since 1970), oldest first: what was
+    heard and meant, the never word, the odds, whether she asked, and the answer (yes, no, or new request) with
+    the words as heard and Oread's clips of the request and the answer (clip, answer_clip, device). A yes is a
+    mishearing the person confirmed, a no words heard right: labeled audio for Oread to rerun its models on.
+    Answered only through a door (the oread door in the starting copy), so it's never open by accident."""
+    name, _ = doors.door_for(_SEC, request.url.path)
+    if not name:
+        return JSONResponse({"detail": "No door covers /learn/windows yet: add it to the oread door's paths "
+                                       "(Security, API keys, Grantees)"}, status_code=403)
+    rows = ADDONS.services.get("window.rows")
+    if not rows:
+        return JSONResponse({"detail": "Did you mean is off (the Add-ons page)"}, status_code=404)
+    return {"router": version.VERSION, "windows": rows(since, limit)}
 
 
 @app.get("/people/{app_name}", summary="The people grid's column for one app (read-only)")
@@ -2467,19 +3397,27 @@ def assistant_for_ha(device_id, device_name, satellite_id):
     for key in (device_id, satellite_id, device_name):
         if key and str(key).lower() in sat:
             return sat[str(key).lower()]
-    known = set(FLAIR.names()) | set((OREAD.get("devices") or {}).keys()) | set(LAST_WHO)
+    known = set(PERSONAS) | set((OREAD.get("devices") or {}).keys()) | set(LAST_WHO)
     hay = f" {device_name or ''} {satellite_id or ''} ".lower().replace("_", " ").replace(".", " ")
     for name in sorted(known, key=len, reverse=True):
         if f" {name} " in hay:
             return name
+    seen = device_name or satellite_id or device_id
+    if seen and seen not in UNMAPPED:
+        UNMAPPED.add(seen)          # said once, and listed on /firewall/summary, until it's mapped (#13)
+        log.info("  ! the firewall can't tell which assistant %s is: map it in settings.yaml (home_assistant: satellites:)", seen)
     return None
+
+
+UNMAPPED = set()          # satellites Veil Guard Service asked about that no assistant could be found for
 
 
 @app.get("/firewall/summary")
 def firewall_summary(request: Request):
     """Veil Guard Service asks this now and then: with the firewall off (or no rules), it doesn't ask
     about each command, so Home Assistant isn't slowed down at all."""
-    return {"ask": FIREWALL.has_command_rules(), "enabled": FIREWALL.enabled, "rules": len(FIREWALL.rules)}
+    return {"ask": fw().has_command_rules(), "enabled": fw().enabled, "rules": len(fw().rules),
+            "unmapped": sorted(UNMAPPED)}
 
 
 @app.post("/firewall/check")
@@ -2490,7 +3428,7 @@ async def firewall_check(request: Request):
     started, cpu0 = time.monotonic(), resources.cpu_seconds()
     b = await request.json()
     intent_type = str(b.get("intent") or "")
-    if not FIREWALL.has_command_rules():
+    if not fw().has_command_rules():
         return {"allow": True, "why": "the firewall is off or has no rules"}
     assistant = assistant_for_ha(b.get("device_id"), b.get("device_name"), b.get("satellite_id")) or "unknown device"
     text = (b.get("text") or "").strip()
@@ -2502,7 +3440,11 @@ async def firewall_check(request: Request):
     else:
         who = {}
     targets = [str(t) for t in (b.get("targets") or [])]
-    hit = FIREWALL.check_command(who, assistant, intent_type, targets, b.get("domains") or [], text)
+    hit = fw().check_command(who, assistant, intent_type, targets, b.get("domains") or [], text)
+    if not hit and str(b.get("platform") or "conversation") != "conversation" and phases.on("dump16"):
+        # asked for by a language model through Home Assistant's tools (not Home Assistant's own agent):
+        # what no model may work, judged by what the command does (#11: a lock named "Front Door")
+        hit = fw().check_model_command(intent_type, targets, b.get("domains") or [])
     d = {"assistant": assistant, "said": text or f"({intent_type} {', '.join(targets)})", "path": "ha",
          "kind": intent_type, "why": [f"Home Assistant command {intent_type} on {', '.join(targets) or 'nothing named'}"
                                       f" from {b.get('device_name') or b.get('device_id') or 'no device'}"
@@ -2535,15 +3477,16 @@ async def explain(request: Request, live: bool = False):
     would say: {speaker, person, label, score}) and firewall (a firewall.yaml to test)."""
     body = await request.json()
     stand_in = body.get("memory") or {}      # tests never see the real memory or questions
-    d = decide(body.get("messages") or [], fresh=bool(body.get("fresh_context")),
-               pending=body.get("pending") or {}, memory=stand_in,
-               turns=body.get("turns") or [])
+    d = await decide_live(body.get("messages") or [], fresh=bool(body.get("fresh_context")),
+                          pending=body.get("pending") or {}, memory=stand_in,
+                          turns=body.get("turns") or [])
     who = body.get("speaker") or {}
     if who and not who.get("person"):
         who = dict(who, person=speakers.person_for(who.get("speaker")))
-    fw = firewall.Firewall(body["firewall"]) if isinstance(body.get("firewall"), dict) else FIREWALL
+    make = ADDONS.services.get("firewall.make")
+    fw_ = make(body["firewall"]) if isinstance(body.get("firewall"), dict) and make else fw()
     if d["path"] not in ("tool", "0"):
-        blocked = fw.check(who, d["assistant"], d["said"],
+        blocked = fw_.check(who, d["assistant"], d["said"],
                            topic=d.get("topic") if d["path"] in ("A", "B", "C") else None,
                            action=d.get("action"), going_to_gemini=d["path"] == "gemini")
         if blocked:
@@ -2553,10 +3496,9 @@ async def explain(request: Request, live: bool = False):
                             f"(rule: {blocked['rule'].get('name') or 'unnamed'})")
             return d
     if who:
-        k = NAMES.knobs(d["assistant"])
-        d["name_sure"] = NAMES.sure(who, k)
-        d["name_on"] = bool(k.get("enabled"))
-        d["say_name_as"] = " / ".join(NAMES.aliases(who, d["assistant"])) or None if d["name_sure"] else None   # Name Sparkle's names
+        d["name_sure"] = who_sure(who)
+        d["name_on"] = "name_sparkle" in ADDONS.on
+        d["say_name_as"] = " / ".join(addon_aliases(who, d["assistant"])) or None if d["name_sure"] else None   # Name Sparkle's names
     if d["path"] == "learn" and d["kind"] in ("record", "note"):
         d["speech"] = learn_act(d["kind"], d.get("note"), body.get("asked") or None,
                                 d["assistant"], write=False)
@@ -2564,6 +3506,8 @@ async def explain(request: Request, live: bool = False):
     if d["path"] == "ask":
         d["speech"] = phrase("router", "ask_around", d["assistant"]).format(heard=d["heard"])
         d["asks"] = True
+    if d["path"] == "object":
+        d["speech"], d["asks"] = object_question(d["assistant"]), True
     if d["path"] == "which":
         d["speech"] = phrase("router", "which_app", d["assistant"]).format(apps=or_list([x["title"] for x in d["apps"]]))
         d["asks"] = True
@@ -2606,7 +3550,7 @@ async def explain(request: Request, live: bool = False):
         else:
             d["status"] = "not called: this action would change something"
     if d.get("speech"):
-        d["speech"] = flairs.strip(d["speech"])     # tests see the plain line, never flair or a name
+        d["speech"] = util.unslot(d["speech"])     # tests see the plain line, never flair or a name
     return d
 
 
@@ -2694,7 +3638,12 @@ async def answer_chat(body, started, cpu0, flight):
     streaming = bool(body.get("stream"))
     heard_from = body.pop("_veil_heard", None)     # the request as the Off-Platform model heard it (dump13)
     messages = body.get("messages") or []
-    d = decide(messages)
+    d = await decide_live(messages)
+    if d.get("offered"):          # her question left unanswered: the thing she offered is "that" now
+        o = d["offered"]
+        remember(d["assistant"], o["topic"], d["said"], {"id": o["id"], "name": o.get("name"), "action": "offered"})
+    if d.get("finish_offer"):
+        d["finish_line"] = await finish_offer(d["finish_offer"])
     if heard_from:
         d["why"].insert(0, f"the Off-Platform model heard \"{heard_from}\" as \"{d['said']}\", answered at home")
     d["est_tokens"] = est_tokens(body)
@@ -2710,6 +3659,10 @@ async def answer_chat(body, started, cpu0, flight):
         # a tool call's second trip ends the run: its answer is the one Home Assistant speaks, so
         # the way back is timed on it, by the words of the trip it came from (its hops stay unset)
         d["hops"] = {"ha_text": LAST_HA_TEXT[d["assistant"]]}
+    if d.get("window_answer"):        # the answer to an add-on's did-you-mean, kept by the add-on that asked, with its clip
+        answered = ADDONS.services.get(f"{d['window_answer']['by']}.answered")
+        if answered:
+            answered(d["assistant"], d["window_answer"]["answer"], d["window_answer"]["heard"], (d.get("hops") or {}).get("clip"))
     log.info("heard (%s): %s", d["assistant"], d.get("spoken") or d["said"])
     if CAPTURE_KEEP > 0:
         capture(body)
@@ -2749,7 +3702,7 @@ async def answer_chat(body, started, cpu0, flight):
         body.pop("tool_choice", None)
         log.info("  tool round %d of %d: its tools taken away, words only", d["tool_rounds"], TOOL_ROUNDS)
     if d.get("heard_as_yes"):          # yes to "did you mean ...?": what it heard is kept as a mishearing (Misses)
-        keep_heard(d["heard_from"], d["heard_as_yes"])
+        keep_heard(d["heard_from"], d["heard_as_yes"], d.get("heard_clip"), d.get("heard_device"))
     if d.get("swaps") and d["path"] not in ("tool",):
         # a mishearing marked Use it: the cloud model gets what was meant, too
         for m in reversed(body.get("messages") or []):
@@ -2760,10 +3713,16 @@ async def answer_chat(body, started, cpu0, flight):
 
     # the firewall: checked before anything is done
     blocked = None
-    if FIREWALL.enabled and d["path"] not in ("tool", "0"):
-        blocked = FIREWALL.check(who, d["assistant"], d["said"],
-                                 topic=d.get("topic") if d["path"] in ("A", "B", "C") else None,
-                                 action=d.get("action"), going_to_gemini=d["path"] == "gemini")
+    if d["path"] not in ("tool", "0"):
+        # an answer to her question acts too (#13): "anything else?" adds to the thing just added, a yes
+        # does what she asked; a brain flea is the house's own topic ("fleas", "fleas.add_flea")
+        p_ = d.get("pending") or {}
+        action = d.get("action") or p_.get("action") or ("add" if p_.get("kind") in ("series", "add_name", "offer") else None)
+        topic = d.get("topic") if d["path"] in ("A", "B", "C") else "fleas" if d["path"] == "flea" else None
+        # the check slot (issue #25): the Firewall add-on, always last on the pile; None when nothing stops it
+        blocked = ADDONS.run("check", d["said"], {"who": who, "assistant": d["assistant"], "topic": topic, "path": d["path"],
+                                                   "action": d.get("flea") if d["path"] == "flea" else action,
+                                                   "going_to_gemini": d["path"] == "gemini"})
     if blocked:
         reply = block_line(blocked, d["assistant"])
         d["why"].append(f"firewall: {who_label(who)} {blocked['why']}")
@@ -2775,54 +3734,56 @@ async def answer_chat(body, started, cpu0, flight):
         log_activity(d, who, "router", reply, started, blocked=blocked)
         return local_reply(reply, streaming)
 
+    # the trainer (#29): switched by voice, its routine's next question, or stepping in for a person it trains
+    if d["path"] == "trainer" or trainer_due(d, who):
+        return trainer_turn(d, who, messages, started, streaming)
+
     # her question stays open only for path C answers (and noise, a learn question, or her own words
     # coming back, echo_keeps_question, keep it)
     kept = ("false_wake", "ask_yes") + (("echo",) if SETTINGS.get("echo_keeps_question", True) else ())
     if d["path"] not in ("C", "tool", "learn") and d.get("kind") not in kept:
         clear_pending(d["assistant"], "new request")
 
+    def addon_ctx(plain=False):
+        """What a slot's add-on is told of this request (issue #25): plain is her own question or a learn answer,
+        which only a reading add-on (Roman numerals) dresses, never flair or a name."""
+        return {"assistant": d["assistant"], "topic": d.get("topic"), "path": d["path"], "plain": plain,
+                "speaker": (who or {}).get("speaker"), "who": dict(who or {})}
+
     def plain_reply(text, engine):
         """A local reply without flair or a name (her questions, learn answers): logged, sent."""
-        log_activity(d, who, engine, flairs.strip(text), started)
+        text = util.unslot(ADDONS.run("dress", text, addon_ctx(plain=True)))
+        log_activity(d, who, engine, util.unslot(text), started)
         return local_reply(text, streaming)
 
     def done(text, engine):
         """Every local reply is remembered in the turn record (not learn questions).
         Topic and question answers (paths A, B, C) may get the person's name and her flair;
         path 0 stays plain."""
-        if d["path"] in ("A", "B", "C"):
-            # name + flair + the answer (Oct 14): flair first, then the name in front of it, each by
-            # its own share; a phrase with a hand-placed [[name]] keeps it where it was put
-            if speakers.NAME_SLOT.search(text):
-                text, nwhy = NAMES.dress(d["assistant"], text, who, d["path"])
-                text, why = FLAIR.dress(d["assistant"], text, d.get("topic"))
-            else:
-                text, why = FLAIR.dress(d["assistant"], text, d.get("topic"))
-                text, nwhy = NAMES.dress(d["assistant"], text, who, d["path"])
-            if who:
-                log.info("  %s", nwhy)
-            log.info("  %s", why)
-        elif d["path"] == "flea":
-            # a flea already says who it's about ({speaker}): her flair only, no name put in front
-            text, why = FLAIR.dress(d["assistant"], text, None)
-            log.info("  %s", why)
+        if d.get("finish_line"):           # the add she was asking about, finished first
+            text = d.pop("finish_line") + " " + text
+        # the add-ons' dress slot (issue #25): her flair, the person's name, Roman numerals... each
+        # add-on decides by the path whether it dresses this answer; a [[slot]] left is never spoken
+        text = util.unslot(ADDONS.run("dress", text, addon_ctx()))
         record_turn(d["assistant"], d, messages, engine, text)
-        log_activity(d, who, engine, flairs.strip(text), started)
+        log_activity(d, who, engine, util.unslot(text), started)
         if phases.on("dump16") and engine in OUTSIDE_APPS:
-            OUTSIDE_SAID.append(clean(flairs.strip(text)))
+            OUTSIDE_SAID.append(clean(util.unslot(text)))
         return local_reply(text, streaming)
 
     if d["path"] == "ask" and phases.on("dump19"):
         # where she'd ask before going Off-Platform: an added saying the bank answers needs no asking (dump19)
         d2 = dict(d, path="gemini")
         k = bank_key(d2)
-        hit = from_bank(d2, body, who, k[0]) if k else None
+        hit = from_bank(d2, body, who, k[0] if k else None)
+        if hit and hit.get("kind") == "ask":
+            return asks_first(d, hit, who, messages, started, streaming)
         if hit and hit.get("kind") == "answer":
             ACTIVITY.bank_used(hit["bank_id"])
             d.update(path="bank", kind="answer")
             log.info("  -> local, from the bank instead of asking around: %s", hit["text"])
             record_turn(d["assistant"], d, messages, "bank", hit["text"])
-            log_activity(d, who, "bank", flairs.strip(hit["text"]), started, bank_id=hit.get("bank_id"))
+            log_activity(d, who, "bank", util.unslot(hit["text"]), started, bank_id=hit.get("bank_id"))
             return local_reply(hit["text"], streaming)
     if d["path"] == "ask":
         # with no way Off-Platform there's nobody to ask: she says what she heard, and no question
@@ -2834,6 +3795,16 @@ async def answer_chat(body, started, cpu0, flight):
         save_asked(d["assistant"], "heard", (_load_turns().get(d["assistant"]) or [None])[-1])
         log.info("  -> local, ask around: %s", reply)
         return plain_reply(reply, "router")
+
+    if d["path"] == "object":
+        reply = object_question(d["assistant"])
+        ask_later(d["assistant"], {"kind": "object", "said": d["said"], "head": d["object_left"][0], "tail": d["object_left"][1]})
+        record_turn(d["assistant"], d, messages, "router", reply)
+        log.info("  -> local, in reference to what: %s", reply)
+        return plain_reply(reply, "router")
+
+    if d["path"] == "offer":         # #28: a brain flea that fits by enough words, offered ("Did you mean ...?")
+        return asks_first(d, d["offer"], who, messages, started, streaming)
 
     if d["path"] == "which":
         reply = phrase("router", "which_app", d["assistant"]).format(apps=or_list([x.get("spoken") or x["title"] for x in d["apps"]]))
@@ -2950,13 +3921,14 @@ async def answer_chat(body, started, cpu0, flight):
         return done(line, "router")
 
     if d["path"] in ("A", "B"):
-        sure = who if who and NAMES.sure(who, NAMES.knobs(d["assistant"])) else {}
+        sure = who if who_sure(who) else {}
         t0 = time.monotonic()
         d["t_decide"] = round((t0 - started) * 1000, 1)
-        answer = await call_service(d["topic"], d["said"], d["context"],
+        answer = d.pop("claimed_answer", None) or await call_service(d["topic"], d["said"], d["context"],
                                     action=d["action"], memory=memory_for(d["assistant"], sure.get("person")),
                                     speaker=sure.get("person"), chosen=d.get("chosen"), resume=d.get("resume"),
-                                    speaker_info=speaker_info(who, d["assistant"]), node=d.get("node"))
+                                    speaker_info=speaker_info(who, d["assistant"]), node=d.get("node"),
+                                    voice=bool(who) or (d.get("hops") or {}).get("t_stt") is not None)   # a device heard it
         d["t_engine"] = round((time.monotonic() - t0) * 1000, 1)
         line = speakable(d["topic"], answer, d["path"])
         if line:
@@ -2984,8 +3956,8 @@ async def answer_chat(body, started, cpu0, flight):
             return done(reply, "router")
         d["path"] = "gemini"          # the service couldn't answer: it goes out after all
         d["why"].append(f"{d['topic']}'s service had no answer -> Off-Platform")
-        blocked = FIREWALL.check(who, d["assistant"], d["said"], going_to_gemini=True) \
-            if FIREWALL.enabled else None
+        blocked = ADDONS.run("check", d["said"], {"who": who, "assistant": d["assistant"], "topic": None, "path": "gemini",
+                                                   "action": None, "going_to_gemini": True})
         if blocked:
             reply = block_line(blocked, d["assistant"])
             log.info("  -> blocked by the firewall (%s): %s", blocked["why"], reply)
@@ -3009,6 +3981,8 @@ async def answer_chat(body, started, cpu0, flight):
         bank_id = bank_count(d)
         LAST_BANK[d["assistant"]] = bank_id
     hit = from_bank(d, body, who, d.get("bank_key")) if d["path"] == "gemini" else None
+    if hit and hit.get("kind") == "ask":
+        return asks_first(d, hit, who, messages, started, streaming)
     if hit:
         ACTIVITY.bank_used(hit["bank_id"])
         d["t_decide"] = round((time.monotonic() - started) * 1000, 1)
@@ -3016,12 +3990,13 @@ async def answer_chat(body, started, cpu0, flight):
             d["path"], d["kind"] = "bank", "answer"
             text = hit["text"]
             if hit.get("generic_from"):
-                # another personality's answer, marked generic: she adds her own flair to it
-                text, fwhy = FLAIR.dress(d["assistant"], text, d.get("topic"))
-                log.info("  generic answer (%s's): %s", hit["generic_from"], fwhy)
+                # another personality's answer, marked generic: her own add-ons dress it (her flair)
+                text = util.unslot(ADDONS.run("dress", text, {"assistant": d["assistant"], "topic": d.get("topic"), "path": "C",
+                                                              "plain": False, "speaker": None, "who": {}}))
+                log.info("  generic answer (%s's), dressed as hers", hit["generic_from"])
             log.info("  -> local, from the bank (Q %d%%): %s", round(hit["q"] * 100), text)
             record_turn(d["assistant"], d, messages, "bank", text)
-            log_activity(d, who, "bank", flairs.strip(text), started, bank_id=bank_id)
+            log_activity(d, who, "bank", util.unslot(text), started, bank_id=bank_id)
             return local_reply(text, streaming)
     if d["path"] != "tool" and ACTIVITY:
         ACTIVITY.bank_trip(bank_id)          # it goes Off-Platform: a trip (N counts only these)
@@ -3048,7 +4023,7 @@ async def answer_chat(body, started, cpu0, flight):
     d["cpu_sent"] = resources.cpu_seconds()          # the router's own work ends here; the wait isn't counted (dump17)
     rid = log_activity(d, who, "gemini", None, started, sent_to=FALLBACK_MODEL, bank_id=bank_id) \
         if d["path"] != "tool" else None
-    watch = FIREWALL.watches_tools(who, d["assistant"])
+    watch = fw().watches_tools(who, d["assistant"])
     # a request with one of an app's change words: Gemini's whole answer is held, so a change it claims
     # with no tool call to make it is said honestly instead (dump16)
     holds_all = phases.on("dump16") and d["path"] == "gemini" and changes_something(d.get("rewrite") or d["said"])
@@ -3081,8 +4056,8 @@ async def answer_chat(body, started, cpu0, flight):
         off_platform_never words, locks, doors and the alarm, dump16)?"""
         if not calls or not (watch or phases.on("dump16")):
             return None
-        hit = (FIREWALL.check_tools(who, d["assistant"], calls) if watch else None) \
-            or (FIREWALL.check_off_platform(calls) if phases.on("dump16") else None)
+        hit = (fw().check_tools(who, d["assistant"], calls) if watch else None) \
+            or (fw().check_off_platform(calls) if phases.on("dump16") else None)
         if hit:
             hit["line"] = block_line(hit, d["assistant"])
             log.info("  -> blocked by the firewall (%s, rule: %s)", hit["why"], hit["rule"].get("name") or "unnamed")
@@ -3095,9 +4070,13 @@ async def answer_chat(body, started, cpu0, flight):
         return hit
 
     def unreachable(e):
-        """LiteLLM couldn't be reached, or stopped answering: her honest line, never silence."""
-        line = phrase("router", "gemini_unreachable", d["assistant"])
-        log.info("  ! %s unreachable mid-request (%s): %s", FALLBACK_MODEL, type(e).__name__, line)
+        """LiteLLM couldn't be reached, or stopped answering: her honest line, never silence. Its answer not in by
+        the wait (llm timeout: Gemini slow, LiteLLM still on its fallbacks) is slow, said so; only a connection
+        that can't be made is "can't reach" (Oct 22: both were "can't reach", and looked like a path problem)."""
+        slow = slow_not_down(e)
+        line = phrase("router", "gemini_slow" if slow else "gemini_unreachable", d["assistant"])
+        log.info("  ! %s %s (%s): %s", FALLBACK_MODEL, f"no answer in {TIMEOUT:g} s" if slow else "unreachable mid-request",
+                 type(e).__name__, line)
         record_turn(d["assistant"], d, messages, "router", line)
         if rid and ACTIVITY:
             try:
@@ -3146,13 +4125,19 @@ async def answer_chat(body, started, cpu0, flight):
             finished(claimed, calls, r.status_code, r.headers)
             return local_reply(claimed, False)
         finished(text, calls, r.status_code, r.headers)
+        if text and reading_on():
+            msg["content"] = read_right(text, d["assistant"])      # Roman numerals read right (#25)
         return JSONResponse(data, status_code=r.status_code)
 
     async def relay():
         sent = [False]                             # did any of Gemini's words already go out?
+        reading = SpokenStream(d["assistant"]) if reading_on() else None     # Roman numerals read right (#25)
         try:
             async for piece in (relay_heard(sent) if asks_heard or phases.on("dump16") else relay_from_litellm(sent)):
-                yield piece
+                for out in (reading.feed(piece) if reading else [piece]):
+                    yield out
+            for out in (reading.close() if reading else []):
+                yield out
         except httpx.TransportError as e:          # can't connect, or it stopped answering
             line = unreachable(e)
             if not sent[0]:                        # nothing said yet: she says why instead
@@ -3179,16 +4164,13 @@ async def answer_chat(body, started, cpu0, flight):
                                 delta = json.loads(line[6:])["choices"][0].get("delta") or {}
                                 text.append(delta.get("content") or "")
                                 for tc in delta.get("tool_calls") or []:
-                                    c = calls.setdefault(tc.get("index", 0), {"name": "", "arguments": ""})
-                                    fn = tc.get("function") or {}
-                                    c["name"] = c["name"] or fn.get("name") or ""
-                                    c["arguments"] += fn.get("arguments") or ""
+                                    merge_tool_delta(calls, tc)
                             except Exception:
                                 pass
                 log.info("  -> %s (streamed), status %s, %.1fs%s",
                          FALLBACK_MODEL, r.status_code,
                          time.monotonic() - start, own_time_text(r.headers))
-                call_list = [calls[k] for k in sorted(calls)]
+                call_list = tool_list(calls)
                 hit = tool_block(call_list)
                 if hit:
                     line = hit["line"]
@@ -3226,10 +4208,7 @@ async def answer_chat(body, started, cpu0, flight):
                             delta = event["choices"][0].get("delta") or {}
                             content = delta.get("content")
                             for tc in delta.get("tool_calls") or []:
-                                c = calls.setdefault(tc.get("index", 0), {"name": "", "arguments": ""})
-                                fn = tc.get("function") or {}
-                                c["name"] = c["name"] or fn.get("name") or ""
-                                c["arguments"] += fn.get("arguments") or ""
+                                merge_tool_delta(calls, tc)
                             if seeking and content:
                                 seen += content
                                 first.append((len(hold), event))
@@ -3251,7 +4230,7 @@ async def answer_chat(body, started, cpu0, flight):
                             log.info("  the Off-Platform model wrote no HEARD line (it began \"%s\")", seen[:60].replace("\n", " "))
                         if state == "found":
                             home = await heard_at_home(d, got, rid, started, body, cpu0, flight, streaming=True,
-                                                       calls=[calls[k] for k in sorted(calls)])
+                                                       calls=tool_list(calls))
                             if home is not None:
                                 async for chunk in home.body_iterator:
                                     yield chunk if isinstance(chunk, bytes) else chunk.encode()
@@ -3266,7 +4245,7 @@ async def answer_chat(body, started, cpu0, flight):
                     state, got, rest = heard_split(seen, end=True)
                     if state == "found":
                         home = await heard_at_home(d, got, rid, started, body, cpu0, flight, streaming=True,
-                                                   calls=[calls[k] for k in sorted(calls)])
+                                                   calls=tool_list(calls))
                         if home is not None:
                             async for chunk in home.body_iterator:
                                 yield chunk if isinstance(chunk, bytes) else chunk.encode()
@@ -3274,7 +4253,7 @@ async def answer_chat(body, started, cpu0, flight):
                     opened(state, got, rest)
                 log.info("  -> %s (streamed), status %s, %.1fs%s", FALLBACK_MODEL, r.status_code,
                          time.monotonic() - start, own_time_text(r.headers))
-                call_list = [calls[k] for k in sorted(calls)]
+                call_list = tool_list(calls)
                 hit = tool_block(call_list)
                 if hit:
                     record_turn(d["assistant"], d, messages, "router", hit["line"])

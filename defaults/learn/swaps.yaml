@@ -1,6 +1,6 @@
-# learn/swaps.yaml - mishearings pushed back (the Misses page, Use it): before anything is decided,
+# learn/swaps.yaml - mishearings pushed back (the Mishearings page, Use it): before anything is decided,
 # each heard is replaced by meant, as whole words only, longest first.
-swaps:      # "brain flea" as speech to text hears it (Oct 17); a household's own are added on the Misses page
+swaps:      # "brain flea" as speech to text hears it (Oct 17); a household's own are added on the Mishearings page
   - {heard: "brain's lake", meant: brain flea}
   - {heard: brain flake, meant: brain flea}
   - {heard: brain fleet, meant: brain flea}

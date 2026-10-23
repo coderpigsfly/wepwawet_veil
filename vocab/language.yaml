@@ -5,6 +5,14 @@
 
 weekdays: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]   # in this order
 months: [january, february, march, april, may, june, july, august, september, october, november, december]
+# a month written short, before its day ("renew car registration sept 30")
+month_short: {jan: january, feb: february, mar: march, apr: april, jun: june, jul: july, aug: august, sep: september,
+              sept: september, oct: october, nov: november, dec: december}
+# a date after one of these is a hard deadline, the last possible moment ("submit tax documents by April 15"),
+# with a reminder before it understood; a date after "on", or a weekday, is the day to do it
+deadline_words: [by, before, due, till]
+# a date after one of these is when the reminder may start: it comes after that day ("not until Friday")
+until_words: [until]
 
 # number words -> numbers ("seven thirty" -> 7 30, "twenty first" -> 21st)
 ones: {zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -29,10 +37,43 @@ bare_hours_pm: [1, 2, 3, 4, 5, 6]
 parts_of_day: [morning, afternoon, evening, night, tonight]      # the first one means am; the rest pm
 # a part of the day said with no time sets this time ("Saturday morning" -> Saturday at 6 am);
 # a part not listed here sets none (the app's own default time, if it has one, is used)
-part_times: {morning: "06:00", evening: "17:00", tonight: "17:00"}
+part_times: {morning: "06:00", afternoon: "15:00", evening: "17:00", tonight: "17:00", night: "20:00"}
+# the house's offer for a part of the day said alone; each person's own answer replaces it for them
+# (issue #19, veil/prefs.py). How a reminder comes, in what's said: its words, each way's own
+remind_by: {voice: [voice, speaker, say it, announce, out loud], alert: [alert, phone, push, notification, text],
+            both: [both, either, each]}
+series_offer_max: 3             # her "anything else?" names this many of what she can add (a long list gets cut off)
+# an event a reminder is about (the calendar case, Oct 21): "remind me I HAVE A meeting Friday at 2",
+# "remind me the car inspection IS DUE next month". Its name is a thing; its own day and time are kept
+event_leads: [i have a, i have an, "i've got a", "i've got an", we have a, we have an, "there's a", there is a, i have my, i have the]
+due_words: [due]
+# a part of the day said in other words: "first thing" is her morning, "end of the day" her evening
+part_phrases: {start of the day: morning, beginning of the day: morning, first thing: morning, end of the day: evening}
+# "after school": something that ends at an hour nobody has said. The first offer splits the day
+# (after_ends_time); the person's correction ("school isn't over until 3") is kept as theirs (issue #19)
+after_ends: [school, work, practice, class, church, the game]
+after_ends_time: "13:00"
+# loose days (issue #19): what's said, and the span it means (fields.py _span). The day offered in it
+# is the person's own pick, else dealer's choice (the day with the fewest things already due)
+#   week: tomorrow to Sunday; weekend: Friday (night) to Sunday; week_start: Monday to Wednesday;
+#   week_end: Thursday to Sunday; next_week; next_month; later_month: tomorrow to the month's end;
+#   month_start: its first 3 days; month_end: the 16th to its end. A span already past: the next one.
+loose_days:
+  week: [this week, sometime this week]
+  weekend: [this weekend, the weekend, weekend]
+  next_weekend: [next weekend]
+  next_week: [next week, sometime next week]
+  next_month: [next month, sometime next month]
+  later_month: [later this month, later in the month, sometime this month]
+  week_start: [beginning of the week, start of the week, early in the week, early this week, beginning of next week, early next week]
+  week_end: [end of the week, end of this week, later this week, late this week]
+  month_start: [beginning of the month, start of the month, beginning of next month, start of next month, early next month]
+  month_end: [end of the month, end of this month, late this month]
 before_words: [before, ahead, early, prior, beforehand]          # "an hour before"
 after_words: [after, late, later, past, afterwards, overdue]     # "15 minutes after"
 date_lead: ["on", by, for, due]                                    # "due on Tuesday"
+# "what do I have THIS WEEK": the day words after a question's verb, kept with it (router missing_object)
+object_day_words: [today, tomorrow, tonight, this, next, week, weekend, the, morning, afternoon, evening]
 
 # short answers to her "anything else?"
 "yes": ["yes", yeah, yep, yup, sure, okay, ok, please, absolutely]
@@ -53,7 +94,7 @@ abbreviations: {st: [saint, street], sts: [saints], dr: [doctor, drive], mt: [mo
   oct: [october], nov: [november], dec: [december], mon: [monday], tue: [tuesday], tues: [tuesday], wed: [wednesday],
   thu: [thursday], thurs: [thursday], fri: [friday], sat: [saturday], sun: [sunday], "no": [number], vol: [volume]}                                          # "mark number 3 done": its place in the list she read
 # words that carry nothing of their own in an answer (yes and no words count too)
-glue: [and, at, "on", the, a, an, to, it, please, add, set, make, with, for, me, i, want, would, like,
+glue: [and, at, "on", the, a, an, to, it, please, add, set, make, with, for, me, i, want, would, could, like,
        also, can, you, be, of, in, that, this, is, um, uh, so, then, lets, "let's", put, give, "it's",
        its, should, just, but, do, go, ahead, have, has, will, every, "o'clock", oclock, before, early,
        prior]
@@ -93,8 +134,23 @@ readback: {date: "due {say}", time: "at {say}", recurrence: "{say}", duration: "
 naming_words: [called, named, titled]
 # words that are a day by themselves (they end a spoken name: "call the plumber TOMORROW")
 day_words: [today, tomorrow, tonight, yesterday]
+# a day said with no "on" before it, when a day is put into her words ("rain for the picnic TOMORROW", "THIS weekend");
+# any other day takes "on" ("on Saturday", "on October 25")
+no_on_days: [today, tomorrow, tonight, yesterday, this, next]
 # (Quote on, off, yes and no in these lists: bare, YAML reads them as true and false.)
 # strip_away, the language's layer: how people talk around a thing's name, left off either end of it
 # ("make A new project PLEASE", "I NEED TO add..."). Every app's name reader takes these, then its
 # own (connectors/<app>.yaml language: strip_away), then the action's (its voice map entry's strip_away).
-strip_away: [a, an, the, please, for, me, to, new, of, "on", and, can, you, could, would, i, "i'd", "i'm", need, want, like, have, so, just]
+strip_away: [a, an, the, please, for, me, to, new, of, "on", and, can, you, could, would, i, "i'd", "i'm", need, want, like, have, so, just, that]
+# words that carry no meaning of their own (pronouns, the verbs be, do and have, articles, prepositions, small
+# adverbs): left out when the router counts how many words two sentences share (a brain flea offered, #28)
+function_words: [i, me, my, mine, we, us, our, you, your, he, him, his, she, her, it, its, they, them, their, this,
+  that, these, those, is, am, are, was, were, be, been, being, do, does, did, done, have, has, had, will, would,
+  shall, should, can, could, may, might, must, a, an, the, and, or, but, if, so, not, "no", "yes", very, really, just,
+  to, of, in, "on", at, for, with, from, by, about, up, down, out, over, what, which, who, whom, when, where, why,
+  how, there, here, then, than, too, also, "don't", "doesn't", "didn't", "isn't", "wasn't", "it's", "that's", "i'm",
+  "i'll", "i've", "let's", some, any, all, one, get, got, go, going, think, know, like, want, need, tell, say, said,
+  let, make, right, now, well, okay, oh, um, uh]
+# a question word that opens what was heard: when her answer doesn't have it, what was heard isn't her answer coming
+# back but a question about it ("What's Mara's shoe size?" after "...Mara's shoe size is eight and a half. Right?")
+question_openers: [what, "what's", whats, who, "who's", where, "where's", when, "when's", why, how, "how's", which]

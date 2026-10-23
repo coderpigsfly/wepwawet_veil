@@ -1,0 +1,174 @@
+# The compliant copy of Vikunja (issue #24), written by tools/wepwawet_copy.py: the app's own
+# file is never changed. Its user rules of a standard shape are actions here; one the household
+# keeps by hand under the same name (connectors/<app>.yaml rules:) is used instead.
+x-wepwawet:
+  version: 2
+  title: Vikunja
+  spoken: Vikki
+  source:
+    written_by: Wepwawet Veil
+    from: Vikunja v2.7.1
+    pushed_back:
+    - delete
+    - find
+    - rename
+    - rename_project
+  data:
+    kind: record
+  lists:
+    people:
+      from: GET /projects/{id}/projectusers
+      id: id
+      name: name
+      house: people
+    project:
+      from: GET /projects
+      id: id
+      name: title
+  actions:
+    rename:
+      starts:
+      - rename
+      - change the name of
+      - renamed
+      target:
+        from: GET /tasks
+        find:
+          field: title
+          until:
+          - to
+          - as
+          last: true
+          on_last:
+          - call it
+          - name it
+          - it should be called
+          - it should be
+          - the name should be
+          - change the name to
+          - change its name to
+          act: 85
+          ask: 45
+      confirm: {}
+      value:
+        need: new_name
+        after:
+        - to
+        - as
+        question: What should I call it?
+        read_back:
+          always: true
+          question: Rename {item} to {new_name}?
+      send:
+        whole: GET /tasks/{id}
+        set:
+          title: new_name
+      command: POST /tasks/{id}
+      says:
+        lines:
+        - '{item} is now {new_name}.'
+    rename_project:
+      starts:
+      - rename
+      - change the name of
+      objects:
+      - project
+      - projects
+      target:
+        from: GET /projects
+        find:
+          field: title
+          until:
+          - to
+          - as
+          ignore:
+          - project
+          - projects
+          act: 85
+          ask: 45
+      confirm: {}
+      value:
+        need: new_name
+        after:
+        - to
+        - as
+        question: What should I call the project?
+      send:
+        whole: GET /projects/{id}
+        set:
+          title: new_name
+      command: POST /projects/{id}
+      says:
+        lines:
+        - The project {item} is now {new_name}.
+    delete:
+      starts:
+      - delete
+      target:
+        from: GET /tasks
+        find:
+          field: title
+          last: true
+          act: 85
+          ask: 45
+      confirm:
+        always: true
+        question: It can't be undone. Delete {item}?
+      command: DELETE /tasks/{id}
+      says:
+        lines:
+        - '{item} is deleted.'
+    find:
+      starts:
+      - find
+      - look up
+      - look for
+      - where's
+      - where is
+      - when's
+      - when is
+      - what time
+      - what day
+      - what is the due date
+      - what's the due date
+      - do i have a chore
+      - do i have a task
+      - is there a chore
+      - is there a task
+      target:
+        from: GET /tasks
+        find:
+          field: title
+          ignore:
+          - due
+          - date
+          - 'on'
+          - of
+          - for
+          - about
+          - chore
+          - chores
+          - task
+          - tasks
+          - can
+          - could
+          - you
+          - me
+          - please
+          - tell
+          last: true
+          act: 60
+          ask: 20
+          extra_words: ignore
+      confirm: {}
+      says:
+        lines:
+        - '{item} is due {due}.'
+        - '{item}, due {due}.'
+        fields:
+          due: due_date
+        empty_lines:
+        - '{item} has no due date.'
+        past_lines:
+        - '{item} was due {due}.'
+        - '{item} is overdue: it was due {due}.'

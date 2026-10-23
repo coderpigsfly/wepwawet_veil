@@ -1,0 +1,18 @@
+# addons/trainer/settings.yaml - its own settings (English for now).
+# The topics it trains (their apps' adds, the household's routine): chores first.
+topics: [chores]
+# Switching it by voice: "Trainer mode" (she asks for whom, then says its state and offers the opposite), "Turn on
+# trainer mode for Mara", "Turn off my trainer mode". Who may switch someone else's: the brain fleas' changers
+# (learn/fleas.yaml), and these too; anyone may switch their own.
+changers: []
+command_words: [trainer mode, training mode, train mode, chore trainer, chore training]   # never "trainer" alone: "my trainer at the gym"
+command_within: 4           # its words come within the first few words ("turn on mara's chore trainer")
+on_words: [turn on, switch on, start]      # "enter trainer mode" says neither: she asks for whom, then its state
+off_words: [turn off, switch off, stop, end]
+# a chore said as a condition first: "When Owen wakes up, ask him to ...": the condition is set aside, the rest named
+condition_openers: [when, once, after, "as soon as", whenever]
+# a "when" that asks ("When is the trash due?") is followed by one of these: a question, never a condition
+asking_after: [is, are, was, were, "is", does, do, did, will, can, should, "'s", "s"]
+# leading words taken off her words before they're offered as the chore's name ("ask him to go to the post office")
+name_leads: [ask him to, ask her to, tell him to, tell her to, ask them to, remind me to, remind him to, remind her to,
+  i need to, i need, we need to, we need, can you, could you, please, to]

@@ -37,6 +37,7 @@ language:
     mother of jesus: mary
     all saints day: all saints
     all souls day: all souls
+    steven: stephen               # the name as speech-to-text writes it (the Feast of Steven)
   nearby:
     - mary
     - joseph

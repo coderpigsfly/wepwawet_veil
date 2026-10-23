@@ -1,0 +1,8 @@
+# addons/roman_numerals/settings.yaml - its own settings (English for now; another language would bring its own words).
+# A numeral after a name is said as an ordinal ("Henry VIII": Henry the Eighth); after one of these words
+# it's a plain number ("World War II": World War Two, "Super Bowl LVIII": Super Bowl Fifty-Eight).
+plain_after: [war, part, chapter, volume, act, phase, book, bowl, game, section, round, episode, season, apollo]
+# "I" is a word too: it's a numeral only after a name and before a stop, a comma or "of" ("Charles I", "Elizabeth I of England")
+highest: 100
+# capitalized words that aren't names, so the numeral after them isn't one ("The XL size")
+not_names: [the, a, an, in, on, at, of, by, for, to, and, or, but, with, from, my, your, our, his, her, their, this, that, size]

@@ -61,6 +61,56 @@ calls the routes At home (the app's name), The router itself, Off-Platform Bank,
 `home: <app>`, `home: the bank`, `home (path ...)` for the router itself, the cloud model's name
 (or Off-Platform), Home Assistant itself, or blocked (the firewall).
 
+## How a request is claimed
+
+Every request on its way in is offered to the apps and add-ons in turn, each looking for its own
+key word: an app's (integrations first), then an add-on's (Brain fleas). The first to find one
+claims it; one with no key word in the words hands them back at once, and a request no one claims
+goes Off-Platform. A day said in a request ("Saturday") is nobody's key word on its own.
+
+When the one that claimed it can't answer yet, it says what's missing, and the others are asked
+to fill it in. Each fills in at most once, so nothing goes round in circles:
+
+- "Will it rain Easter Sunday?": the weather claims it; the Liturgical calendar knows Easter's
+  date, so the weather is asked about Sunday, March 28.
+- "Is it going to rain for the picnic?": the weather needs a day. If a chore is called picnic,
+  she checks first ("You mean the picnic on Wednesday?"); if nothing is, she asks "When is the
+  picnic?", and your answer goes to the weather.
+- "Will it snow on the Feast of Steven?": two saints called Stephen fit, so she asks which.
+
+## Add-ons
+
+What isn't the router's own job is an add-on, switched on or off on the **Add-ons** page (System).
+Each says what it does, whether it keeps requests at home, and where on the way it works:
+
+- **On the way in**: Mishearings (fixes the words you marked first), Brain fleas, Time (a day
+  another app knows, like a feast's date), Loose language (below), the Off-Platform Bank, Did you
+  mean (below), and the Firewall (always last).
+- **On the way out**: Persona Flair, Name Sparkle and Roman numerals ("Henry VIII" read as "Henry
+  the Eighth", also in answers from the cloud). The page's **Outbound order** sets which goes
+  first; one that changes words inside her answer always comes before one that adds to it. Two of
+  those: try both orders with the same sentences and keep the one that reads right.
+
+An add-on that's off has no page and no menu item, and the router works as it did without it.
+
+## Saying it loosely (Loose language)
+
+With Loose language on, an add said the way people talk is filled from your own picks and asked
+about, a question at a time:
+
+- "This weekend", "tomorrow morning": she offers a day or a time ("Would Saturday at 9 AM work?").
+- **A deadline** ("submit tax documents by April 15", "renew car registration Sept 30"; by, before,
+  due, till): it's due then, the last possible moment, 11:59 pm when no time was said, and she
+  asks whether to remind you before ("Do you want a reminder before then, a week before at 9 AM?").
+- **"Remind me to buy palms on Sunday"**: she asks whether Sunday is the day to remind you or the
+  day it's due.
+- **"... not until Friday"**: the reminder comes after Friday; she offers the day after.
+- **"Bake a cake for Easter Sunday"**: the days before Easter are offered.
+- An answer she can't use: she says she didn't follow and asks it another way.
+
+With it off, chores work as they always did: the day you say is the due date, and after an add
+she still offers a due date, a repeat, a reminder before, or nags.
+
 ## The menu
 
 The menu has a small picture beside each page. Hide it with the arrow at its top (wide screens);
@@ -73,23 +123,61 @@ The menu has a small picture beside each page. Hide it with the arrow at its top
   - **Delete**: it was right and routed right; nothing to learn, so it leaves the log.
   - **Bank**: a request that went Off-Platform goes into the Off-Platform Bank, so its answer can
     be given at home next time.
-  - **Misheard**: speech to text got it wrong. Type what was really said (optional; you can type
-    it later); it goes to the Misses page, under what was really said, and counts up each time
-    the same thing is misheard. Those counts are how the router learns which words to catch.
+  - **Misheard** (with Mishearings on): speech to text got it wrong. Type what was really said
+    (optional; you can type it later); it goes to the Mishearings page, under what was really
+    said, and counts up each time the same thing is misheard. Those counts are how the router
+    learns which words to catch.
   Once you bank a request or mark it misheard, it leaves the list
   (another asking of the same saying stays until you act on it); the "Handled" choice above the
   list brings handled ones back.
-- **Off-Platform Bank**: the answers kept from the cloud, per personality. It collects from the
+- **Off-Platform Bank** (an add-on): the answers kept from the cloud, per personality. It collects from the
   start but **answers nothing until you turn on Use the bank** (its Rules tab; off when
   installed). Then a saying you added (Bank, on Transactions) is answered from the bank some of
   the time instead of making the trip. The Rules tab has the formula's two knobs (answers kept,
   5, and use from, 0.2) beside the switch; a line above the table says whether the bank answers
   at all, and each saying's **State** column whether it answers that one yet.
-- **Misses**: what was misheard or misrouted. Each shows what was heard against what was really
-  said, word by word, and whether it would still go wrong today. Both tables sort by First and
-  Last too. The swaps in use are a folded table: heard, swapped for, when added, how often used,
-  when last used. **Use it** under a mishearing: see Use it, below. Its **Tools** tab reviews the
-  misses against today's router, makes one a test case, or drops one.
+- **Who can answer this?** (built in, Settings: ask_apps_first): a request nothing at home claimed is
+  asked of the apps before it goes Off-Platform: each app whose own find opens it ("Can you find ...",
+  "When is ...", "How many days until ...") looks it up, changing nothing, and the one that finds it
+  answers ("When is Easter?" from the Liturgical calendar). It must fit by two words, or by the one
+  word you said; two apps that both find it, she asks which. The weather brain is asked too, and says
+  whether it's a weather question. When no app has it, a brain flea that fits is offered, never
+  answered on a guess: "Did you mean "who is talking to you"? Shall I?" A sentence longer than 15
+  words is taken as conversation. Why on Transactions shows it as step 12.
+- **Trainer** (an add-on, Teach, Trainer): switched on for a person, it walks their requests that
+  weren't said in full through the house's routine, announcing trainer mode first: "Trainer mode: I
+  think you want to add a chore. Shall we do that together?", then the chore's name, the day, the
+  time and who it's for, and the chore is added. A request said in full: it stays silent. Only when
+  the voice ID is sure it's them. Switch it on the page (from their next request, no restart) or by
+  voice: "Trainer mode" (she asks for whom and says its state), "Turn on trainer mode for Sam",
+  "Turn off my trainer mode". Anyone may switch their own; someone else's needs a changer.
+- **Did you mean** (an add-on, off when installed): when speech to text loses a seed word ("Mark
+  the troll done" for "Mark the chore done") and the request would go Off-Platform, she asks first:
+  "Did you mean "Mark the chore done"? Shall I?" Only the word in the chore's place (right after
+  add, mark, find and the like) is corrected; the rest is left as you said it, and after add she says
+  the name apart: "Did you mean: Add a chore, "Pack for the shore"? Shall I?" Yes does it at home and keeps the mishearing
+  (Misses); no sends your words out as heard. She asks whenever an app at home would take the
+  corrected words with one of its own action words. The never words, the close-by words and each
+  seed word's place are yours to fill in, in addons/window/settings.yaml: chores, the weather, feast
+  days and history to start. A household with its own odds for whether a guess is worth the question
+  puts them beside it (odds.py); without them she always asks. Every request it weighs, asked or not,
+  is recorded in data/tables/window.db with your answer (yes, no, or something else said instead)
+  and the words as they were heard: your own count of what was misheard and what wasn't.
+- **Misses**: the wrong part answered ("Who answered that?", then "Record that as a
+  misunderstanding"), each with what should have happened. Its **Tools** tab reviews the misses
+  against today's router, makes one a test case, or drops one.
+- **Mishearings** (an add-on): what speech to text heard, under what was really said, word by word,
+  and whether it would still go wrong today. The table sorts by First and Last too. The swaps in
+  use are a folded table: heard, swapped for, when added, how often used, when last used.
+- **Use it** (Mishearings): under a mishearing, each wrong-word difference has a Use it button
+  ("grainsplate → brain flea"). Once used, those heard words are swapped for the right ones before
+  anything is decided, every time, whole words only. **Use a phrase** does the same for a run of
+  words ("who taught you three" → "who taught you that"): only that whole run is swapped, so a
+  common word like "three" is left alone everywhere else. Stop takes either back. Swaps are also
+  made in the words handed back to Home Assistant, so its own sentences and automations match
+  ("Is the watcher running?" reaches your washer automation as "Is the washer running?"). That
+  makes Use it on a common word change it everywhere: "watcher → washer" would turn "Who is the
+  watcher?" into "Who is the washer?". Use a phrase for those ("the watcher running").
 - **Every table** sorts by a click on a heading (again to reverse) and can be folded away with
   **Fold the table** (Show the table brings it back), remembered in your browser.
 - **Rules tabs**: Off-Platform Bank, Misses, Savings, Seed Topics, Tools and Stats each have a
@@ -106,7 +194,7 @@ The menu has a small picture beside each page. Hide it with the arrow at its top
 - **Words understood**: the words the router understands rather than says, from the vocab/
   files (yes and no, fillers, polite words, the learn commands, dates, moods), each list edited
   as chips and saved on its own; used after a restart.
-- **Brain fleas**: the household's small true facts, answered at home before anything goes
+- **Brain fleas** (an add-on): the household's small true facts, answered at home before anything goes
   Off-Platform ("Who is talking?", "Where do we get pizza?"). "What brain fleas do you have?"
   reads them, a few at a time. A sentence telling a fact ("we only get our pizza at...") isn't
   taken as asking a flea. This page, an app's User rules and
@@ -127,30 +215,25 @@ The menu has a small picture beside each page. Hide it with the arrow at its top
   isn't nice") never answers one that doesn't ("that is nice").
 - **Tools**: the tests (Regression cases, Regression cases live, Gemini gate test, Unit tests).
   Rebuilding the word scores is on Seed Topics, Build.
-- **Use it** (on the Misses page): under a mishearing, each wrong-word difference has a Use it button
-  ("grainsplate → brain flea"). Once used, those heard words are swapped for the right ones before
-  anything is decided, every time, whole words only. **Use a phrase** does the same for a run of
-  words ("who taught you three" → "who taught you that"): only that whole run is swapped, so a
-  common word like "three" is left alone everywhere else. Stop takes either back. Swaps are also
-  made in the words handed back to Home Assistant, so its own sentences and automations match
-  ("Is the watcher running?" reaches your washer automation as "Is the washer running?"). That
-  makes Use it on a common word change it everywhere: "watcher → washer" would turn "Who is the
-  watcher?" into "Who is the washer?". Use a phrase for those ("the watcher running").
 
 ### Personality
 
-- **Persona Flair**: the little lines it adds, one assistant at a time (pick it at the top).
+- **Sayings**: every fixed line she says, her own or the shared ones any persona says, one
+  assistant at a time. An edit is heard after a restart.
+- **Persona Flair** (an add-on): the little lines it adds, one assistant at a time (pick it at the top).
   First **Flair rate** (the share of answers at home with a line; 0 is off) and **Most in a row**;
   then the **Lines bank**, its own lines (**Add lines**: one, or many separated by | or one per
-  line, then **Add to the lines bank**); then **Lines from the books**, folded. The **Sayings**
-  and **Phrases** tabs hold its spoken lines.
+  line, then **Add to the lines bank**); then **Lines from the books**, folded. Its **Phrases** tab says where
+  the lines from the books come from; her fixed lines are on the Sayings page.
   - A line's **topic** is the kind of request it fits; **any** fits them all.
   - Its **place**: **opener** (before the answer), **closer** (after it), **any** (either), or
     **aside**: only where a reply has a hand-placed [[aside]] mark. Most lines want any.
-- **Name Sparkle**: a tab for each persona (how often it says your name, and its own names for you) and a Shared tab (the names every persona can use).
+- **Name Sparkle** (an add-on): a tab for each persona (how often it says your name, and its own names for you) and a Shared tab (the names every persona can use).
 
 ### System
 
+- **Add-ons**: each add-on with what it does, switched on or off (used after a restart), and the
+  outbound order (above, Add-ons).
 - **Overview**: the numbers for the last day, where requests were answered over the last week,
   and what's running.
 - **Stats**: built to find a bottleneck. Pick an assistant at the top to see only its own
@@ -199,7 +282,10 @@ The menu has a small picture beside each page. Hide it with the arrow at its top
   it on Security, or give it its old address back. Every one has the same tabs, in
   the order you'd add an app. An app marked **Wepwawet compliant** (Oread, the weather brain)
   says in its own description which tabs apply; the others show grayed out:
-  - **Connection**: on or off, its address, Test.
+  - **Connection**: on or off, its address, Test. A chores app's card also has **Clean-up**:
+    **Bring overdue repeating chores forward** lists every repeating chore past its date (nobody
+    marked it done) with its next date from today on, its time of day kept; **Move** moves them.
+    A chore that doesn't repeat is never moved, so a real miss stays seen.
   - **URL / ports**: where it is, its spec's address, the key the router sends it, and the
     doors it uses to ask the router.
     Home Assistant is set up differently, but to the router it's one more program asking and
@@ -263,9 +349,11 @@ The menu has a small picture beside each page. Hide it with the arrow at its top
 - **People**: one row per person, a column per attached app (Add a column), plus Wepwawet (the
   router's own name, optional) and Called (what people call them out loud). Names in a cell are
   separated by commas. Inside the router any name in a row is the same person: the firewall and
-  who may change brain fleas match on all of them, so Oread's "Sam" profile counts as Owner. An
+  who may change brain fleas match on all of them, so Oread's "Sam" profile counts as Owner. A
+  name is one person, like a sign-in: it can be in one row only, so two people can't both be
+  "Alex" (call them Big Alex and Little Alex); a save that puts a name in two rows is refused. An
   app asks for its own column only (Oread through its door: GET /people/oread).
-- **Firewall**: rules about who may do what. With Oread off, every voice is "unknown", so rules
+- **Firewall** (an add-on, always last): rules about who may do what. With Oread off, every voice is "unknown", so rules
   for anyone or unknown are the ones that apply. A device name that no Home Assistant device has
   (a misspelling stops nothing) is warned of at the top, read with Home Assistant's token. A rule's people match any name in that person's
   row on the People page.
@@ -323,6 +411,13 @@ matches what you said against the app's own list, read fresh at that moment:
   ("the house one") or by order ("the first one"). Anything else, and it leaves both alone.
 - **One fits, but you said a word it doesn't have** (often a mishearing, like "lawn pest"): it
   checks first, "Mow Lawn? Say yes and I'll check it off.", and does it only on a yes.
+- **Only one has the words you said that no other has** ("the walkie-talkie tour" for "Leave the
+  walkie-talkie at school"): it asks about that one, though you said only part of its name.
+- **"That" or "it"** means the thing she last named, or the one she just asked about: "Yes, could
+  you change the time on that to 3:45?" answers her "Is that right?" and changes that chore.
+
+"Do you have a picnic in my chores?" is answered with its day, or "No, there's no picnic in your
+chores."
 
 ## Your household's files, and the examples
 
@@ -343,6 +438,7 @@ Seed Topics, an app on Integrations, the example assistant once you've made your
 | Liturgical Calendar | "What feast is today?" | Nothing to install. Integrations, **On**, Save, and restart; ask it once, then Security, Addresses, Going out, Recently refused: **Add** it (by its name, litcal.johnromanodorazio.com) and Save |
 | Wikipedia (On this day) | "What happened on this day?", "Who was born today?" | The same: nothing to install; permit en.wikipedia.org going out (and raw.githubusercontent.com, where its spec is checked for a new version) |
 | The weather brain | The weather, sunrise and sunset | Its own install ([weather_brain](https://github.com/coderpigsfly/weather_brain)); then on Integrations its address, **On**, Save, and restart |
+| Vikunja | Chores, each person's own list and a shared one: add, list, check off, move, change the time, delete (always asked first) | Its own install ([Vikunja](https://vikunja.io)); its key (Security, Grantors, **Add a key**, VIKUNJA_TOKEN); then **Add an app** on Integrations (its voice map and rules are already in the starting copies), its address, **On**, Save, and restart. Vikunja on SQLite needs its writes to lock up front: `VIKUNJA_DATABASE_PATH=/db/vikunja.db?_busy_timeout=5000&_txlock=immediate&_ignore=` |
 | Donetick | Chores: add, list, check off, move, nag | Its own install ([Donetick](https://github.com/donetick/donetick)); its key (Security, API keys and vault, Grantors: **Set** on DONETICK_TOKEN); then on Integrations its address, **On**, Save, and restart |
 
 The two on the internet are switched off on purpose: a question to one of them leaves the house,

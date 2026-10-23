@@ -7,31 +7,41 @@
 # the router reads the first read_list_max and asks about the rest.
 
 import contextvars
+import copy
 import importlib.util
+import json
 import logging
 import os
 import re
+import time
 
 import yaml
 
 log = logging.getLogger("router")
 from veil import config, phases  # noqa: E402
-import flair  # noqa: E402
+from veil import personas  # noqa: E402
 
 _S = config.settings()
 HEARD_NEEDS = dict(config.knob(_S, "heard_needs") or {})
 _LANG = config.load_yaml(config.path("vocab", "language.yaml")) if os.path.exists(config.path("vocab", "language.yaml")) else {}
 NAMING_WORDS = {str(w).lower() for w in (_LANG.get("naming_words") or [])}     # "called", "named"
-STRIP_AWAY = {str(w).lower() for w in (_LANG.get("strip_away") or [])}         # "a", "the", "please", "i need"
+STRIP_AWAY = {str(w).lower() for w in (_LANG.get("strip_away") or [])}
+# how a reminder comes (issue #19): each way and the words for it ("remind me by voice")
+LOOSE = None       # the Loose language add-on's own module when it's on (the router sets it, issue #25)
+EVENT_DAY = contextvars.ContextVar("event_day", default=None)    # an add's event Time dated ({name, date}): "for Easter Sunday"
+REMIND_BY = {str(k): [str(w).lower() for w in v or []] for k, v in (_LANG.get("remind_by") or {}).items()}         # "a", "the", "please", "i need"
 NOT_ACTION = {str(w).lower() for w in (_LANG.get("not_action_words") or [])}   # "to", "in": never an action's word alone (dump15)
 # words that are a date or time by themselves, and the ones that belong to the date after them
 WHEN_WORDS = {str(w).lower() for k in ("weekdays", "months", "parts_of_day", "noon_words", "day_words")
               for w in (_LANG.get(k) or [])} | {str(w).lower() for w in (_LANG.get("repeat_words") or {})}
 WHEN_LEAD = {str(w).lower() for k in ("every_words", "date_lead") for w in (_LANG.get(k) or [])}
+# what "every" counts: the units and what a repeat says (day, week; weekday, weekend), one and many
+EVERY_UNITS = {u + s for u in list(_LANG.get("unit_minutes") or {}) + list((_LANG.get("repeat_words") or {}).values())
+               + ["weekday", "weekend"] for s in ("", "s")}
 _P0 = config.load_yaml(config.path("vocab", "path0.yaml")) if os.path.exists(config.path("vocab", "path0.yaml")) else {}
 # the assistants' names as heard: filler for deciding, but in a thing's name only an assistant spoken
 # to is left off ("Iris, add feed Felix" -> Feed felix; without_address), never one inside the name
-NAMES = flair.persona_words(config.path("personality"))
+NAMES = personas.words(config.path("personality"))
 FILLER = {str(w).lower() for w in (_P0.get("filler_words") or [])} | NAMES
 
 
@@ -152,6 +162,20 @@ class Connector:
             self.wepwawet = read.get("wepwawet") or {}         # its x-wepwawet section, as read from its spec
         except (OSError, ValueError):
             self.commands, self.wepwawet = {}, {}
+        # actions are used only from the household's own copy (tools/wepwawet_copy.py, #24): ones an app
+        # declares in its own spec wait until they're written into it (#15: an app can't hand itself a
+        # delete that asks nothing); the copy's spoken name and data life fill what the spec doesn't say
+        self.copy_path = os.path.join(connectors_dir, f"{name}.wepwawet.yaml")
+        own = (self.wepwawet or {}).get("actions") or {}
+        if own:
+            log.info("  %s: %d actions its own spec declares wait to be accepted (tools/wepwawet_copy.py %s --from-spec)",
+                     name, len(own), name)
+        copied = load_yaml(self.copy_path).get("x-wepwawet") or {} if os.path.exists(self.copy_path) else {}
+        self.wepwawet = dict(copied, **{k: v for k, v in (self.wepwawet or {}).items() if k != "actions"})
+        self.wepwawet["actions"] = copied.get("actions") or {}
+        if self.wepwawet.get("spoken"):      # said aloud: plain words, short (#15)
+            from veil import rules as _r
+            self.wepwawet["spoken"] = str(_r._plain(str(self.wepwawet["spoken"]), 40))
         self.hand_path = os.path.join(connectors_dir, f"{name}.yaml")
         self.rules, self.broken, self.speaker = {}, {}, None
         self.load_rules(hand)
@@ -183,16 +207,28 @@ class Connector:
         # who spoke and a thing picked by her question, for this request (set by handle)
         self.SPEAKER = contextvars.ContextVar(f"{name}_speaker", default=None)
         self.CHOSEN = contextvars.ContextVar(f"{name}_chosen", default=None)
+        self.VOICE = contextvars.ContextVar(f"{name}_voice", default=False)     # heard by a device, not typed
+        self.OFFER = contextvars.ContextVar(f"{name}_offer", default=None)       # the answer to her offer (loose)
+        # what this request already read from the app: read once a request, never across requests, and
+        # forgotten as soon as something is changed (Oct 21: lean, its lists were read two or three times)
+        self.READS = contextvars.ContextVar(f"{name}_reads", default=None)
 
     def load_rules(self, hand):
         """The user rules (its User rules tab), spoken like an action and run by veil/rules.py. Each is
         checked first (its steps, their settings, the app's commands): a broken one isn't used."""
-        from veil import rules
+        from veil import rules, wepwawet
         acts = self.map.setdefault("actions", {})
         for n in self.rules:
             acts.pop(n, None)
         self.rules, self.broken = {}, {}
-        for n, r in (hand.get("rules") or {}).items():
+        # the actions its Wepwawet section declares (version 2, #24), each a rule; one the household
+        # keeps by hand under the same name is used instead
+        declared = wepwawet.compile(getattr(self, "wepwawet", None))
+        own = hand.get("rules") or {}
+        if declared:
+            log.info("  %s: %d actions from its Wepwawet section%s", self.name, len(declared),
+                     f", {len([n for n in declared if n in own])} kept as user rules" if own else "")
+        for n, r in {**declared, **own}.items():
             if not isinstance(r, dict):
                 continue
             wrong = rules.check(r, set(self.commands) if self.commands else None)
@@ -241,7 +277,10 @@ class Connector:
         # inside a name can't take over ("PUT change diaper on the list" is an add, not a change).
         words = re.findall(r"[a-z']+", text)
         acts = self.map.get("actions") or {}
-        opening = " ".join(words)
+        k = 0
+        while k < len(words) - 1 and words[k] in ("could", "can", "would", "will", "you", "please"):
+            k += 1                 # "Could you REMIND me ...": the opening is past the polite words (Oct 21)
+        opening = " ".join(words[k:])
         lead = [(len(w.split()), a) for a in scored for w in a[2]
                 if re.match(verb_pattern(w, ((acts.get(a[0]) or {}).get("verbs") or {}).get(w, {}).get("stem")), opening)]
         if lead:      # the longest opening wins ("change the name of" over "change"), then the surest
@@ -297,6 +336,20 @@ class Connector:
         return next((str(w) for w in self.hand.get("never_by_voice") or []
                      if re.search(r"\b" + re.escape(str(w).lower()) + r"\b", low)), None)
 
+    def action_opening(self, said):
+        """The action whose own words open what was said, past the polite words ("Could you REMIND me to
+        ..."), or None: the longest opening wins."""
+        words = re.findall(r"[a-z']+", said.lower().replace("\u2019", "'"))
+        while words[:1] and words[0] in ("could", "can", "would", "will", "you", "please"):
+            words = words[1:]
+        opening = " ".join(words)
+        best = None
+        for action, a in (self.map.get("actions") or {}).items():
+            for w, v in ((a or {}).get("verbs") or {}).items():
+                if re.match(verb_pattern(w, (v or {}).get("stem")), opening) and (best is None or len(w) > len(best[1])):
+                    best = (action, w)
+        return best[0] if best else None
+
     def rule_opening(self, said):
         """The user rule whose words open what was said ("rename that to ..."), or None: in the
         app's own context (a follow-up) that's enough to mean the rule."""
@@ -305,6 +358,13 @@ class Connector:
         action, _, found = self.pick_action(said)
         opening = " ".join(re.findall(r"[a-z']+", said.lower().replace("\u2019", "'")))
         if action in self.rules and any(re.match(verb_pattern(w, True), opening) for w in found):
+            return action
+        # asked politely, the rule's words still open it once the polite words are past ("Could you
+        # rename ...", "I would like you to rename number five", Oct 21: both went Off-Platform)
+        words = opening.split()
+        while words and words[0] in STRIP_AWAY | FILLER:
+            words = words[1:]
+        if action in self.rules and any(re.match(verb_pattern(w, True), " ".join(words)) for w in found):
             return action
         return None
 
@@ -370,19 +430,21 @@ class Connector:
         return out
 
     async def handle(self, said, context=(), memory=None, action=None, speaker=None, chosen=None, resume=None,
-                     speaker_info=None):
+                     speaker_info=None, voice=False):
         """speaker: the household key of who spoke, when Oread is sure (SPEAKER: "me" on the people
         card). chosen: the id of the thing her "which one?" or "...? Say yes" settled (CHOSEN).
         resume: a user rule's state after her question was answered (veil/rules.py).
-        speaker_info: who spoke, for a rule's Who spoke ({own, nicknames, score, known}; router.speaker_info)."""
+        speaker_info: who spoke, for a rule's Who spoke ({own, nicknames, score, known}; router.speaker_info).
+        voice: heard by a device (typed: False), so "me" with nobody sure is nobody, not the default."""
         if self.answers():
             return await self.ask(said, context)
         self.speaker = speaker_info
         sets = []
-        for var, value in ((self.SPEAKER, speaker), (self.CHOSEN, chosen)):
+        offer = resume if isinstance(resume, dict) and "offer" in resume else None     # her offer answered: loose()
+        for var, value in ((self.SPEAKER, speaker), (self.CHOSEN, chosen), (self.VOICE, bool(voice)), (self.OFFER, offer)):
             sets.append((var, var.set(value)))
         try:
-            if resume is not None and action in self.rules:
+            if resume is not None and offer is None and action in self.rules:
                 reply = await self.run_rule(said, action, resume)
             else:
                 reply = await self._handle(said, context, memory, action)
@@ -473,13 +535,17 @@ class Connector:
         from veil import spoken, lists
         a = (self.map.get("actions") or {}).get(action) or {}
         said = without_address(said)
+        # a time said in other words ("after school", "first thing"): a time, not part of the name (issue #19)
+        for p in sorted([f"after {e}" for e in _LANG.get("after_ends") or []] + list(_LANG.get("part_phrases") or {}), key=len, reverse=True):
+            said = re.sub(r"\b" + re.escape(str(p)) + r"\b", " ", said, flags=re.I)
+        said = re.sub(r"\s+", " ", said).strip()
         lead = set(STRIP_AWAY) | self.strip_away(action)
         for w in list((a.get("verbs") or {}).keys()) + list(a.get("objects") or []) + list(self.topic_words):
             lead.update(str(w).lower().split())
         svc = (self.settings.get("services") or {}).get(self.name) or {}
         stop = set(self.topic_words) | {str(k).lower() for k in lists.cards(svc)}
         thing = spoken.thing(said, lead=lead, people=set(self.people), stop_nouns=stop, naming=NAMING_WORDS,
-                             filler=FILLER - NAMES, when_words=WHEN_WORDS, when_lead=WHEN_LEAD)
+                             filler=FILLER - NAMES, when_words=WHEN_WORDS, when_lead=WHEN_LEAD, every_units=EVERY_UNITS)
         if len(thing.split()) > NAME_MAX_WORDS:     # room talk or her own words coming back: she asks instead
             log.info("  %s: '%s' is %d words, longer than add_name_max_words (%d): not a name",
                      self.name, thing, len(thing.split()), NAME_MAX_WORDS)
@@ -503,7 +569,11 @@ class Connector:
             return {"status": "answered", "speech": self.say("generic_cannot", action=action.replace("_", " "))}
         needs = self.needs.get(action) or {}
         body, unfilled = {}, []
-        for req in cmd.get("requires") or []:
+        reqs = list(cmd.get("requires") or [])
+        if "body" in reqs and not any(r.startswith("body: ") for r in reqs):
+            # a spec that requires a body without naming its fields: the spoken needs it accepts
+            reqs += [f"body: {n}" for n in needs if n in (cmd.get("accepts") or [])]
+        for req in reqs:
             kind, _, field = req.partition(": ")
             if kind != "body" or not field:
                 continue
@@ -583,12 +653,20 @@ class Connector:
         """Does it take the words as said (expectation 11: x-wepwawet role answers, or kind contract)?"""
         return self.svc.get("kind") == "contract" or self.wepwawet.get("role") == "answers"
 
-    async def ask(self, said, context=()):
+    def claims(self):
+        """Can it be asked whether a request is its own at all (x-wepwawet: answers: claim, the parameter's name;
+        the weather brain's claim)? Only such an app is asked when nothing at home claimed a request (#28)."""
+        return self.answers() and bool((self.wepwawet.get("answers") or {}).get("claim"))
+
+    async def ask(self, said, context=(), claim=False):
         """The words as said, to its one door (x-wepwawet: answers: said, context), with the earlier
-        requests; its answer (a status and a sentence) as it gives it."""
+        requests; its answer (a status and a sentence) as it gives it. claim: asked whether it's its own at all
+        (answers: claim names the parameter), so a request that isn't comes back not_mine."""
         from veil import access
         door = self.wepwawet.get("answers") or {}
         params = [(door.get("said") or "text", said)] + [(door.get("context") or "context", c) for c in context]
+        if claim and door.get("claim"):
+            params.append((door["claim"], "true"))
         async with access.client(float(self.svc.get("timeout", 8))) as client:
             r = await client.get(self.svc["url"], params=params, headers=self.auth_headers())
         r.raise_for_status()
@@ -688,7 +766,9 @@ class Connector:
         if phases.on("dump7") and cmd.get("patterns"):      # today's parts as its patterns say (10/09), a rule's alike
             v.update({k: x for k, x in self.date_values(command or path, "").items() if k not in (more or {})})
         path = self.own_path(path)
-        out = re.sub(r"\{(\w+)\}", lambda m: str(v[m.group(1)]) if m.group(1) in v else m.group(0), path)
+        # each value one part of the address, encoded: an id the app gave ("../admin") can't reach another (#15)
+        from urllib.parse import quote
+        out = re.sub(r"\{(\w+)\}", lambda m: quote(str(v[m.group(1)]), safe="") if m.group(1) in v else m.group(0), path)
         query = {}
         for p in cmd.get("params") or []:
             where, _, n = str(p).partition(": ")
@@ -696,11 +776,56 @@ class Connector:
                 query[n] = v[n]
         return out, query
 
+    def table(self):
+        """Its table (veil/tables.py: data/tables/<app>.db) when its data is slow (services: <app>: table:
+        hold_days), else None: what it answered is kept there and read back until the hold runs out."""
+        conf = self.svc.get("table")
+        if not isinstance(conf, dict) or self.writes():
+            return None
+        if getattr(self, "_table", None) is None:
+            from veil import config, tables
+            self._table = tables.Table(self.name, os.path.join(config.DATA_DIR, "tables"), conf.get("hold_days", 180))
+        return self._table
+
     async def api(self, method, path, command=None, fill=None, **kw):
         from veil import access
+        template = command or path
         path, query = self.filled(method, path, command, fill)
         if query:
             kw["params"] = dict(query, **(kw.get("params") or {}))
+        reads = self.READS.get()
+        if reads is None:
+            reads = {}
+            self.READS.set(reads)
+        key = (path, json.dumps(kw.get("params") or {}, sort_keys=True, default=str))
+        if method.upper() != "GET":
+            reads.clear()                  # a change: what was read before it is out of date
+        elif key in reads:
+            return copy.deepcopy(reads[key])
+        table = self.table() if method.upper() == "GET" else None
+        address = path + ("?" + key[1] if key[1] != "{}" else "")
+        held = table.get(address) if table else None
+        if held:                           # slow data, read from its table: no trip out
+            reads[key] = held[1]
+            return copy.deepcopy(held[1])
+        try:
+            out = await self._call(method, path, kw)
+        except Exception as e:
+            stale = table.get(address, stale=True) if table else None
+            if stale is None:
+                raise
+            log.info("  %s: %s - answered from its table (%.0f days old)", self.name, str(e)[:120], (time.time() - stale[0]) / 86400)
+            return copy.deepcopy(stale[1])
+        if method.upper() == "GET":
+            reads[key] = copy.deepcopy(out)
+            if table:
+                from veil import rules
+                table.put(address, out, rules._as_list(out), self.card_for(f"GET {template}"))
+        return out
+
+    async def _call(self, method, path, kw):
+        """The app asked (no copy): its answer, out of any wrapper."""
+        from veil import access
         async with access.client(float(self.svc.get("timeout", 8))) as client:
             if phases.on("dump16"):       # at most router: app_answer_max_kb read (inbound defense 3)
                 r = await access.capped(client, method, self.svc["url"].rstrip("/") + self.address(path), access.most_kb("app_answer_max_kb"),
@@ -738,8 +863,11 @@ class Connector:
         return config.path("state", f"kept_{self.name}.json")
 
     def _load_kept(self):
-        """The copies on hand kept on disk (state/kept_<app>.json), so a restart doesn't spend a call."""
+        """The copies on hand kept on disk (state/kept_<app>.json), so a restart doesn't spend a call. An app
+        with a table keeps what it answered there instead: its copy on hand is made again from it."""
         import json
+        if self.table():
+            return {}
         try:
             with open(self._kept_file()) as f:
                 return {k: (float(v[0]), tuple(v[1])) for k, v in (json.load(f) or {}).items()}
@@ -748,6 +876,8 @@ class Connector:
 
     def _save_kept(self):
         import json
+        if self.table():
+            return
         try:
             config.make_dirs(os.path.dirname(self._kept_file()))
             with open(self._kept_file(), "w") as f:
@@ -771,7 +901,7 @@ class Connector:
         waits = getattr(self, "_waits", None)
         if waits is None:
             waits = self._waits = {}
-        every = float(self.svc.get("cache_refresh_seconds", 60) or 60)
+        every = self.keeps_for()
         now = time.time()
         if reads_only and key in kept and (not fresh and now - kept[key][0] < every or now < waits.get(key, 0)):
             return kept[key][1]            # the copy on hand: fresh enough, or the app asked us to wait
@@ -936,11 +1066,28 @@ class Connector:
             return choices, None
         return sorted(choices, key=lambda c: self.weight_of(c.get("fields") or {}, w)), w
 
-    async def refresh(self):
-        """Its things, people and groups, kept on hand so decisions can be made without calling."""
+    def keeps_for(self):
+        """Seconds its copy on hand is good for (services: <app>: cache_refresh_seconds, default 60);
+        0 keeps none: every request reads it live first (router.refresh_live)."""
+        v = self.svc.get("cache_refresh_seconds")
+        if v in (None, ""):
+            # its Wepwawet section's data life (#22): a record is read live; transient data is held hold_seconds
+            data = (getattr(self, "wepwawet", None) or {}).get("data") or {}
+            if data.get("kind") == "record":
+                return 0.0
+            if data.get("hold_seconds") is not None:
+                return float(data["hold_seconds"])
+        return 60.0 if v in (None, "") else float(v)
+
+    async def refresh(self, anew=False):
+        """Its things, people and groups, kept on hand so decisions can be made without calling. Within
+        a request, what it already read is used (read once; a change sets it aside); anew: read again
+        whatever was read before (the start of a request, the refresh loop)."""
         path = self.items_command()
         if not path:
             return
+        if anew:
+            self.READS.set({})
         answer, got = await self.listing(path, fresh=self.writes())     # one that reads only: its copy, if fresh
         self.cache["items"] = answer if got is None else got
         self.cache["people"] = await self.app_people()
@@ -1008,10 +1155,32 @@ class Connector:
             return names.get(str(sp).lower())
         return None
 
+    def group_person(self, group, names):
+        """The person a group is (the project Mara) or belongs to (Mara's Morning Briefing), or None."""
+        words = re.findall(r"[a-z]+(?:'s)?", str(group or "").lower().replace("\u2019", "'"))
+        whole = " ".join(words)
+        if whole in names and whole not in self.me_words:
+            return names[whole]
+        return next((names[w[:-2]] for w in words if w.endswith("'s") and w[:-2] in names), None)
+
     def default_person(self, names):
+        """Who "me" is: whoever Oread is sure spoke (me: speaker), else the card's default. Heard by a
+        device with me: speaker and nobody sure: nobody (None), so she asks or files it as no one's;
+        typed, the card's default."""
         from veil import lists
-        who = lists.people_card(self.svc).get("default") or ""
-        return self.speaker_person(names) or names.get(str(who).lower())
+        card = lists.people_card(self.svc)
+        sure = self.speaker_person(names)
+        if sure or (str(card.get("me") or "default").lower() == "speaker" and self.VOICE.get()):
+            return sure
+        return names.get(str(card.get("default") or "").lower())
+
+    def shared_group(self):
+        """The group everyone shares (the group card's shared: House), or None."""
+        return str(self.group_card().get("shared") or "").strip() or None
+
+    def own_group(self, person, groups, names):
+        """(name, id) of the group that is this person's (the project Mara), or None."""
+        return next(((n, gid) for n, gid in (groups or {}).items() if person and self.group_person(n, names) == person), None)
 
     def who_in(self, text, names):
         words = set(re.findall(r"[a-z']+", text.lower()))
@@ -1081,7 +1250,26 @@ class Connector:
                            alike=self.alike, nearby=self.nearby, abbrev=self.abbrev,
                            ask_min=self.ask_min if asking else None)
         why = {"sure": "ok"}.get(found.how, found.how)
+        if why not in ("ok", "confirm", "tie", "nearby") and asking:
+            one = self.only_one(text, items, self.stop | {str(i).lower() for i in ignore})
+            if one is not None:            # "the walkie-talkie tour": only one thing has walkie and talkie
+                return one, "confirm", [one]
         return (found.thing or {}).get("item"), why, [c.get("item") for c in found.choices]
+
+    def only_one(self, text, items, never):
+        """The one thing that has two or more of the words said that no other thing has ("walkie talkie" in
+        "Leave the walkie-talkie at school", Oct 21: half its name, under the bar, so nothing was found), to be
+        asked about, never acted on; else None."""
+        from veil import match
+        heard = set(match.words(text, never))
+        names = [(x, set(match.words(self.name_of(x), never))) for x in items if isinstance(x, dict)]
+        own = {}
+        for w in heard:
+            has = [x for x, n in names if w in n]
+            if len(has) == 1:
+                own.setdefault(id(has[0]), [has[0], 0])[1] += 1
+        hits = [x for x, n in own.values() if n >= 2]
+        return hits[0] if len(own) == 1 and hits else None
 
     def match_followup(self, said):
         """In context (right after this topic): a change verb plus a real thing's name? Returns
@@ -1185,6 +1373,7 @@ class Connector:
         if at is not None:                           # by its place in the list she read
             item = next((c for c in self.cache["items"] if c.get(self.field("id")) == at), None)
             return (item, None) if item else (None, {"status": "answered", "speech": self.say("no_match")})
+        said = self.without_when(said)          # "change the time on that to 3:45": the 3:45 isn't the thing's name
         last = (memory or {}).get("last_chore") or {}
         if phases.on("dump15") and last.get("id") is not None and self.points_at_last(said, action):
             # "mark it complete" right after she named one (a find, an add): that one
@@ -1206,12 +1395,25 @@ class Connector:
                                   "said": said, "choices": [self.thing_choice(c) for c in ([item] if why == "confirm" else cands)]}}
         return None, {"status": "answered", "speech": self.say("no_match")}
 
+    def without_when(self, said):
+        """The words without a day or a time said in them ("to three forty five p m", "on Friday")."""
+        import datetime as dt
+        import fields as F
+        W = F.Words(said)
+        F.parse_date(W, dt.date.today())
+        F.parse_time(W)
+        return " ".join(W.left()) if len(W.left()) < len(W.w) else said
+
     def points_at_last(self, said, action):
         """Do the words, without the action's own, only point back ("it", "that", "the one you just added")?"""
         from veil import rules
         verbs = {w for v in ((self.map.get("actions") or {}).get(action) or {}).get("verbs") or {} for w in str(v).split()}
         toks = [t for t in re.findall(r"[a-z']+", said.lower()) if t not in verbs]
-        return rules.points_back(toks, self.drop_words() | verbs | NOT_ACTION)
+        # the words for a thing's own fields name what changes, not which thing ("the time on that")
+        import fields as F
+        fields_ = {w for f in self.add_fields().values() for x in (f.get("words") or []) for w in str(x).lower().split()} | {"time"}
+        fields_ |= F.YES | F.NO | {"could", "would", "can", "you", "please"}     # "yes, could you change ... that"
+        return rules.points_back(toks, self.drop_words() | verbs | NOT_ACTION | fields_)
 
     def changed(self, item, speech, action):
         """A change she made, remembered with which action it was (undo needs to know)."""
@@ -1234,13 +1436,22 @@ class Connector:
         items = await self.api("GET", self.items_command())
         names = await self.app_people()
         who = self.who_in(said, names)
+        if who is None and set(re.findall(r"[a-z']+", said.lower())) & (self.me_words | {"my", "i"}):
+            return self.ask_for("speaker", said, "list")      # "my list", and nobody sure who's asking: she asks
+        groups = self.cache["groups"] or await self.group_names()
+        own = self.own_group(who, groups, names) if who else None
+        shared = groups.get(self.shared_group())
         day, day_word = self.when_in(said, today)
-        group = self.group_in(said, self.cache["groups"] or await self.group_names())
+        group = self.group_in(said, groups)
+        if group and who and self.group_person(group[0], names) == who:
+            group = None        # "what does Mara have": her, not also her project Mara
         wf, gf = self.field("who"), self.field("group")
 
         picked, overdue = [], 0
         for c in items:
-            if who and wf and c.get(wf) != who[0]:
+            # someone's list: theirs anywhere, all of their own group, and the shared group's no one's
+            if who and wf and c.get(wf) != who[0] and not (own and gf and c.get(gf) == own[1]) \
+                    and not (shared is not None and gf and c.get(gf) == shared and not c.get(wf)):
                 continue
             if group and gf and c.get(gf) != group[1]:
                 continue
@@ -1299,9 +1510,12 @@ class Connector:
         return await self.change(said, "complete", "done", self.complete_body(), memory)
 
     async def do_skip(self, said, context, memory=None):
-        return await self.change(said, "skip", "skipped", memory=memory)
+        return await self.change(said, "skip", "skipped", self.skip_body(), memory)
 
     def complete_body(self):
+        return None
+
+    def skip_body(self):
         return None
 
     async def do_move(self, said, context, memory=None):
@@ -1309,17 +1523,88 @@ class Connector:
         item, reply = await self.target(said, "move", memory)
         if reply:
             return reply
+        import fields as F
         now = dt.datetime.now().astimezone()
         day, day_word = self.when_in(said, now.date())
+        t = F.parse_time(F.Words(said))
+        t = t if t and not t.get("part") else None
+        old = self.due_dt(item)
+        if not day and t:                  # "change the time on that to 3:45 pm": the time, on the day it has
+            day = old.date() if old else now.date()
+            day_word = F.say_date(day, now.date())
         if not day:
             return {"status": "answered", "speech": self.say("move_no_day")}
-        old = self.due_dt(item)
         at = old.timetz() if old else dt.time(9, 0, tzinfo=now.tzinfo)
-        new_due = dt.datetime.combine(day, at).isoformat()
+        if t:
+            day_word = f"{day_word} at {t['say']}"
+        # the house's offset on that day, not today's (as due_local)
+        new_due = (dt.datetime.combine(day, dt.time(t["hour"], t["minute"])).astimezone() if t
+                   else dt.datetime.combine(day, at)).isoformat()
         method, path = self.command("move", item)
         await self.api(method, path, json=await self.move_body(item, new_due))
         await self.refresh()
         return self.changed(item, self.say("moved", name=self.name_of(item), day=day_word), "move")
+
+    def repeat_of(self, item):
+        """How a thing repeats: ("days", n), ("seconds", n) or ("months", n); None when it doesn't (its app's
+        connector says, where its API stores it)."""
+        return None
+
+    def rolls_forward(self):
+        """Does it have repeating things that can be brought forward (its connector reads repeats, and it writes)?"""
+        return type(self).repeat_of is not Connector.repeat_of and self.writes() and bool(self.items_command())
+
+    @staticmethod
+    def next_from(due, rep, now):
+        """A repeating thing's first date from now on, its time of day kept (the house's clock, so a clock
+        change doesn't move it an hour)."""
+        import calendar
+        import datetime as dt
+        unit, n = rep
+        if unit == "months":
+            y, m, d = due.year, due.month, due.day
+            new = due
+            while new < now:
+                m += n
+                y, m = y + (m - 1) // 12, (m - 1) % 12 + 1
+                new = due.replace(year=y, month=m, day=min(d, calendar.monthrange(y, m)[1]))
+            return new
+        if unit == "seconds" and n % 86400:
+            steps = -(-(now - due) // dt.timedelta(seconds=n))
+            return due + steps * dt.timedelta(seconds=n)
+        days = n if unit == "days" else n // 86400
+        wall = due.replace(tzinfo=None)
+        steps = -(-(now.replace(tzinfo=None) - wall).days // days) if days else 0
+        new = (wall + dt.timedelta(days=steps * days)).astimezone()
+        while new < now:
+            new = (new.replace(tzinfo=None) + dt.timedelta(days=days)).astimezone()
+        return new
+
+    async def overdue_forward(self, apply=False):
+        """The repeating things past their due date (Oct 21, #27: nobody marks a reminder chore done, so it sat on
+        October 8): each with its next date from now on, its time kept. apply: each moved there (its whole edit,
+        as a move). [{id, name, from, to}]."""
+        import datetime as dt
+        import fields as F
+        now = dt.datetime.now().astimezone()
+        got = await self.api("GET", self.items_command())
+        out = []
+        for it in got if isinstance(got, list) else []:
+            if not isinstance(it, dict) or it.get("done"):
+                continue
+            due, rep = self.due_dt(it), self.repeat_of(it)
+            if not due or not rep or due >= now:
+                continue
+            new = self.next_from(due, rep, now)
+            say = lambda w: f"{F.say_date(w.date(), now.date())} at {F.say_time(w.hour, w.minute)}"  # noqa: E731
+            out.append({"id": it.get(self.field("id")), "name": self.name_of(it), "from": due.isoformat(), "to": new.isoformat(),
+                        "say_from": say(due), "say_to": say(new)})
+            if apply:
+                method, path = self.command("move", it)
+                await self.api(method, path, json=await self.move_body(it, new.isoformat()))
+        if apply and out:
+            await self.refresh()
+        return out
 
     async def move_body(self, item, new_due):
         body = {self.field("when"): new_due}
@@ -1366,6 +1651,10 @@ class Connector:
 
     TOO_LATE = ()
 
+    async def undo_body(self, last):
+        """The body an undo sends (an app with no undo of its own puts the thing back by an edit)."""
+        return None
+
     async def do_undo(self, said, context, memory=None):
         last = (memory or {}).get("last_chore")
         if not last:
@@ -1376,7 +1665,8 @@ class Connector:
                     "speech": self.say("undo_unsupported", what=self.undo_what.get(last.get("action"), "that change"))}
         method, path = self.command("undo", {self.field("id"): last["id"]})
         try:
-            await self.api(method, path)
+            body = await self.undo_body(last)
+            await self.api(method, path, json=body) if body is not None else await self.api(method, path)
         except RuntimeError as e:
             log.info("  %s: undo %s of %s %s refused: %s", self.name, last.get("action"), self.noun(), last.get("id"), e)
             if self.too_late(e):
@@ -1414,6 +1704,136 @@ class Connector:
         return self.timed_reminder(series.settle(extra, {}, {"values": {k: v for k, v in got["values"].items() if k in extra},
                                                              "named": [n for n in got["named"] if n in extra]}, now))
 
+    def due_local(self, filled, today):
+        """The due date and time filled so far, in the house's time, or None: a repeat with no date
+        starts today; a day with no time takes the Defaults tab's default_chore_time, else midnight."""
+        import datetime as dt
+        date, time = filled.get("due_date"), filled.get("due_time")
+        if filled.get("repeat") and not date:
+            date = {"date": today.isoformat()}
+        if not date:
+            return None
+        if time:
+            h, m = time["hour"], time["minute"]
+        elif self.opt("default_chore_time"):
+            h, m = map(int, str(self.opt("default_chore_time")).split(":"))
+        else:
+            log.info("  ! %s: a day with no time and no default_chore_time: due at the start of the day", self.name)
+            h, m = 0, 0
+        # the house's offset on that day, not today's (Oct 21: 9 am on November 1, past the clock change, was saved as 8)
+        return dt.datetime.combine(dt.date.fromisoformat(date["date"]), dt.time(h, m)).astimezone()
+
+    def reminder_minutes(self, filled):
+        """The reminders filled so far, as minutes from the due time (before is negative): the one
+        before, the one at due, then the nags, every step up to the Defaults tab's nag_max."""
+        out = []
+        if filled.get("remind_before"):
+            out.append(-filled["remind_before"]["minutes"])
+        if filled.get("remind_at_due") and filled["remind_at_due"].get("value"):
+            out.append(0)
+        if filled.get("nag"):
+            out += [filled["nag"]["minutes"] * k for k in range(1, int(self.opt("nag_max") or 0) + 1)]
+        return out
+
+    async def confirm(self, cid, body):
+        """The thing just made, read back from the app (its one-item read, else its list): what of the
+        body it didn't keep, by its fields' names ([] when all of it took; Oct 21, a transaction is
+        closed only when the app shows it). Its copy on hand gets the thing as the app has it."""
+        import datetime as dt
+        path = self.items_command() or ""
+        item = None
+        if f"GET {path}/{{id}}".upper() in self.commands:
+            try:
+                item = await self.api("GET", path + "/{id}", fill={"id": cid})
+            except Exception as e:
+                log.info("  ! %s: couldn't read the new %s back: %s", self.name, self.noun(), e)
+        if not isinstance(item, dict):
+            await self.refresh(anew=True)
+            item = next((x for x in self.cache["items"] if isinstance(x, dict) and x.get(self.field("id")) == cid), None)
+        if not isinstance(item, dict):
+            return ["all of it"]
+        items = [x for x in self.cache.get("items") or [] if not (isinstance(x, dict) and x.get(self.field("id")) == cid)]
+        self.cache["items"] = items + [item]
+
+        def moment(v):
+            try:
+                return dt.datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                return v
+        missed = []
+        for k, v in body.items():
+            got = item.get(k)
+            if k == self.field("when"):
+                same = got is not None and moment(got) == moment(v)
+            elif isinstance(v, list):
+                same = isinstance(got, list) and len(got) == len(v)
+            elif isinstance(v, dict) or k in ("assignees",):
+                continue
+            else:
+                same = str(got).strip().lower() == str(v).strip().lower()
+            if not same:
+                missed.append(k.replace("_", " "))
+        return missed
+
+    def record(self, name, filled, closed):
+        """The request's final shape (the owner's, Oct 21): the chore, its day, its time, how it reminds,
+        and whether it's closed (the app showed all of it)."""
+        return {"chore": name, "day": (filled.get("due_date") or {}).get("say") or "none",
+                "time": (filled.get("due_time") or {}).get("say") or "none",
+                "remind by": (filled.get("remind_by") or {}).get("value") or ("at due" if filled.get("remind_at_due") else "none"),
+                "status": "closed" if closed else "open"}
+
+    def event_name(self, said, name):
+        """The event a reminder is about, or None: "I have a MEETING Friday at 2", "the CAR INSPECTION is
+        due next month" (vocab/language.yaml event_leads, due_words). Its name is a thing, not a task."""
+        low = " ".join(re.findall(r"[a-z0-9']+", said.lower()))
+        n = re.sub(r"\s+(is|are)$", "", name.strip(), flags=re.I)
+        nl = n.lower()
+        leads = [str(x).lower() for x in _LANG.get("event_leads") or []]
+        due = [str(x).lower() for x in _LANG.get("due_words") or []]
+        if any(f" {l} {nl}" in f" {low}" for l in leads) or any(re.search(r"\b" + re.escape(nl) + r"\s+(?:is |are )?" + re.escape(d) + r"\b", low) for d in due):
+            return n[:1].upper() + n[1:]
+        return None
+
+    def event_slots(self, name, filled, today):
+        """The event's own day and time kept apart; the reminder's day and time are asked, larger first,
+        the event's offered (the owner's design, Oct 21). The event, or None when it has no day."""
+        import datetime as dt
+        import fields as F
+        d = filled.get("due_date") or {}
+        if not d.get("date"):
+            return None
+        on = dt.date.fromisoformat(d["date"])
+        t = filled.get("due_time") or {}
+        ev = {"name": name, "date": on.isoformat(), "say": d.get("said") if d.get("span") else F.say_date(on, today),
+              "time": f"{t['hour']:02d}:{t['minute']:02d}" if t and not t.get("part") else None,
+              "time_say": t.get("say") if t and not t.get("part") else None}
+        if d.get("span"):
+            filled["due_date"] = dict(d, term="event_day", offer=None)       # a span ("next month"): a day in it, offered
+        else:
+            a = min(today + dt.timedelta(days=1), on)
+            filled["due_date"] = {"date": on.isoformat(), "span": [min(today, a).isoformat(), on.isoformat()], "term": "event_day",
+                                  "said": f"the {name.lower()}", "unit": "week", "offer": on.isoformat()}
+        filled["due_time"] = dict(F.part_time("event_time", ev["time"] or str(self.opt("default_chore_time") or "09:00")), event=True)
+        return ev
+
+    def event_label(self, ev, filled, today):
+        """The chore's name once the reminder is set: the event's name when the reminder is the event itself
+        (Friday at 2 for a meeting Friday at 2), else the event with its own day and time, so it isn't lost
+        ("Friday meeting at 2 pm"; "Car inspection due next month")."""
+        due = (filled.get("due_date") or {}).get("date")
+        t = filled.get("due_time") or {}
+        hm = f"{t['hour']:02d}:{t['minute']:02d}" if t else None
+        if due == ev["date"] and (ev["time"] is None or hm == ev["time"]):
+            return ev["name"]
+        if ev["time"]:
+            return f"{ev['say']} {ev['name'][:1].lower()}{ev['name'][1:]} at {ev['time_say']}"
+        return f"{ev['name']} due {ev['say']}"
+
+    def remind_by(self, how):
+        """How a reminder comes, as filled: voice, alert or both, and how it's read back."""
+        return {"value": how, "say": {"voice": "reminded by voice", "alert": "reminded by alert"}.get(how, "reminded by voice and alert")}
+
     def new_body(self, name, person, gid, filled, today):
         """The app's body for a new thing (name, who and group by the standard names)."""
         body = {self.field("name"): name}
@@ -1437,22 +1857,62 @@ class Connector:
         groups = await self.group_names()
         flds = self.add_fields()
         got = F.parse_answer(said, flds, dt.datetime.now(), people={k: v[1] for k, v in names.items()}, choices=list(groups))
+        gfield = next((k for k, f in flds.items() if f.get("type") == "choice" and f.get("list")), None)
+        gval = (got["values"].get(gfield) or {}) if gfield else {}
+        grp, heard = gval.get("choice"), gval.get("heard") or gval.get("choice")
         # the name: the router's own reading (veil/spoken.py: the sentence diagram, the words as
-        # said, strip_away in its three layers); nothing left means she asks for it
-        name = self.spoken_value(said, "add")
+        # said, strip_away in its three layers), without a group put in by name ("... to Mara's
+        # morning briefing"); nothing left means she asks for it
+        name = self.spoken_value(sp.without_group(said, heard) if grp else said, "add")
+        if name and not sp.is_task(name):
+            # its own verb was taken for a little word ("have Turing euthanized" lost its "have", Oct 21):
+            # the word said just before the name, tried with it
+            m = re.search(r"\b([a-z']+)\s+" + re.escape(name.lower().split()[0]) + r"\b", said.lower())
+            if m and sp.is_task(f"{m.group(1)} {name}"):
+                name = f"{m.group(1)} {name}"
+        event = self.event_name(said, name) if name and not sp.is_task(name) else None
+        if event:
+            name = event          # "I have a meeting Friday at 2": an event, named as it is (Oct 21, the calendar case)
+        if name and not event and not sp.is_task(name) and not any(re.search(r"\b" + re.escape(w) + r"\b", low) for w in NAMING_WORDS):
+            # "Before", "Funeral": no action with its noun (Oct 21, the owner's test of a chore): she asks
+            # for it; a name given to her question ("... named the funeral") is taken as said
+            log.info("  %s: '%s' isn't something to do (an action with its noun): she asks", self.name, name)
+            name = ""
         if not name:
             return {"status": "answered", "speech": self.say("add_need_name"),
                     "ask": {"kind": "add_name", "said": said}}
 
         filled = self.opening_extras(got, dt.datetime.now())
-        who_disp = (got["values"].get("who") or {}).get("person")
-        person = next((v for v in names.values() if v[1] == who_disp), None) or self.default_person(names)
-        gfield = next((k for k, f in flds.items() if f.get("type") == "choice" and f.get("list")), None)
-        grp = (got["values"].get(gfield) or {}).get("choice") if gfield else None
-        if grp and not sp.said_outside(said, name, grp):
+        event = self.event_slots(event, filled, today) if event else None
+        if grp and not sp.said_outside(said, name, heard):
             grp = None          # "paint the back of the house": the House project wasn't named, only the thing's words
-        grp = grp or self.group_card().get("default")
+        who_disp = (got["values"].get("who") or {}).get("person")
+        named = next((v for v in names.values() if v[1] == who_disp), None)
+        if grp:
+            # a group named: whose it is (the project Mara: hers), the shared one no one's, else "me"
+            person = named or self.group_person(grp, names) or (None if grp == self.shared_group() else self.default_person(names))
+        else:
+            # none named: the person's own group (theirs, or "me"'s), else the card's default (no one's: House)
+            person = named or self.default_person(names)
+            own = self.own_group(person, groups, names)
+            grp = own[0] if own else self.group_card().get("default")
+        state = self.OFFER.get()
+        if isinstance(state, dict) and state.get("for"):
+            # her offer being answered: it stays the request of the person it began with, though the
+            # voice ID is less sure of a short answer (Oct 21: "Buy voice and Saturday is fine" went to House)
+            person, grp = tuple(state["for"]["person"]), state["for"]["group"]
         gid = groups.get(grp) if grp else None
+        if LOOSE:          # the Loose language add-on: what was said loosely, offered and asked (issue #19)
+            LOOSE.before_event(self, name, filled, today)     # "for Janine's wedding on Sunday": before it
+        asked = LOOSE.offer(self, said, filled, person, names) if LOOSE else None    # "tomorrow morning", "remind me"
+        if not asked and event:
+            name = self.event_label(event, filled, today)
+        if asked:
+            if person and not asked["ask"].get("for"):
+                asked["ask"]["for"] = {"person": list(person), "group": grp}     # whose it is, kept to the end
+            if EVENT_DAY.get():
+                asked["ask"]["event"] = EVENT_DAY.get()          # "for Easter Sunday", kept to the end too
+            return asked
         if gid is None and grp:
             # never guess another group (it used to take the first one the app listed):
             # left out, the app files it under none, and the log says why
@@ -1461,19 +1921,31 @@ class Connector:
 
         body = self.new_body(name[:1].upper() + name[1:], person, gid, filled, today)
         method, path = self.command("add")
-        res = await self.api(method, path, json=body)
+        # a command that adds into its group names the group in its path (PUT /projects/{id}/tasks)
+        res = await self.api(method, path, json=body, fill={"id": gid} if gid is not None else None)
         cid = res if isinstance(res, int) else (res.get(self.field("id")) if isinstance(res, dict) else None)
         if isinstance(cid, str) and cid.isdigit():
             cid = int(cid)
-        await self.refresh()
         if not cid:
             # never claim it was added without the app's id for the new thing
             raise RuntimeError(f"{self.name} didn't return the new {self.noun()}'s id: {str(res)[:120]}")
+        missed = await self.confirm(cid, body)                 # read back: did the app keep what was sent?
+        record = self.record(name, filled, closed=not missed)
+        log.info("  record: %s", ", ".join(f"{k} {v}" for k, v in record.items()) + (f" (not kept: {', '.join(missed)})" if missed else ""))
 
-        who_say = self.spoken_name(person, names) if person else "you"
-        shown = f"{name} for {who_say}, in {grp}" if grp else f"{name} for {who_say}"
+        who_say = f" for {self.spoken_name(person, names)}" if person else ""
+        shown = f"{name}{who_say}, in {grp}" if grp else f"{name}{who_say}"
+        if (filled.get("due_time") or {}).get("loose") or (filled.get("due_date") or {}).get("loose"):
+            # a day or time she filled in: said back, so it can be put right
+            shown += f", {(filled.get('due_date') or {}).get('say') or 'today'}" + \
+                (f" at {filled['due_time']['say']}" if filled.get("due_time") else "")
+        if filled.get("remind_by"):
+            shown += ", " + filled["remind_by"]["say"]
         line, state = series.start(shown, self.noun(), flds, filled, self.say, more=self.rule_offers())
-        reply = {"status": "answered", "speech": line,
+        if missed:          # never "added" as if all of it took: what the app didn't keep is said
+            line = self.say("add_not_kept", name=name, missed=series.join_or(missed).replace(" or ", " and "))
+            state = None
+        reply = {"status": "answered", "speech": line, "record": record,
                  "chore": {"id": cid, "name": body[self.field("name")], "action": "add"}}
         if state and cid:
             reply["series"] = dict(state, chore_id=cid)

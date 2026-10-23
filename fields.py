@@ -25,6 +25,9 @@ with open(LANGUAGE_FILE) as _f:
 
 WEEKDAYS = [str(w) for w in LANG["weekdays"]]
 MONTHS = [str(m) for m in LANG["months"]]
+MONTH_SHORT = {str(k): str(v) for k, v in (LANG.get("month_short") or {}).items()}
+DEADLINE_WORDS = {str(w) for w in LANG.get("deadline_words") or []}
+UNTIL_WORDS = {str(w) for w in LANG.get("until_words") or []}
 UNITS = {str(k): str(v) for k, v in LANG["units"].items()}
 MINUTES = {str(k): int(v) for k, v in LANG["unit_minutes"].items()}
 FRACTIONS = {str(k): float(v) for k, v in (LANG.get("fractions") or {}).items()}
@@ -59,6 +62,8 @@ def words_of(text):
     while i < len(raw):
         w = raw[i]
         nxt = raw[i + 1] if i + 1 < len(raw) else ""
+        if w in MONTH_SHORT and re.fullmatch(r"\d{1,2}(th)?|[a-z]+", nxt) and (nxt[:1].isdigit() or nxt in ORDS or nxt in ONES or nxt in TENS):
+            w = MONTH_SHORT[w]           # "sept 30" -> "september 30"
         if w in TENS and nxt in ORDS and ORDS[nxt] < 10:
             out.append(f"{TENS[w] + ORDS[nxt]}th"); i += 2; continue
         if w in TENS and nxt in ONES and ONES[nxt] < 10:
@@ -249,6 +254,104 @@ def say_time(h, m):
     return f"{h12}:{m:02d} {suffix}" if m else f"{h12} {suffix}"
 
 
+def _phrase_at(W, toks):
+    """Where these words (as words_of reads them) start, all unused, or None."""
+    for i in range(len(W.w) - len(toks) + 1):
+        if all(W.get(i + k) == t for k, t in enumerate(toks)):
+            return i
+    return None
+
+
+def _lead_back(W, i, lead):
+    """The start of a phrase with the little words before it that belong to it ("by the end of the week")."""
+    while W.get(i - 1) in lead:
+        i -= 1
+    return i
+
+
+def part_time(part, hhmm=None):
+    """A part of the day as a loose time: its own time (part_times), or the one given."""
+    hh, mm = (int(x) for x in (hhmm or PART_TIMES[part]).split(":"))
+    return {"hour": hh, "minute": mm, "say": say_time(hh, mm), "part": part}
+
+
+def _loose_part(W):
+    """A part of the day in other words ("first thing": morning), or something that ends at an hour
+    nobody said ("after school"): a loose time, its term kept for the person's own (issue #19)."""
+    for phrase, part in sorted((LANG.get("part_phrases") or {}).items(), key=lambda x: -len(x[0])):
+        i = _phrase_at(W, words_of(phrase))
+        if i is not None and str(part) in PART_TIMES:
+            W.take(_lead_back(W, i, ("at", "by", "the", "in")), i + len(words_of(phrase)))
+            return part_time(str(part))
+    for event in sorted(LANG.get("after_ends") or [], key=lambda x: -len(str(x))):
+        toks = ["after"] + words_of(str(event))
+        i = _phrase_at(W, toks)
+        if i is not None:
+            W.take(i, i + len(toks))
+            return part_time(" ".join(toks), str(LANG.get("after_ends_time") or "13:00"))
+    return None
+
+
+def _month_last(y, m):
+    return (dt.date(y + (m == 12), m % 12 + 1, 1) - dt.timedelta(days=1)).day
+
+
+def span_dates(kind, today, ahead=False):
+    """(first, last) day of a loose span (vocab/language.yaml loose_days), from today on; one already
+    past is the next one. ahead: "next" was said ("beginning of next week")."""
+    one = dt.timedelta(days=1)
+    tom, mon = today + one, today - dt.timedelta(days=today.weekday())
+    y, m = today.year, today.month
+    ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+    nxt = (dt.date(ny, nm, 1), dt.date(ny, nm, _month_last(ny, nm)))
+    if kind == "week":
+        a, b = tom, mon + 6 * one
+        return (a, b) if a <= b else (tom, mon + 13 * one)
+    if kind == "weekend":
+        return max(today, mon + 4 * one), mon + 6 * one
+    if kind == "next_weekend":
+        return mon + 11 * one, mon + 13 * one
+    if kind == "next_week":
+        return mon + 7 * one, mon + 13 * one
+    if kind == "week_start":
+        a, b = max(tom, mon), mon + 2 * one
+        return (a, b) if a <= b and not ahead else (mon + 7 * one, mon + 9 * one)
+    if kind == "week_end":
+        a, b = max(tom, mon + 3 * one), mon + 6 * one
+        return (a, b) if a <= b else (mon + 10 * one, mon + 13 * one)
+    if kind == "next_month":
+        return nxt
+    if kind == "later_month":
+        a, b = tom, dt.date(y, m, _month_last(y, m))
+        return (a, b) if a <= b else nxt
+    if kind == "month_start":
+        return (tom, dt.date(y, m, 3)) if today.day < 3 and not ahead else (nxt[0], nxt[0] + 2 * one)
+    if kind == "month_end":
+        a, b = max(tom, dt.date(y, m, 16)), dt.date(y, m, _month_last(y, m))
+        return (a, b) if a <= b else (dt.date(ny, nm, 16), nxt[1])
+    return None
+
+
+def _span(W, today):
+    """A loose day ("this week", "the weekend", "next month"...): its span, the first day in it for
+    now (the app picks the day offered: the person's own, else dealer's choice), and how it was said."""
+    found = sorted(((words_of(str(p)), str(p), str(k)) for k, ps in (LANG.get("loose_days") or {}).items() for p in ps or []),
+                   key=lambda x: -len(x[0]))
+    for toks, said, kind in found:
+        i = _phrase_at(W, toks)
+        if i is None or W.get(i - 1) in EVERY_WORDS:      # "every weekend" is a repeat
+            continue
+        ab = span_dates(kind, today, "next" in toks)
+        if not ab:
+            continue
+        W.take(_lead_back(W, i, DATE_LEAD + ("the", "in", "at", "over", "during", "sometime")), i + len(toks))
+        a, b = ab
+        return {"date": a.isoformat(), "say": say_date(a, today), "span": [a.isoformat(), b.isoformat()], "term": kind,
+                "said": said if said.startswith(("this ", "the ", "next ", "later ", "sometime ", "early ", "late ")) else "the " + said,
+                "unit": "month" if "month" in kind else "week"}
+    return None
+
+
 def _part_of_day(W):
     """'in the morning', 'this evening', 'tonight' anywhere in the answer."""
     for i, w in enumerate(W.w):
@@ -312,6 +415,9 @@ def parse_time(W):
                 if W.get(k - back) in ("in", "the", "this"):
                     W.take(k - back, k - back + 1)
         return {"hour": h24, "minute": m, "say": say_time(h24, m)}
+    loose = _loose_part(W)
+    if loose:
+        return loose
     if part in PART_TIMES and part_i is not None and W.free(part_i):
         # a part of the day with no time said: its own time (vocab/language.yaml part_times)
         hh, mm = (int(x) for x in PART_TIMES[part].split(":"))
@@ -320,7 +426,8 @@ def parse_time(W):
             for back in (1, 2):
                 if W.get(part_i - back) in ("in", "the", "this"):
                     W.take(part_i - back, part_i - back + 1)
-        return {"hour": hh, "minute": mm, "say": say_time(hh, mm)}
+        # part: only the part of the day was said, a loose time (issue #19: the person's own "morning")
+        return {"hour": hh, "minute": mm, "say": say_time(hh, mm), "part": part}
     return None
 
 
@@ -355,6 +462,9 @@ def _month_day(today, month, day):
 
 
 def parse_date(W, today):
+    loose = _span(W, today)
+    if loose:
+        return loose
     n = len(W.w)
     for i in range(n):
         w = W.get(i)
@@ -375,6 +485,8 @@ def parse_date(W, today):
             W.take(i, i + 3); return _date(today + dt.timedelta(days=days), today)
         if w in ("this", "next") and W.get(i + 1) in WEEKDAYS:
             continue      # handled when the weekday itself is reached
+        if w in WEEKDAYS and W.get(i + 1) in MONTHS and re.fullmatch(r"\d{1,2}(th)?", W.get(i + 2) or ""):
+            continue      # "Sunday, March 21": the date says the day, the weekday goes with it
         if w in WEEKDAYS:
             start = before
             if W.get(i - 1) in ("this", "next"):
@@ -382,14 +494,26 @@ def parse_date(W, today):
                 if W.get(i - 2) in DATE_LEAD:
                     start = i - 2
             ahead = (WEEKDAYS.index(w) - today.weekday()) % 7
+            if W.get(i - 1) == "next":     # the following week's (weeks start Monday, as "next week" does)
+                ahead = 7 - today.weekday() + WEEKDAYS.index(w)
             W.take(start, i + 1); return _date(today + dt.timedelta(days=ahead), today)
         if w in MONTHS:
             nxt = W.get(i + 1)
             m = MONTHS.index(w) + 1
             if nxt and re.fullmatch(r"\d{1,2}(th)?", nxt):                 # october 14 / 14th
                 d = _month_day(today, m, int(nxt.rstrip("th")))
+                end = i + 2
+                year = W.get(i + 2)
+                if d and year and re.fullmatch(r"20\d\d", year):               # march 21 2027: that year's
+                    try:
+                        d, end = dt.date(int(year), m, int(nxt.rstrip("th"))), i + 3
+                    except ValueError:
+                        d = None
+                start = before
+                if W.get(i - 1) in WEEKDAYS:                                   # sunday march 21: its weekday with it
+                    start = i - 2 if W.get(i - 2) in DATE_LEAD else i - 1
                 if d:
-                    W.take(before, i + 2); return _date(d, today)
+                    W.take(start, end); return _date(d, today)
         if re.fullmatch(r"\d{1,2}th", w):                                  # the 14th (of october)
             day = int(w[:-2])
             start = i - 1 if W.get(i - 1) == "the" else i
@@ -429,20 +553,22 @@ def parse_person(W, people):
 
 
 def parse_choice(W, options):
-    """options: names (e.g. Donetick's projects). All of an option's words must be heard."""
+    """options: names (e.g. Donetick's projects). All of an option's words must be heard, a word
+    also as its possessive ("Mara's" for the project Mara); a name that opens with a possessive also
+    without it ("the afternoon briefing" for Mara's Afternoon Briefing). heard: the words said."""
     best = None
     for opt in options or []:
-        ow = words_of(opt)
-        if not ow:
-            continue
-        for i in range(len(W.w) - len(ow) + 1):
-            if all(W.free(i + k) and W.w[i + k] == ow[k] for k in range(len(ow))):
-                if not best or len(ow) > len(best[1]):
-                    best = (i, ow, opt)
+        full = words_of(opt)
+        for ow in [full] + ([full[1:]] if len(full) > 1 and full[0].endswith("'s") else []):
+            for i in range(len(W.w) - len(ow) + 1):
+                if all(W.free(i + k) and W.w[i + k] in (ow[k], ow[k] + "'s") for k in range(len(ow))):
+                    if not best or len(ow) > len(best[1]):
+                        best = (i, ow, opt)
     if best:
         i, ow, opt = best
+        heard = " ".join(W.w[i:i + len(ow)])
         W.take(i, i + len(ow))
-        return {"choice": opt, "say": opt}
+        return {"choice": opt, "say": opt, "heard": heard}
     return None
 
 
@@ -507,13 +633,14 @@ def parse_answer(text, fields, now, people=None, choices=None):
         named = [c for c in cands if c in named_at]
         out["values"][(named or cands)[0]] = value
 
-    readers = [("recurrence", lambda: parse_recurrence(W)),
+    # a name of the app's own first (a project): "Mara's Morning Briefing" isn't a morning
+    readers = [("choice", lambda: parse_choice(W, choices)),
+               ("recurrence", lambda: parse_recurrence(W)),
                ("date", lambda: _in_n_days(W, today)),
                ("duration", lambda: parse_duration(W)),
                ("time", lambda: parse_time(W)),
                ("date", lambda: parse_date(W, today)),
-               ("person", lambda: parse_person(W, people)),
-               ("choice", lambda: parse_choice(W, choices))]
+               ("person", lambda: parse_person(W, people))]
     for kind, read in readers:
         while open_of(kind):
             v = read()

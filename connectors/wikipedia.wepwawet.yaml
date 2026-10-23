@@ -1,0 +1,116 @@
+# The compliant copy of Wikipedia (issue #24), written by tools/wepwawet_copy.py: the app's own
+# file is never changed. Its user rules of a standard shape are actions here; one the household
+# keeps by hand under the same name (connectors/<app>.yaml rules:) is used instead.
+x-wepwawet:
+  version: 2
+  title: Wikipedia
+  source:
+    written_by: Wepwawet Veil
+    from: Wikipedia 1.0.0
+    pushed_back:
+    - wiki_born_on
+    - wiki_born_today
+    - wiki_died_on
+    - wiki_died_today
+    - wiki_events_on
+    - wiki_holidays
+    - wiki_today
+  data:
+    kind: transient
+    pace: slow
+    hold_seconds: 3600.0
+  lists:
+    event:
+      from: GET /{domain}/v1/feed/onthisday/selected/{month}/{day}
+      id: text
+      name: text
+  actions:
+    wiki_today:
+      starts:
+      - what happened in history
+      - what happened today
+      - what happened on this day
+      - this day in history
+      - on this day in history
+      from: GET /{domain}/v1/feed/onthisday/selected/{month}/{day}
+      says:
+        lines:
+        - 'On this day in history: {items}.'
+        empty_lines:
+        - Nothing in history today, it seems.
+        list: true
+        line: '{year}: {text}'
+    wiki_born_today:
+      starts:
+      - who was born today
+      - who was born on this day
+      - born today
+      from: GET /{domain}/v1/feed/onthisday/births/{month}/{day}
+      says:
+        lines:
+        - 'Born on this day: {items}.'
+        empty_lines:
+        - Nobody I know of was born today.
+        list: true
+        line: '{year}: {text}'
+    wiki_died_today:
+      starts:
+      - who died today
+      - who died on this day
+      - died today
+      from: GET /{domain}/v1/feed/onthisday/deaths/{month}/{day}
+      says:
+        lines:
+        - 'Died on this day: {items}.'
+        empty_lines:
+        - Nobody I know of died on this day.
+        list: true
+        line: '{year}: {text}'
+    wiki_events_on:
+      starts:
+      - what happened on
+      - what happened in history on
+      from: GET /{domain}/v1/feed/onthisday/selected/{month}/{day}
+      says:
+        lines:
+        - 'On {day_said} in history: {items}.'
+        empty_lines:
+        - Nothing I know of happened on {day_said}.
+        list: true
+        line: '{year}: {text}'
+    wiki_born_on:
+      starts:
+      - who was born on
+      from: GET /{domain}/v1/feed/onthisday/births/{month}/{day}
+      says:
+        lines:
+        - 'Born on {day_said}: {items}.'
+        empty_lines:
+        - Nobody I know of was born on {day_said}.
+        list: true
+        line: '{year}: {text}'
+    wiki_died_on:
+      starts:
+      - who died on
+      from: GET /{domain}/v1/feed/onthisday/deaths/{month}/{day}
+      says:
+        lines:
+        - 'Died on {day_said}: {items}.'
+        empty_lines:
+        - Nobody I know of died on {day_said}.
+        list: true
+        line: '{year}: {text}'
+    wiki_holidays:
+      starts:
+      - what holiday is today
+      - what holidays are today
+      - is today a holiday
+      - holidays today
+      from: GET /{domain}/v1/feed/onthisday/holidays/{month}/{day}
+      says:
+        lines:
+        - Today is {items}.
+        empty_lines:
+        - No holiday I know of today.
+        list: true
+        line: '{text}'

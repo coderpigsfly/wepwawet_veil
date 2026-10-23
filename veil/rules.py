@@ -213,6 +213,12 @@ def says_day(rule):
                for x in list(param("response", p, "lines") or []) + list(param("response", p, "empty_lines") or []))
 
 
+def finds(rule):
+    """Does the rule look a thing up by what was said (a Match step)? Asked of an app when nothing claimed a
+    request (#28): "Can you find the walkie coffee tour?" is the chores app's if its find finds it."""
+    return any(kind_of(s)[0] == "match" for s in (rule or {}).get("steps") or [])
+
+
 def first_change(rule):
     """The command a rule changes something with (the first call that isn't a GET), else its first call:
     so the router knows whether the rule changes anything."""
@@ -496,22 +502,30 @@ async def run(conn, name, said, state=None, memory=None):
         v = dict(st["values"])
         if st.get("item"):
             v["item"] = plain(st["item"]["name"])
+        if st.get("looked_for"):         # the words looked for, for a line when none is found ("no picnic")
+            v.setdefault("searched", plain(st["looked_for"]))
         return v
+
+    def matched():
+        """What the words were looked up as, and the thing they matched (for the router's who-can-answer, #28)."""
+        return {k: v for k, v in (("looked_for", st.get("looked_for")), ("found_item", (st.get("item") or {}).get("name")))
+                if v}
 
     def wait(mode, speech, **more):
         log.info("  rule %s, step %d: asks (%s)", name, st["at"] + 1, mode)
         keep = {k: st[k] for k in ("said", "at", "values", "item", "unsure", "rest", "remember", "named", "field") if k in st}
-        return {"status": "answered", "speech": speech,
-                "ask": dict({"kind": "rule", "mode": mode, "action": name, "said": st["said"], "state": keep}, **more)}
+        return dict({"status": "answered", "speech": speech,
+                     "ask": dict({"kind": "rule", "mode": mode, "action": name, "said": st["said"], "state": keep,
+                                  "question": speech}, **more)}, **matched())
 
-    def stop(speech):
-        log.info("  rule %s, step %d: stops", name, st["at"] + 1)
-        return {"status": "answered", "speech": speech}
+    def stop(speech, not_found=False):
+        log.info("  rule %s, step %d: stops%s", name, st["at"] + 1, " (nothing found)" if not_found else "")
+        return dict({"status": "answered", "speech": speech}, **({"not_found": True} if not_found else {}))
 
     async def done(speech):
         if not first_change(rule).strip().upper().startswith("GET "):
             await conn.refresh()          # it changed something: the copy on hand is read again
-        reply = {"status": "answered", "speech": speech}
+        reply = dict({"status": "answered", "speech": speech}, **matched())
         if st.get("items") is not None:
             reply["items"] = st["items"]          # read out by the router, a few at a time
             if st.get("read_max"):
@@ -543,7 +557,8 @@ async def run(conn, name, said, state=None, memory=None):
                 missing = [k for k in re.findall(r"\{(\w+)\}", path) if k not in v]
                 if missing:
                     return stop(say("generic_cannot", action=label))
-                path = re.sub(r"\{(\w+)\}", lambda m: str(v[m.group(1)]), path)
+                from urllib.parse import quote       # each value one part of the address, encoded (#15)
+                path = re.sub(r"\{(\w+)\}", lambda m: quote(str(v[m.group(1)]), safe=""), path)
             if method.upper() == "GET" and hasattr(conn, "listing"):
                 answer, listed = await conn.listing(path, command=listed_as)     # both years, its skips (connector.py)
             elif method.upper() == "GET":
@@ -592,6 +607,14 @@ async def run(conn, name, said, state=None, memory=None):
             for before, after, word in ([] if lead else splits(named or st["said"], [] if named else rule.get("words") or [],
                                                                  param(kind, p, "until") or [])):
                 said_words = [w for w in before if w not in drop]
+                at = conn.position(" ".join(before), memory) if hasattr(conn, "position") else None
+                it = next((x for x in listed if isinstance(x, dict) and x.get("id") == at), None) if at is not None else None
+                if it:
+                    # by its place in the list she last read ("rename number five", Oct 21): that one, no question
+                    best = (" ".join(before), [{"id": at, "name": str(it.get(st["field"]) or ""), "group": None,
+                                                "fields": {k: v for k, v in it.items() if isinstance(v, (str, int, float, bool)) or v is None},
+                                                "score": 1.0, "whole": True, "exact": True}], after, word)
+                    break
                 if st["remember"] and points_back(before, drop):
                     if not last.get("id"):
                         return stop(say("rule_no_last", action=label))
@@ -625,6 +648,8 @@ async def run(conn, name, said, state=None, memory=None):
                 return wait("ask", say("rule_which_name"), need="_name")
             text, st["found"], after, word = best[:4]
             st["searched"] = text
+            ignored = conn.never_words() | {str(w).lower() for w in param(kind, p, "ignore") or []}
+            st["looked_for"] = " ".join(w for w in text.split() if w.lower() not in ignored)     # "picnic", for a not-found line
             st["found_n"] = best[4] if len(best) > 4 else len(st["found"])
             if word:
                 st["rest"] = {"word": word, "words": after, "on_last": bool(lead)}     # what Ask reads when it waits on the same word
@@ -646,7 +671,7 @@ async def run(conn, name, said, state=None, memory=None):
                                                conn.never_words())
                     if gone:
                         return stop(gone)
-                return stop(_fill(p.get("not_found"), values()) or say("rule_not_found", action=label))
+                return stop(_fill(p.get("not_found"), values()) or say("rule_not_found", action=label), not_found=True)
             pool = None                   # the choices she could weigh, when she asks which
             if found[0].get("alone"):
                 top, pool = found[:3], found  # nothing but a word that never decides alone ("Mary"): which one
@@ -693,7 +718,8 @@ async def run(conn, name, said, state=None, memory=None):
             if w.get("field"):           # several on the day: the main one first (the card's weight)
                 picked = sorted(picked, key=lambda x: conn.weight_of(x, w))
             if not picked:
-                return stop(_fill(p.get("not_found"), dict(values(), day=day or "")) or say("rule_not_found", action=label))
+                return stop(_fill(p.get("not_found"), dict(values(), day=day or "")) or say("rule_not_found", action=label),
+                            not_found=True)
             first = picked[0]
             if day:
                 st["values"]["day"] = day          # "{day}" in a Response: "tomorrow", "Saturday"

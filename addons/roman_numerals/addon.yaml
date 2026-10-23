@@ -1,0 +1,17 @@
+# addons/roman_numerals - Roman numerals said as words (issue #7), the first add-on (#25).
+# Piper reads "John V" as "John V"; this says "John the Fifth" (and "World War Two").
+name: roman_numerals
+title: Roman numerals
+version: 1.0.0
+kind: dress
+about: Says a Roman numeral after a name as words, so text-to-speech reads it ("John V" is "John the Fifth").
+serves: comfort            # it doesn't keep a request on platform; it makes her answer sound right, and costs almost nothing
+data: {kind: record}       # its own word lists, read once
+path: outbound           # Oread -> Wepwawet -> ... -> Home Assistant: her answer going out
+positions: [replace]              # inside the result: "John V" becomes "John the Fifth"
+slots: [dress]
+may: [answer]
+on_error: skip
+budget_ms: 2
+pages:
+  - {id: roman, label: Roman numerals, group: Personality, role: administrator}

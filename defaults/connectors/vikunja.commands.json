@@ -1,0 +1,4454 @@
+{
+ "read_from": "http://192.168.1.20:3456/api/v1/docs.json",
+ "title": "Vikunja API",
+ "accepted": "2026-10-21 01:24",
+ "commands": [
+  {
+   "api": "GET /admin/overview",
+   "summary": "Admin overview",
+   "requires": [],
+   "returns": [
+    "license",
+    "projects",
+    "shares",
+    "tasks",
+    "teams",
+    "users"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /admin/projects",
+   "summary": "List projects (admin)",
+   "requires": [],
+   "returns": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page",
+    "query: s"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PATCH /admin/projects/{id}/owner",
+   "summary": "Reassign project owner (admin)",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "owner_id"
+   ]
+  },
+  {
+   "api": "GET /admin/users",
+   "summary": "List users (admin)",
+   "requires": [],
+   "returns": [
+    "auth_provider",
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "is_admin",
+    "issuer",
+    "name",
+    "status",
+    "subject",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "query: s",
+    "query: page",
+    "query: per_page"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /admin/users",
+   "summary": "Create a user (admin)",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "auth_provider",
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "is_admin",
+    "issuer",
+    "name",
+    "status",
+    "subject",
+    "updated",
+    "username"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "email",
+    "is_admin",
+    "language",
+    "name",
+    "password",
+    "skip_email_confirm",
+    "username"
+   ]
+  },
+  {
+   "api": "DELETE /admin/users/{id}",
+   "summary": "Delete a user (admin)",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [],
+   "params": [
+    "path: id",
+    "query: mode"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PATCH /admin/users/{id}/admin",
+   "summary": "Promote or demote a user (admin)",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "auth_provider",
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "is_admin",
+    "issuer",
+    "name",
+    "status",
+    "subject",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "is_admin"
+   ]
+  },
+  {
+   "api": "PATCH /admin/users/{id}/status",
+   "summary": "Set a user's status (admin)",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "auth_provider",
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "is_admin",
+    "issuer",
+    "name",
+    "status",
+    "subject",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "status"
+   ]
+  },
+  {
+   "api": "POST /auth/openid/{provider}/callback",
+   "summary": "Authenticate a user with OpenID Connect",
+   "requires": [
+    "body",
+    "path: provider"
+   ],
+   "returns": [
+    "token"
+   ],
+   "params": [
+    "path: provider"
+   ],
+   "types": {
+    "provider": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "code",
+    "redirect_url",
+    "scope",
+    "totp_passcode"
+   ]
+  },
+  {
+   "api": "GET /backgrounds/unsplash/image/{image}",
+   "summary": "Get an unsplash image",
+   "requires": [
+    "path: image"
+   ],
+   "returns": [],
+   "params": [
+    "path: image"
+   ],
+   "types": {
+    "image": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /backgrounds/unsplash/image/{image}/thumb",
+   "summary": "Get an unsplash thumbnail image",
+   "requires": [
+    "path: image"
+   ],
+   "returns": [],
+   "params": [
+    "path: image"
+   ],
+   "types": {
+    "image": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /backgrounds/unsplash/search",
+   "summary": "Search for a background from unsplash",
+   "requires": [],
+   "returns": [
+    "blur_hash",
+    "id",
+    "info",
+    "thumb",
+    "url"
+   ],
+   "params": [
+    "query: s",
+    "query: p"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /filters",
+   "summary": "Creates a new saved filter",
+   "requires": [],
+   "returns": [
+    "created",
+    "description",
+    "filters",
+    "id",
+    "is_favorite",
+    "owner",
+    "title",
+    "updated"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /filters/{id}",
+   "summary": "Gets one saved filter",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "description",
+    "filters",
+    "id",
+    "is_favorite",
+    "owner",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /filters/{id}",
+   "summary": "Updates a saved filter",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "description",
+    "filters",
+    "id",
+    "is_favorite",
+    "owner",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /filters/{id}",
+   "summary": "Removes a saved filter",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "description",
+    "filters",
+    "id",
+    "is_favorite",
+    "owner",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /info",
+   "summary": "Info",
+   "requires": [],
+   "returns": [
+    "allow_icon_changes",
+    "auth",
+    "available_migrators",
+    "caldav_enabled",
+    "concurrent_writes",
+    "demo_mode_enabled",
+    "email_reminders_enabled",
+    "enabled_background_providers",
+    "enabled_pro_features",
+    "frontend_url",
+    "legal",
+    "link_sharing_enabled",
+    "max_file_size",
+    "max_items_per_page",
+    "motd",
+    "public_teams_enabled",
+    "task_attachments_enabled",
+    "task_comments_enabled",
+    "totp_enabled",
+    "user_deletion_enabled",
+    "version",
+    "webhooks_enabled"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /labels",
+   "summary": "Get all labels a user has access to",
+   "requires": [],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page",
+    "query: s"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /labels",
+   "summary": "Create a label",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ]
+  },
+  {
+   "api": "GET /labels/{id}",
+   "summary": "Gets one label",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /labels/{id}",
+   "summary": "Update a label",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ]
+  },
+  {
+   "api": "DELETE /labels/{id}",
+   "summary": "Delete a label",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /login",
+   "summary": "Login",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "token"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "long_token",
+    "password",
+    "totp_passcode",
+    "username"
+   ]
+  },
+  {
+   "api": "PUT /migration/csv/detect",
+   "summary": "Detect CSV structure",
+   "requires": [
+    "formData: import"
+   ],
+   "returns": [
+    "columns",
+    "date_format",
+    "delimiter",
+    "preview_rows",
+    "quote_char",
+    "suggested_mapping"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /migration/csv/migrate",
+   "summary": "Import CSV file",
+   "requires": [
+    "formData: import",
+    "formData: config"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /migration/csv/preview",
+   "summary": "Preview CSV import",
+   "requires": [
+    "formData: import",
+    "formData: config"
+   ],
+   "returns": [
+    "tasks",
+    "total_rows",
+    "description",
+    "done",
+    "due_date",
+    "end_date",
+    "labels",
+    "priority",
+    "project",
+    "start_date",
+    "title"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /migration/csv/status",
+   "summary": "Get CSV migration status",
+   "requires": [],
+   "returns": [
+    "error_kind",
+    "error_message",
+    "finished_at",
+    "id",
+    "migrator_name",
+    "started_at"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /migration/microsoft-todo/auth",
+   "summary": "Get the auth url from Microsoft Todo",
+   "requires": [],
+   "returns": [
+    "url"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /migration/microsoft-todo/migrate",
+   "summary": "Migrate all projects, tasks etc. from Microsoft Todo",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "code",
+    "state"
+   ]
+  },
+  {
+   "api": "GET /migration/microsoft-todo/status",
+   "summary": "Get migration status",
+   "requires": [],
+   "returns": [
+    "error_kind",
+    "error_message",
+    "finished_at",
+    "id",
+    "migrator_name",
+    "started_at"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /migration/ticktick/migrate",
+   "summary": "Import all projects, tasks etc. from a TickTick backup export",
+   "requires": [
+    "formData: import"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /migration/ticktick/status",
+   "summary": "Get migration status",
+   "requires": [],
+   "returns": [
+    "error_kind",
+    "error_message",
+    "finished_at",
+    "id",
+    "migrator_name",
+    "started_at"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /migration/todoist/auth",
+   "summary": "Get the auth url from todoist",
+   "requires": [],
+   "returns": [
+    "url"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /migration/todoist/migrate",
+   "summary": "Migrate all lists, tasks etc. from todoist",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "code",
+    "state"
+   ]
+  },
+  {
+   "api": "GET /migration/todoist/status",
+   "summary": "Get migration status",
+   "requires": [],
+   "returns": [
+    "error_kind",
+    "error_message",
+    "finished_at",
+    "id",
+    "migrator_name",
+    "started_at"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /migration/trello/auth",
+   "summary": "Get the auth url from trello",
+   "requires": [],
+   "returns": [
+    "url"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /migration/trello/migrate",
+   "summary": "Migrate all projects, tasks etc. from trello",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "code",
+    "state"
+   ]
+  },
+  {
+   "api": "GET /migration/trello/status",
+   "summary": "Get migration status",
+   "requires": [],
+   "returns": [
+    "error_kind",
+    "error_message",
+    "finished_at",
+    "id",
+    "migrator_name",
+    "started_at"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /migration/vikunja-file/migrate",
+   "summary": "Import all projects, tasks etc. from a Vikunja data export",
+   "requires": [
+    "formData: import"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /migration/vikunja-file/status",
+   "summary": "Get migration status",
+   "requires": [],
+   "returns": [
+    "error_kind",
+    "error_message",
+    "finished_at",
+    "id",
+    "migrator_name",
+    "started_at"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /migration/wekan/migrate",
+   "summary": "Import all projects, tasks etc. from a WeKan board export",
+   "requires": [
+    "formData: import"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /migration/wekan/status",
+   "summary": "Get migration status",
+   "requires": [],
+   "returns": [
+    "error_kind",
+    "error_message",
+    "finished_at",
+    "id",
+    "migrator_name",
+    "started_at"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /notifications",
+   "summary": "Get all notifications for the current user",
+   "requires": [],
+   "returns": [
+    "created",
+    "id",
+    "name",
+    "notification",
+    "read_at"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /notifications",
+   "summary": "Mark all notifications of a user as read",
+   "requires": [],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /notifications",
+   "summary": "Delete all notifications of the current user",
+   "requires": [],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /notifications/{id}",
+   "summary": "Mark a notification as (un-)read",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "id",
+    "name",
+    "notification",
+    "read",
+    "read_at"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /oauth/authorize",
+   "summary": "OAuth 2.0 authorize endpoint",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "code",
+    "redirect_uri",
+    "state"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "client_id",
+    "code_challenge",
+    "code_challenge_method",
+    "redirect_uri",
+    "response_type",
+    "state"
+   ]
+  },
+  {
+   "api": "POST /oauth/token",
+   "summary": "OAuth 2.0 token endpoint",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "access_token",
+    "expires_in",
+    "refresh_token",
+    "token_type"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "client_id",
+    "code",
+    "code_verifier",
+    "grant_type",
+    "redirect_uri",
+    "refresh_token"
+   ]
+  },
+  {
+   "api": "GET /projects",
+   "summary": "Get all projects a user has access to",
+   "requires": [],
+   "returns": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page",
+    "query: s",
+    "query: is_archived",
+    "query: expand"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects",
+   "summary": "Creates a new project",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ]
+  },
+  {
+   "api": "GET /projects/{id}",
+   "summary": "Gets one project",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /projects/{id}",
+   "summary": "Updates a project",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ]
+  },
+  {
+   "api": "DELETE /projects/{id}",
+   "summary": "Deletes a project",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /projects/{id}/background",
+   "summary": "Get the project background",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /projects/{id}/background",
+   "summary": "Remove a project background",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /projects/{id}/backgrounds/unsplash",
+   "summary": "Set an unsplash photo as project background",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "background_blur_hash",
+    "background_information",
+    "created",
+    "description",
+    "hex_color",
+    "id",
+    "identifier",
+    "is_archived",
+    "is_favorite",
+    "max_permission",
+    "owner",
+    "parent_project_id",
+    "position",
+    "subscription",
+    "title",
+    "updated",
+    "views"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "blur_hash",
+    "id",
+    "info",
+    "thumb",
+    "url"
+   ]
+  },
+  {
+   "api": "PUT /projects/{id}/backgrounds/upload",
+   "summary": "Upload a project background",
+   "requires": [
+    "path: id",
+    "formData: background"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /projects/{id}/projectusers",
+   "summary": "Get users",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "name",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "query: s",
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects/{id}/tasks",
+   "summary": "Create a task",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ]
+  },
+  {
+   "api": "GET /projects/{id}/teams",
+   "summary": "Get teams on a project",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "external_id",
+    "id",
+    "is_public",
+    "members",
+    "name",
+    "permission",
+    "updated"
+   ],
+   "params": [
+    "path: id",
+    "query: page",
+    "query: per_page",
+    "query: s"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects/{id}/teams",
+   "summary": "Add a team to a project",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "id",
+    "permission",
+    "team_id",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "id",
+    "permission",
+    "team_id",
+    "updated"
+   ]
+  },
+  {
+   "api": "GET /projects/{id}/users",
+   "summary": "Get users on a project",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "name",
+    "permission",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "path: id",
+    "query: page",
+    "query: per_page",
+    "query: s"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects/{id}/users",
+   "summary": "Add a user to a project",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "id",
+    "permission",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "id",
+    "permission",
+    "updated",
+    "username"
+   ]
+  },
+  {
+   "api": "GET /projects/{id}/views/{view}/buckets",
+   "summary": "Get all kanban buckets of a project",
+   "requires": [
+    "path: id",
+    "path: view"
+   ],
+   "returns": [
+    "count",
+    "created",
+    "created_by",
+    "id",
+    "limit",
+    "position",
+    "project_view_id",
+    "tasks",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id",
+    "path: view"
+   ],
+   "types": {
+    "id": "integer",
+    "view": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects/{id}/views/{view}/buckets",
+   "summary": "Create a new bucket",
+   "requires": [
+    "path: id",
+    "path: view",
+    "body"
+   ],
+   "returns": [
+    "count",
+    "created",
+    "created_by",
+    "id",
+    "limit",
+    "position",
+    "project_view_id",
+    "tasks",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id",
+    "path: view"
+   ],
+   "types": {
+    "id": "integer",
+    "view": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "count",
+    "created",
+    "created_by",
+    "id",
+    "limit",
+    "position",
+    "project_view_id",
+    "tasks",
+    "title",
+    "updated"
+   ]
+  },
+  {
+   "api": "GET /projects/{id}/views/{view}/tasks",
+   "summary": "Get tasks in a project",
+   "requires": [
+    "path: id",
+    "path: view"
+   ],
+   "returns": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id",
+    "path: view",
+    "query: page",
+    "query: per_page",
+    "query: s",
+    "query: sort_by",
+    "query: order_by",
+    "query: filter",
+    "query: filter_timezone",
+    "query: filter_include_nulls",
+    "query: expand"
+   ],
+   "types": {
+    "id": "integer",
+    "view": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /projects/{id}/webhooks",
+   "summary": "Get all api webhook targets for the specified project",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "basic_auth_password",
+    "basic_auth_user",
+    "created",
+    "created_by",
+    "events",
+    "id",
+    "project_id",
+    "secret",
+    "target_url",
+    "updated",
+    "user_id"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page",
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects/{id}/webhooks",
+   "summary": "Create a webhook target",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "basic_auth_password",
+    "basic_auth_user",
+    "created",
+    "created_by",
+    "events",
+    "id",
+    "project_id",
+    "secret",
+    "target_url",
+    "updated",
+    "user_id"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "basic_auth_password",
+    "basic_auth_user",
+    "created",
+    "created_by",
+    "events",
+    "id",
+    "project_id",
+    "secret",
+    "target_url",
+    "updated",
+    "user_id"
+   ]
+  },
+  {
+   "api": "POST /projects/{id}/webhooks/{webhookID}",
+   "summary": "Change a webhook target's events.",
+   "requires": [
+    "path: id",
+    "path: webhookID"
+   ],
+   "returns": [
+    "basic_auth_password",
+    "basic_auth_user",
+    "created",
+    "created_by",
+    "events",
+    "id",
+    "project_id",
+    "secret",
+    "target_url",
+    "updated",
+    "user_id"
+   ],
+   "params": [
+    "path: id",
+    "path: webhookID"
+   ],
+   "types": {
+    "id": "integer",
+    "webhookID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /projects/{id}/webhooks/{webhookID}",
+   "summary": "Deletes an existing webhook target",
+   "requires": [
+    "path: id",
+    "path: webhookID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id",
+    "path: webhookID"
+   ],
+   "types": {
+    "id": "integer",
+    "webhookID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects/{projectID}/duplicate",
+   "summary": "Duplicate an existing project",
+   "requires": [
+    "path: projectID",
+    "body"
+   ],
+   "returns": [
+    "duplicate_shares",
+    "duplicated_project",
+    "parent_project_id"
+   ],
+   "params": [
+    "path: projectID"
+   ],
+   "types": {
+    "projectID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "duplicate_shares",
+    "duplicated_project",
+    "parent_project_id"
+   ]
+  },
+  {
+   "api": "POST /projects/{projectID}/teams/{teamID}",
+   "summary": "Update a team <-> project relation",
+   "requires": [
+    "path: projectID",
+    "path: teamID",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "id",
+    "permission",
+    "team_id",
+    "updated"
+   ],
+   "params": [
+    "path: projectID",
+    "path: teamID"
+   ],
+   "types": {
+    "projectID": "integer",
+    "teamID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "id",
+    "permission",
+    "team_id",
+    "updated"
+   ]
+  },
+  {
+   "api": "DELETE /projects/{projectID}/teams/{teamID}",
+   "summary": "Delete a team from a project",
+   "requires": [
+    "path: projectID",
+    "path: teamID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: projectID",
+    "path: teamID"
+   ],
+   "types": {
+    "projectID": "integer",
+    "teamID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /projects/{projectID}/users/{userID}",
+   "summary": "Update a user <-> project relation",
+   "requires": [
+    "path: projectID",
+    "path: userID",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "id",
+    "permission",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "path: projectID",
+    "path: userID"
+   ],
+   "types": {
+    "projectID": "integer",
+    "userID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "id",
+    "permission",
+    "updated",
+    "username"
+   ]
+  },
+  {
+   "api": "DELETE /projects/{projectID}/users/{userID}",
+   "summary": "Delete a user from a project",
+   "requires": [
+    "path: projectID",
+    "path: userID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: projectID",
+    "path: userID"
+   ],
+   "types": {
+    "projectID": "integer",
+    "userID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /projects/{projectID}/views/{view}/buckets/{bucketID}",
+   "summary": "Update an existing bucket",
+   "requires": [
+    "path: projectID",
+    "path: bucketID",
+    "path: view",
+    "body"
+   ],
+   "returns": [
+    "count",
+    "created",
+    "created_by",
+    "id",
+    "limit",
+    "position",
+    "project_view_id",
+    "tasks",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: projectID",
+    "path: bucketID",
+    "path: view"
+   ],
+   "types": {
+    "projectID": "integer",
+    "bucketID": "integer",
+    "view": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "count",
+    "created",
+    "created_by",
+    "id",
+    "limit",
+    "position",
+    "project_view_id",
+    "tasks",
+    "title",
+    "updated"
+   ]
+  },
+  {
+   "api": "DELETE /projects/{projectID}/views/{view}/buckets/{bucketID}",
+   "summary": "Deletes an existing bucket",
+   "requires": [
+    "path: projectID",
+    "path: bucketID",
+    "path: view"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: projectID",
+    "path: bucketID",
+    "path: view"
+   ],
+   "types": {
+    "projectID": "integer",
+    "bucketID": "integer",
+    "view": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /projects/{project}/shares",
+   "summary": "Get all link shares for a project",
+   "requires": [
+    "path: project"
+   ],
+   "returns": [
+    "created",
+    "hash",
+    "id",
+    "name",
+    "password",
+    "permission",
+    "shared_by",
+    "sharing_type",
+    "updated"
+   ],
+   "params": [
+    "path: project",
+    "query: page",
+    "query: per_page",
+    "query: s"
+   ],
+   "types": {
+    "project": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects/{project}/shares",
+   "summary": "Share a project via link",
+   "requires": [
+    "path: project",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "hash",
+    "id",
+    "name",
+    "password",
+    "permission",
+    "shared_by",
+    "sharing_type",
+    "updated"
+   ],
+   "params": [
+    "path: project"
+   ],
+   "types": {
+    "project": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "hash",
+    "id",
+    "name",
+    "password",
+    "permission",
+    "shared_by",
+    "sharing_type",
+    "updated"
+   ]
+  },
+  {
+   "api": "GET /projects/{project}/shares/{share}",
+   "summary": "Get one link shares for a project",
+   "requires": [
+    "path: project",
+    "path: share"
+   ],
+   "returns": [
+    "created",
+    "hash",
+    "id",
+    "name",
+    "password",
+    "permission",
+    "shared_by",
+    "sharing_type",
+    "updated"
+   ],
+   "params": [
+    "path: project",
+    "path: share"
+   ],
+   "types": {
+    "project": "integer",
+    "share": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /projects/{project}/shares/{share}",
+   "summary": "Remove a link share",
+   "requires": [
+    "path: project",
+    "path: share"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: project",
+    "path: share"
+   ],
+   "types": {
+    "project": "integer",
+    "share": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /projects/{project}/tasks/by-index/{index}",
+   "summary": "Get one task by its per-project index",
+   "requires": [
+    "path: project",
+    "path: index"
+   ],
+   "returns": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: project",
+    "path: index",
+    "query: expand"
+   ],
+   "types": {
+    "project": "string",
+    "index": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /projects/{project}/views",
+   "summary": "Get all project views for a project",
+   "requires": [
+    "path: project"
+   ],
+   "returns": [
+    "bucket_configuration",
+    "bucket_configuration_mode",
+    "created",
+    "default_bucket_id",
+    "done_bucket_id",
+    "filter",
+    "id",
+    "position",
+    "project_id",
+    "title",
+    "updated",
+    "view_kind"
+   ],
+   "params": [
+    "path: project"
+   ],
+   "types": {
+    "project": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /projects/{project}/views",
+   "summary": "Create a project view",
+   "requires": [
+    "path: project",
+    "body"
+   ],
+   "returns": [
+    "bucket_configuration",
+    "bucket_configuration_mode",
+    "created",
+    "default_bucket_id",
+    "done_bucket_id",
+    "filter",
+    "id",
+    "position",
+    "project_id",
+    "title",
+    "updated",
+    "view_kind"
+   ],
+   "params": [
+    "path: project"
+   ],
+   "types": {
+    "project": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "bucket_configuration",
+    "bucket_configuration_mode",
+    "created",
+    "default_bucket_id",
+    "done_bucket_id",
+    "filter",
+    "id",
+    "position",
+    "project_id",
+    "title",
+    "updated",
+    "view_kind"
+   ]
+  },
+  {
+   "api": "GET /projects/{project}/views/{id}",
+   "summary": "Get one project view",
+   "requires": [
+    "path: project",
+    "path: id"
+   ],
+   "returns": [
+    "bucket_configuration",
+    "bucket_configuration_mode",
+    "created",
+    "default_bucket_id",
+    "done_bucket_id",
+    "filter",
+    "id",
+    "position",
+    "project_id",
+    "title",
+    "updated",
+    "view_kind"
+   ],
+   "params": [
+    "path: project",
+    "path: id"
+   ],
+   "types": {
+    "project": "integer",
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /projects/{project}/views/{id}",
+   "summary": "Updates a project view",
+   "requires": [
+    "path: project",
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "bucket_configuration",
+    "bucket_configuration_mode",
+    "created",
+    "default_bucket_id",
+    "done_bucket_id",
+    "filter",
+    "id",
+    "position",
+    "project_id",
+    "title",
+    "updated",
+    "view_kind"
+   ],
+   "params": [
+    "path: project",
+    "path: id"
+   ],
+   "types": {
+    "project": "integer",
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "bucket_configuration",
+    "bucket_configuration_mode",
+    "created",
+    "default_bucket_id",
+    "done_bucket_id",
+    "filter",
+    "id",
+    "position",
+    "project_id",
+    "title",
+    "updated",
+    "view_kind"
+   ]
+  },
+  {
+   "api": "DELETE /projects/{project}/views/{id}",
+   "summary": "Delete a project view",
+   "requires": [
+    "path: project",
+    "path: id"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: project",
+    "path: id"
+   ],
+   "types": {
+    "project": "integer",
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /projects/{project}/views/{view}/buckets/{bucket}/tasks",
+   "summary": "Update a task bucket",
+   "requires": [
+    "path: project",
+    "path: view",
+    "path: bucket",
+    "body"
+   ],
+   "returns": [
+    "bucket",
+    "bucket_id",
+    "project_view_id",
+    "task",
+    "task_id"
+   ],
+   "params": [
+    "path: project",
+    "path: view",
+    "path: bucket"
+   ],
+   "types": {
+    "project": "integer",
+    "view": "integer",
+    "bucket": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "bucket",
+    "bucket_id",
+    "project_view_id",
+    "task",
+    "task_id"
+   ]
+  },
+  {
+   "api": "POST /register",
+   "summary": "Register",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "name",
+    "updated",
+    "username"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "email",
+    "language",
+    "password",
+    "username"
+   ]
+  },
+  {
+   "api": "GET /routes",
+   "summary": "Get a list of all token api routes",
+   "requires": [],
+   "returns": [
+    "method",
+    "path"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /shares/{share}/auth",
+   "summary": "Get an auth token for a share",
+   "requires": [
+    "body",
+    "path: share"
+   ],
+   "returns": [
+    "token"
+   ],
+   "params": [
+    "path: share"
+   ],
+   "types": {
+    "share": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "password"
+   ]
+  },
+  {
+   "api": "PUT /subscriptions/{entity}/{entityID}",
+   "summary": "Subscribes the current user to an entity.",
+   "requires": [
+    "path: entity",
+    "path: entityID"
+   ],
+   "returns": [
+    "created",
+    "entity",
+    "entity_id",
+    "id"
+   ],
+   "params": [
+    "path: entity",
+    "path: entityID"
+   ],
+   "types": {
+    "entity": "string",
+    "entityID": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /subscriptions/{entity}/{entityID}",
+   "summary": "Unsubscribe the current user from an entity.",
+   "requires": [
+    "path: entity",
+    "path: entityID"
+   ],
+   "returns": [
+    "created",
+    "entity",
+    "entity_id",
+    "id"
+   ],
+   "params": [
+    "path: entity",
+    "path: entityID"
+   ],
+   "types": {
+    "entity": "string",
+    "entityID": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /tasks",
+   "summary": "Get tasks",
+   "requires": [],
+   "returns": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page",
+    "query: s",
+    "query: sort_by",
+    "query: order_by",
+    "query: filter",
+    "query: filter_timezone",
+    "query: filter_include_nulls",
+    "query: expand"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /tasks/bulk",
+   "summary": "Update multiple tasks",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "fields",
+    "task_ids",
+    "tasks",
+    "values"
+   ]
+  },
+  {
+   "api": "GET /tasks/{id}",
+   "summary": "Get one task",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id",
+    "query: expand"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /tasks/{id}",
+   "summary": "Update a task",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "assignees",
+    "attachments",
+    "bucket_id",
+    "buckets",
+    "comment_count",
+    "comments",
+    "cover_image_attachment_id",
+    "created",
+    "created_by",
+    "deleted_at",
+    "description",
+    "done",
+    "done_at",
+    "due_date",
+    "end_date",
+    "hex_color",
+    "id",
+    "identifier",
+    "index",
+    "is_favorite",
+    "is_unread",
+    "labels",
+    "percent_done",
+    "position",
+    "positions",
+    "priority",
+    "project_id",
+    "reactions",
+    "related_tasks",
+    "reminders",
+    "repeat_after",
+    "repeat_mode",
+    "start_date",
+    "subscription",
+    "time_entries_count",
+    "title",
+    "updated"
+   ]
+  },
+  {
+   "api": "DELETE /tasks/{id}",
+   "summary": "Delete a task",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /tasks/{id}/attachments",
+   "summary": "Get  all attachments for one task.",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "file",
+    "id",
+    "task_id"
+   ],
+   "params": [
+    "path: id",
+    "query: page",
+    "query: per_page"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /tasks/{id}/attachments",
+   "summary": "Upload a task attachment",
+   "requires": [
+    "path: id",
+    "formData: files"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /tasks/{id}/attachments/{attachmentID}",
+   "summary": "Get one attachment.",
+   "requires": [
+    "path: id",
+    "path: attachmentID"
+   ],
+   "returns": [],
+   "params": [
+    "path: id",
+    "path: attachmentID",
+    "query: preview_size"
+   ],
+   "types": {
+    "id": "integer",
+    "attachmentID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /tasks/{id}/attachments/{attachmentID}",
+   "summary": "Delete an attachment",
+   "requires": [
+    "path: id",
+    "path: attachmentID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id",
+    "path: attachmentID"
+   ],
+   "types": {
+    "id": "integer",
+    "attachmentID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /tasks/{id}/position",
+   "summary": "Updates a task position",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "position",
+    "project_view_id",
+    "task_id"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "position",
+    "project_view_id",
+    "task_id"
+   ]
+  },
+  {
+   "api": "POST /tasks/{projecttask}/read",
+   "summary": "Mark a task as read",
+   "requires": [
+    "path: projecttask"
+   ],
+   "returns": [
+    "taskID",
+    "userID"
+   ],
+   "params": [
+    "path: projecttask"
+   ],
+   "types": {
+    "projecttask": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /tasks/{taskID}/assignees",
+   "summary": "Get all assignees for a task",
+   "requires": [
+    "path: taskID"
+   ],
+   "returns": [
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "name",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page",
+    "query: s",
+    "path: taskID"
+   ],
+   "types": {
+    "taskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /tasks/{taskID}/assignees",
+   "summary": "Add a new assignee to a task",
+   "requires": [
+    "body",
+    "path: taskID"
+   ],
+   "returns": [
+    "created",
+    "user_id"
+   ],
+   "params": [
+    "path: taskID"
+   ],
+   "types": {
+    "taskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "user_id"
+   ]
+  },
+  {
+   "api": "POST /tasks/{taskID}/assignees/bulk",
+   "summary": "Add multiple new assignees to a task",
+   "requires": [
+    "body",
+    "path: taskID"
+   ],
+   "returns": [
+    "created",
+    "user_id"
+   ],
+   "params": [
+    "path: taskID"
+   ],
+   "types": {
+    "taskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "assignees"
+   ]
+  },
+  {
+   "api": "DELETE /tasks/{taskID}/assignees/{userID}",
+   "summary": "Delete an assignee",
+   "requires": [
+    "path: taskID",
+    "path: userID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: taskID",
+    "path: userID"
+   ],
+   "types": {
+    "taskID": "integer",
+    "userID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /tasks/{taskID}/comments",
+   "summary": "Get all task comments",
+   "requires": [
+    "path: taskID"
+   ],
+   "returns": [
+    "author",
+    "comment",
+    "created",
+    "id",
+    "reactions",
+    "updated"
+   ],
+   "params": [
+    "path: taskID",
+    "query: order_by"
+   ],
+   "types": {
+    "taskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /tasks/{taskID}/comments",
+   "summary": "Create a new task comment",
+   "requires": [
+    "body",
+    "path: taskID"
+   ],
+   "returns": [
+    "author",
+    "comment",
+    "created",
+    "id",
+    "reactions",
+    "updated"
+   ],
+   "params": [
+    "path: taskID"
+   ],
+   "types": {
+    "taskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "author",
+    "comment",
+    "created",
+    "id",
+    "reactions",
+    "updated"
+   ]
+  },
+  {
+   "api": "GET /tasks/{taskID}/comments/{commentID}",
+   "summary": "Get a task comment",
+   "requires": [
+    "path: taskID",
+    "path: commentID"
+   ],
+   "returns": [
+    "author",
+    "comment",
+    "created",
+    "id",
+    "reactions",
+    "updated"
+   ],
+   "params": [
+    "path: taskID",
+    "path: commentID"
+   ],
+   "types": {
+    "taskID": "integer",
+    "commentID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /tasks/{taskID}/comments/{commentID}",
+   "summary": "Update an existing task comment",
+   "requires": [
+    "path: taskID",
+    "path: commentID"
+   ],
+   "returns": [
+    "author",
+    "comment",
+    "created",
+    "id",
+    "reactions",
+    "updated"
+   ],
+   "params": [
+    "path: taskID",
+    "path: commentID"
+   ],
+   "types": {
+    "taskID": "integer",
+    "commentID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /tasks/{taskID}/comments/{commentID}",
+   "summary": "Remove a task comment",
+   "requires": [
+    "path: taskID",
+    "path: commentID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: taskID",
+    "path: commentID"
+   ],
+   "types": {
+    "taskID": "integer",
+    "commentID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /tasks/{taskID}/duplicate",
+   "summary": "Duplicate a task",
+   "requires": [
+    "path: taskID"
+   ],
+   "returns": [
+    "duplicated_task"
+   ],
+   "params": [
+    "path: taskID"
+   ],
+   "types": {
+    "taskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /tasks/{taskID}/labels/bulk",
+   "summary": "Update all labels on a task.",
+   "requires": [
+    "body",
+    "path: taskID"
+   ],
+   "returns": [
+    "labels",
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: taskID"
+   ],
+   "types": {
+    "taskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "labels"
+   ]
+  },
+  {
+   "api": "PUT /tasks/{taskID}/relations",
+   "summary": "Create a new relation between two tasks",
+   "requires": [
+    "body",
+    "path: taskID"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "other_task_id",
+    "relation_kind",
+    "task_id"
+   ],
+   "params": [
+    "path: taskID"
+   ],
+   "types": {
+    "taskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "created_by",
+    "other_task_id",
+    "relation_kind",
+    "task_id"
+   ]
+  },
+  {
+   "api": "DELETE /tasks/{taskID}/relations/{relationKind}/{otherTaskID}",
+   "summary": "Remove a task relation",
+   "requires": [
+    "body",
+    "path: taskID",
+    "path: relationKind",
+    "path: otherTaskID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: taskID",
+    "path: relationKind",
+    "path: otherTaskID"
+   ],
+   "types": {
+    "taskID": "integer",
+    "relationKind": "string",
+    "otherTaskID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "created_by",
+    "other_task_id",
+    "relation_kind",
+    "task_id"
+   ]
+  },
+  {
+   "api": "GET /tasks/{task}/labels",
+   "summary": "Get all labels on a task",
+   "requires": [
+    "path: task"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "hex_color",
+    "id",
+    "title",
+    "updated"
+   ],
+   "params": [
+    "path: task",
+    "query: page",
+    "query: per_page",
+    "query: s"
+   ],
+   "types": {
+    "task": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /tasks/{task}/labels",
+   "summary": "Add a label to a task",
+   "requires": [
+    "path: task",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "label_id"
+   ],
+   "params": [
+    "path: task"
+   ],
+   "types": {
+    "task": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "label_id"
+   ]
+  },
+  {
+   "api": "DELETE /tasks/{task}/labels/{label}",
+   "summary": "Remove a label from a task",
+   "requires": [
+    "path: task",
+    "path: label"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: task",
+    "path: label"
+   ],
+   "types": {
+    "task": "integer",
+    "label": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /teams",
+   "summary": "Get teams",
+   "requires": [],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "external_id",
+    "id",
+    "is_public",
+    "members",
+    "name",
+    "updated"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page",
+    "query: s"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /teams",
+   "summary": "Creates a new team",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "external_id",
+    "id",
+    "is_public",
+    "members",
+    "name",
+    "updated"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "created_by",
+    "description",
+    "external_id",
+    "id",
+    "is_public",
+    "members",
+    "name",
+    "updated"
+   ]
+  },
+  {
+   "api": "GET /teams/{id}",
+   "summary": "Gets one team",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "external_id",
+    "id",
+    "is_public",
+    "members",
+    "name",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /teams/{id}",
+   "summary": "Updates a team",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "created_by",
+    "description",
+    "external_id",
+    "id",
+    "is_public",
+    "members",
+    "name",
+    "updated"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "created_by",
+    "description",
+    "external_id",
+    "id",
+    "is_public",
+    "members",
+    "name",
+    "updated"
+   ]
+  },
+  {
+   "api": "DELETE /teams/{id}",
+   "summary": "Deletes a team",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /teams/{id}/members",
+   "summary": "Add a user to a team",
+   "requires": [
+    "path: id",
+    "body"
+   ],
+   "returns": [
+    "admin",
+    "created",
+    "id",
+    "username"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "admin",
+    "created",
+    "id",
+    "username"
+   ]
+  },
+  {
+   "api": "POST /teams/{id}/members/{userID}/admin",
+   "summary": "Toggle a team member's admin status",
+   "requires": [
+    "path: id",
+    "path: userID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id",
+    "path: userID"
+   ],
+   "types": {
+    "id": "integer",
+    "userID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /teams/{id}/members/{username}",
+   "summary": "Remove a user from a team",
+   "requires": [
+    "path: id",
+    "path: username"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id",
+    "path: username"
+   ],
+   "types": {
+    "id": "integer",
+    "username": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /test/all",
+   "summary": "Truncate all tables",
+   "requires": [],
+   "returns": [],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PATCH /test/{table}",
+   "summary": "Reset the db to a defined state",
+   "requires": [
+    "path: table"
+   ],
+   "returns": [
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "name",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "path: table"
+   ],
+   "types": {
+    "table": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /tokens",
+   "summary": "Get all api tokens of the current user",
+   "requires": [],
+   "returns": [
+    "created",
+    "expires_at",
+    "id",
+    "owner_id",
+    "permissions",
+    "title",
+    "token"
+   ],
+   "params": [
+    "query: page",
+    "query: per_page",
+    "query: s"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /tokens",
+   "summary": "Create a new api token",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "created",
+    "expires_at",
+    "id",
+    "owner_id",
+    "permissions",
+    "title",
+    "token"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "expires_at",
+    "id",
+    "owner_id",
+    "permissions",
+    "title",
+    "token"
+   ]
+  },
+  {
+   "api": "DELETE /tokens/{tokenID}",
+   "summary": "Deletes an existing api token",
+   "requires": [
+    "path: tokenID"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: tokenID"
+   ],
+   "types": {
+    "tokenID": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /user",
+   "summary": "Get user information",
+   "requires": [],
+   "returns": [
+    "auth_provider",
+    "bot_owner_id",
+    "created",
+    "deletion_scheduled_at",
+    "email",
+    "id",
+    "is_admin",
+    "is_local_user",
+    "name",
+    "pending_email",
+    "settings",
+    "updated",
+    "username"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/confirm",
+   "summary": "Confirm the email of a new user",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "token"
+   ]
+  },
+  {
+   "api": "POST /user/deletion/cancel",
+   "summary": "Abort a user deletion request",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "password"
+   ]
+  },
+  {
+   "api": "POST /user/deletion/confirm",
+   "summary": "Confirm a user deletion request",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "token"
+   ]
+  },
+  {
+   "api": "POST /user/deletion/request",
+   "summary": "Request the deletion of the user",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "password"
+   ]
+  },
+  {
+   "api": "GET /user/export",
+   "summary": "Get current user data export",
+   "requires": [],
+   "returns": [
+    "created",
+    "expires",
+    "id",
+    "size"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/export/download",
+   "summary": "Download a user data export.",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "password"
+   ]
+  },
+  {
+   "api": "POST /user/export/request",
+   "summary": "Request a user data export.",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "password"
+   ]
+  },
+  {
+   "api": "POST /user/logout",
+   "summary": "Logout",
+   "requires": [],
+   "returns": [
+    "message",
+    "oidc_logout_url"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/password",
+   "summary": "Change password",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "new_password",
+    "old_password"
+   ]
+  },
+  {
+   "api": "POST /user/password/reset",
+   "summary": "Resets a password",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "new_password",
+    "token"
+   ]
+  },
+  {
+   "api": "POST /user/password/token",
+   "summary": "Request password reset token",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "email"
+   ]
+  },
+  {
+   "api": "GET /user/settings/avatar",
+   "summary": "Return user avatar setting",
+   "requires": [],
+   "returns": [
+    "avatar_provider"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/settings/avatar",
+   "summary": "Set the user's avatar",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "avatar_provider"
+   ]
+  },
+  {
+   "api": "PUT /user/settings/avatar/upload",
+   "summary": "Upload a user avatar",
+   "requires": [
+    "formData: avatar"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/settings/email",
+   "summary": "Update email address",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "new_email",
+    "password"
+   ]
+  },
+  {
+   "api": "POST /user/settings/general",
+   "summary": "Change general user settings of the current user.",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "default_project_id",
+    "discoverable_by_email",
+    "discoverable_by_name",
+    "email_reminders_enabled",
+    "extra_settings_links",
+    "frontend_settings",
+    "language",
+    "name",
+    "overdue_tasks_reminders_enabled",
+    "overdue_tasks_reminders_time",
+    "timezone",
+    "week_start"
+   ]
+  },
+  {
+   "api": "GET /user/settings/token/caldav",
+   "summary": "Returns the caldav tokens for the current user",
+   "requires": [],
+   "returns": [
+    "created",
+    "id",
+    "token"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /user/settings/token/caldav",
+   "summary": "Generate a caldav token",
+   "requires": [],
+   "returns": [
+    "created",
+    "id",
+    "token"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /user/settings/token/caldav/{id}",
+   "summary": "Delete a caldav token by id",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /user/settings/totp",
+   "summary": "Totp setting for the current user",
+   "requires": [],
+   "returns": [
+    "enabled",
+    "secret",
+    "url"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/settings/totp/disable",
+   "summary": "Disable totp settings",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "long_token",
+    "password",
+    "totp_passcode",
+    "username"
+   ]
+  },
+  {
+   "api": "POST /user/settings/totp/enable",
+   "summary": "Enable a previously enrolled totp setting.",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "passcode",
+    "password"
+   ]
+  },
+  {
+   "api": "POST /user/settings/totp/enroll",
+   "summary": "Enroll a user into totp",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "enabled",
+    "secret",
+    "url"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "password"
+   ]
+  },
+  {
+   "api": "GET /user/settings/totp/qrcode",
+   "summary": "Totp QR Code",
+   "requires": [],
+   "returns": [],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /user/settings/webhooks",
+   "summary": "Get all user-level webhook targets",
+   "requires": [],
+   "returns": [
+    "basic_auth_password",
+    "basic_auth_user",
+    "created",
+    "created_by",
+    "events",
+    "id",
+    "project_id",
+    "secret",
+    "target_url",
+    "updated",
+    "user_id"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /user/settings/webhooks",
+   "summary": "Create a user-level webhook target",
+   "requires": [
+    "body"
+   ],
+   "returns": [
+    "basic_auth_password",
+    "basic_auth_user",
+    "created",
+    "created_by",
+    "events",
+    "id",
+    "project_id",
+    "secret",
+    "target_url",
+    "updated",
+    "user_id"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "basic_auth_password",
+    "basic_auth_user",
+    "created",
+    "created_by",
+    "events",
+    "id",
+    "project_id",
+    "secret",
+    "target_url",
+    "updated",
+    "user_id"
+   ]
+  },
+  {
+   "api": "GET /user/settings/webhooks/events",
+   "summary": "Get available user-directed webhook events",
+   "requires": [],
+   "returns": [],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/settings/webhooks/{id}",
+   "summary": "Update a user-level webhook target",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "basic_auth_password",
+    "basic_auth_user",
+    "created",
+    "created_by",
+    "events",
+    "id",
+    "project_id",
+    "secret",
+    "target_url",
+    "updated",
+    "user_id"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "DELETE /user/settings/webhooks/{id}",
+   "summary": "Delete a user-level webhook target",
+   "requires": [
+    "path: id"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id"
+   ],
+   "types": {
+    "id": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /user/timezones",
+   "summary": "Get all available time zones on this vikunja instance",
+   "requires": [],
+   "returns": [],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/token",
+   "summary": "Renew link share token",
+   "requires": [],
+   "returns": [
+    "token"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "POST /user/token/refresh",
+   "summary": "Refresh user token",
+   "requires": [],
+   "returns": [
+    "token"
+   ],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /users",
+   "summary": "Get users",
+   "requires": [],
+   "returns": [
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "name",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "query: s"
+   ],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /webhooks/events",
+   "summary": "Get all possible webhook events",
+   "requires": [],
+   "returns": [],
+   "params": [],
+   "types": {},
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "GET /{kind}/{id}/reactions",
+   "summary": "Get all reactions for an entity",
+   "requires": [
+    "path: id",
+    "path: kind"
+   ],
+   "returns": [
+    "bot_owner_id",
+    "created",
+    "email",
+    "id",
+    "name",
+    "updated",
+    "username"
+   ],
+   "params": [
+    "path: id",
+    "path: kind"
+   ],
+   "types": {
+    "id": "integer",
+    "kind": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  },
+  {
+   "api": "PUT /{kind}/{id}/reactions",
+   "summary": "Add a reaction to an entity",
+   "requires": [
+    "path: id",
+    "path: kind",
+    "body"
+   ],
+   "returns": [
+    "created",
+    "user",
+    "value"
+   ],
+   "params": [
+    "path: id",
+    "path: kind"
+   ],
+   "types": {
+    "id": "integer",
+    "kind": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "user",
+    "value"
+   ]
+  },
+  {
+   "api": "POST /{kind}/{id}/reactions/delete",
+   "summary": "Removes the user's reaction",
+   "requires": [
+    "path: id",
+    "path: kind",
+    "body"
+   ],
+   "returns": [
+    "message"
+   ],
+   "params": [
+    "path: id",
+    "path: kind"
+   ],
+   "types": {
+    "id": "integer",
+    "kind": "integer"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": [
+    "created",
+    "user",
+    "value"
+   ]
+  },
+  {
+   "api": "GET /{username}/avatar",
+   "summary": "User Avatar",
+   "requires": [
+    "path: username"
+   ],
+   "returns": [],
+   "params": [
+    "path: username",
+    "query: size"
+   ],
+   "types": {
+    "username": "string"
+   },
+   "patterns": {},
+   "enums": {},
+   "accepts": []
+  }
+ ]
+}

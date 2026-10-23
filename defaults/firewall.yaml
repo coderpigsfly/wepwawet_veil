@@ -1,4 +1,4 @@
-# firewall.yaml - who may use what, by voice. Read by veil/firewall.py; edited on the
+# firewall.yaml - who may use what, by voice. Read by the Firewall add-on (addons/firewall/firewall.py); edited on the
 # Firewall page (or here, then docker compose restart).
 # With Oread off every voice is "unknown": rules for anyone or unknown apply, rules naming a person wait.
 #
@@ -39,7 +39,11 @@ sure_labels: [known]
 when_oread_down: unknown
 # never worked by the Off-Platform model, whoever spoke: its device commands naming these are stopped
 # (Home Assistant's own, said plainly, aren't these)
-off_platform_never: [lock, alarm, garage door]
+off_platform_never: [lock, alarm, garage]
+# ...and these kinds of device (the front end's names), whatever they're called ("Front Door" that is a lock)
+off_platform_never_domains: [lock, alarm_control_panel]
+# the scripts the Off-Platform model may start; any other is stopped (a script isn't a device command)
+allow_scripts: []
 rules: []
 
 

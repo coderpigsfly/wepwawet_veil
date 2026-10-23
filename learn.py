@@ -1,7 +1,8 @@
 # learn.py - the learn level's miss log (learn/misses.yaml) and what was just asked.
 # A miss is saved only when you say "Record that as a miss", right after asking
 # "Who answered that?" (an engine miss) or "What did you hear?" (a speech-to-text miss).
-# Mishearings go to learn/mishearings.yaml (veil/mishearings.py), under what was meant.
+# Mishearings go to learn/mishearings.yaml (the Mishearings add-on), under what was meant; with it
+# off they're kept here, and move there once it's on (at start).
 # Kept small: the same words with the same kind count up on one record; past miss_log_max
 # the oldest are dropped; misses that a change fixes leave the log (they become test cases).
 
@@ -11,11 +12,12 @@ import time
 import yaml
 
 from veil import config  # noqa: E402
-from veil import mishearings, util  # noqa: E402
+from veil import util  # noqa: E402
 
 MISSES_FILE = config.path("learn", "misses.yaml")
 ASKED_FILE = config.path("state", "learn.json")
 KINDS = {"who": "engine", "heard": "misheard"}
+MISHEARD = None     # the Mishearings add-on's own module when it's on (the router sets it, issue #25)
 
 HEADER = """# learn/misses.yaml - wrong-part misses you flagged ("Who answered that?", then "Record that as a
 # misunderstanding"), each kind: engine. Mishearings (after "What did you hear?") go to
@@ -51,8 +53,8 @@ def save(misses):
 def add_miss(kind, turn, assistant, note=None, max_records=500):
     """Save (or count up) a miss for this turn. Returns the record. A mishearing goes to
     learn/mishearings.yaml instead (under what was meant, never cut for size)."""
-    if kind == "misheard":
-        p, c = mishearings.add(turn.get("heard"), note, clip=turn.get("clip"), device=turn.get("device"))
+    if kind == "misheard" and MISHEARD:
+        p, c = MISHEARD.add(turn.get("heard"), note, clip=turn.get("clip"), device=turn.get("device"))
         return {"kind": "misheard", "heard": c["said"], "should_be": p.get("meant"), "count": c["count"],
                 "first": c.get("first"), "last": c.get("last")}
     misses = load()
@@ -85,8 +87,8 @@ def add_miss(kind, turn, assistant, note=None, max_records=500):
 def add_note(heard, kind, note):
     """'That should have been weather' on a miss already saved. Returns the record or None.
     For a mishearing, what was really said: it moves under that intention."""
-    if kind == "misheard":
-        p, c = mishearings.set_meant(heard, note)
+    if kind == "misheard" and MISHEARD:
+        p, c = MISHEARD.set_meant(heard, note)
         return {"kind": "misheard", "heard": c["said"], "should_be": p.get("meant")} if c else None
     misses = load()
     for m in misses:
@@ -99,8 +101,8 @@ def add_note(heard, kind, note):
 
 def drop(kind, heard):
     """Take one miss out of the log (after tools/misses.py fix or drop). True if it was there."""
-    if kind == "misheard":
-        return mishearings.drop(heard)
+    if kind == "misheard" and MISHEARD:
+        return MISHEARD.drop(heard)
     misses = load()
     keep = [m for m in misses if (m.get("kind"), _key(m.get("heard"))) != (kind, _key(heard))]
     if len(keep) == len(misses):

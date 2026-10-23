@@ -1,0 +1,18 @@
+# addons/bank - the Off-Platform Bank, an action add-on (issue #25, step 4): a saying asked several times is
+# answered from the answers kept for it, in place of going out. The counting (each saying that went out,
+# its trips, its answers) is the core's activity log, for Stats and Savings; using it to answer is this.
+name: bank
+title: Off-Platform Bank
+version: 1.0.0
+kind: action               # it performs a function: it answers, in place of a trip out
+about: Answers a saying that's been asked several times from the Off-Platform answers kept for it, instead of going out again (your formula, its Rules tab).
+serves: on_platform
+serves_how: a request that would go Off-Platform is answered at home from the answers kept for it
+data: {kind: transient, pace: slow}     # the kept answers change only as new trips come back
+path: inbound              # before going Off-Platform
+slots: [before_off_platform]
+may: [read, answer]
+on_error: skip
+budget_ms: 20
+pages:
+  - {id: bank, label: Off-Platform Bank, group: Watch, role: reviewer}

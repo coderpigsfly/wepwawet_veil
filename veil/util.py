@@ -23,3 +23,17 @@ def squash(text, most=None, lower=False):
     t = " ".join(str(text or "").split())
     t = t.lower() if lower else t
     return t[:most] if most else t
+
+
+_SLOT = re.compile(r"\s*\[\[\s*\w+\s*\]\]\s*")
+
+
+HOLD = "\u2063"     # an add-on's mark on a line it holds (Loose language, until it has closed out its text): no
+                     # dress add-on touches it, and it's taken out here, before it goes to Home Assistant
+
+
+def unslot(text):
+    """The text with every [[slot]] a phrase leaves for an add-on ([[opener]], [[name]]) and the held mark
+    taken out and its spacing tidied: never spoken, whatever add-ons are on (issue #25)."""
+    out = " ".join(_SLOT.sub(" ", (text or "").replace(HOLD, "")).split())
+    return re.sub(r"\s+([,.!?;:])", r"\1", out)

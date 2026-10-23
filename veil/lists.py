@@ -3,8 +3,12 @@
 #
 # services: <name>: lists: <word>: {from: "GET /projects", id: id, name: name, default: House,
 #   house: people (each item is someone in the house; then map: and me: too)}
+# A command whose path takes a value ("GET /projects/{id}/projectusers") has it in fill: {id: 4}.
 # The app's voice map says which list a field fills (connectors/<name>.yaml, fields: list:).
 # A list without a default and nothing said is left out (she may ask, later: the standard).
+
+import re
+
 
 def cards(svc, declared=None):
     """{word: card} for an app (an older people: entry counts as its people card). declared: the
@@ -36,6 +40,8 @@ async def items(call, conf):
     if not src or " " not in src:
         return []
     method, path = src.split(" ", 1)
+    fill = (conf or {}).get("fill") or {}
+    path = re.sub(r"\{(\w+)\}", lambda m: str(fill.get(m.group(1), m.group(0))), path)    # its path's values (fill:)
     data = await call(method.upper(), path)
     if isinstance(data, dict):        # a wrapper around the list ({"res": [...]}): the list of things in it
         from veil import rules

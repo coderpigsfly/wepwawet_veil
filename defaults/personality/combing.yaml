@@ -1,4 +1,4 @@
-# personality/combing.yaml - how tools/build_flair.py combs the books for a persona's lines.
+# personality/combing.yaml - how addons/flair/tools/build_flair.py combs the books for a persona's lines.
 # (Moved out of the code, Oct 13, so it can be changed here or on the Flair page.)
 # An assistant can override any section in personality/sources.yaml under combing:
 # (one persona's topics or speaker words differ from another's).
@@ -7,7 +7,7 @@
 # A * at the end means any ending ("kill*" = kill, kills, killed, killing); -? means an
 # optional hyphen ("good-?bye" = goodbye, good-bye). Put those in quotes. Anything else is
 # taken literally.
-# After editing: python3 tools/build_flair.py mine <assistant> (or Mine on the Tools page)
+# After editing: python3 addons/flair/tools/build_flair.py mine <assistant> (or Mine on the Tools page)
 
 # A quote is the persona's when one of these verbs names its kind as the speaker ("said the Witch",
 # "Glinda replied"); the kinds are each assistant's speakers: in sources.yaml.

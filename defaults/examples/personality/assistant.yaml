@@ -17,7 +17,7 @@
 #            has a hand-placed [[aside]])
 #   topics:  [any], or the topics it suits (weather, chores, router)
 #   mood:    [plain] (the default), warning (a freeze, a storm), sorry (she couldn't do it)
-# Lines from public-domain books go through tools/build_flair.py (personality/sources.yaml).
+# Lines from public-domain books go through addons/flair/tools/build_flair.py (personality/sources.yaml).
 
 heard_as: []     # how speech-to-text hears her name, if it gets it wrong
 rate: 0.3

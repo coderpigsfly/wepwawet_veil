@@ -29,6 +29,8 @@ data/
 /connectors/*.commands.json
 /actions/donetick.yaml
 /connectors/donetick.yaml
+/connectors/vikunja.wepwawet.yaml
+/connectors/vikunja.yaml
 /firewall.yaml
 /scores/chores.yaml
 /scores/weather.yaml

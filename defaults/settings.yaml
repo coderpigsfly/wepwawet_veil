@@ -136,6 +136,9 @@ router:
   app_answer_max_kb: 8192          # an app's answer is read at most this big (a huge or endless one is refused as it comes)
   spec_max_kb: 8192                # and a spec, or a part of one
   outside_answer_note: "(answered at home, from an app on the internet)"   # her answers from an app on the internet, as the conversation going Off-Platform holds them (the app's own text never goes out)
+  ask_apps_first: true            # a request nothing at home claimed: each app whose find opens it ("Can you find the walkie coffee tour?") is asked first, read only, and the one that finds it answers (#28)
+  ask_apps_seconds: 2             # the most each app is waited on for that, all at once
+  ask_apps_max_words: 15          # longer than this is conversation (a ramble the mic caught), never asked of the apps
   off_platform_heard: true        # the Off-Platform model writes first how it understood the request (a HEARD: line, never spoken): one it cleaned up into something answered at home is answered here, and kept as a mishearing (Misses)
   heard_tag: "HEARD:"
   heard_instruction: "Before anything else, write one line that starts with HEARD: and then the user's last request as you understood it: the whole request, every detail kept, as a full sentence, only with misheard words corrected (it came through speech to text). Things this house answers itself, so a request that sounds like one is likely about it: {home}. Then a new line, then your answer as usual. Never mention the HEARD line."   # {home}: each topic answered at home and a few of its words
@@ -281,6 +284,8 @@ topics:
 #   phrases: which phrases/ file holds its spoken lines (default: its own name)
 #   options: knobs only this service needs (also on its Integrations card, Options)
 #   title:   how the pages name it (optional; else its name)
+#   table:   {hold_days: 180}: slow data (a calendar, on-this-day): what it answers is kept in its own SQLite
+#            file (data/tables/<name>.db) and read back until the hold runs out, instead of going out again
 # Secrets (API tokens) live in the vault (Security page) or .env, never here; secret: is the name.
 services:
   weather_brain:
@@ -334,6 +339,7 @@ services:
               weight: {field: grade, higher: true, from: 2, words: grade_lcl}, defined: {from: "GET /events/nation/{calendar_id}",
               month: month, day: day}}
     cache_refresh_seconds: 3600
+    table: {hold_days: 180}       # slow data: kept in data/tables/litcal.db, read from the app twice a year
     spoken_name: the feast days
   wikipedia:
     enabled: false
@@ -351,6 +357,7 @@ services:
         id: text
         name: text
     cache_refresh_seconds: 3600
+    table: {hold_days: 180}       # slow data: kept in data/tables/wikipedia.db, read from the app twice a year
     spoken_name: Wikipedia
 
 
@@ -402,9 +409,9 @@ security:
       role: viewer
       program: home_assistant
     oread:
-      description: Oread pulls the mishearings (its Mishearings page), to look up the clips it heard them in, and its column of the people grid
+      description: Oread pulls the mishearings (its Mishearings page), to look up the clips it heard them in, the windows Did you mean weighed with their answers, and its column of the people grid
       who: "Oread (its key: in Oread's vault as wepwawet)"
-      paths: [/learn/mishearings, /people/oread]
+      paths: [/learn/mishearings, /learn/windows, /people/oread]
       role: viewer
       locked: true
       program: oread
@@ -548,3 +555,12 @@ own_words_share: 0.90
 # action that changes something, the action wins if the router is at least this sure of it.
 # 0.85 = 85%. Below it the thing decides (it lists the projects). Not a build knob.
 verb_beats_object: 0.85
+
+# ---------- add-ons (issue #25, veil/addons.py, the Add-ons page) ----------
+# What isn't the router's own job, each in addons/<name>/ with its own settings. On: listed here (what an
+# add-on needs comes on with it). After a change: restart.
+addons:
+  enabled: [bank, brain_fleas, firewall, flair, loose_language, mishearings, name_sparkle, time]
+  # the outbound order (Oct 21): an add-on that replaces inside the result runs first (Roman numerals), then
+  # these in this order, each wrapping the line the one before left: Flair, then Name Sparkle in front of it
+  order: [flair, name_sparkle]

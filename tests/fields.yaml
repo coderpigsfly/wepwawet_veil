@@ -35,6 +35,11 @@ cases:
   expect: {yes: true, values: {due_date: Tuesday}, left: []}
 - say: "tomorrow"
   expect: {values: {due_date: tomorrow}}
+# a weekday said with its date goes with it (Time puts a feast day as "Sunday, March 21, 2027"), and a year said is that year's
+- say: "Sunday, March 21, 2027"
+  expect: {values: {due_date: "Sunday, March 21, 2027"}, left: []}
+- say: "on Saturday December 26"
+  expect: {values: {due_date: "Saturday, December 26"}, left: []}
 - say: "the day after tomorrow"
   expect: {values: {due_date: Monday}, left: []}
 - say: "in 3 days"
@@ -51,6 +56,12 @@ cases:
   expect: {values: {due_date: "Thursday, November 5"}}
 - say: "next Friday"
   expect: {values: {due_date: Friday}}
+- say: "next Monday"                       # next: the following week's (Monday to Sunday), said on a Saturday
+  expect: {values: {due_date: Monday}}
+- say: "next Saturday"                     # not today: the Saturday of the following week
+  expect: {values: {due_date: "Saturday, October 17"}}
+- say: "Saturday"                          # without next: the coming one, today included
+  expect: {values: {due_date: today}}
 
 # ---------- times ----------
 - say: "at 7"
@@ -138,8 +149,9 @@ cases:
   expect: {values: {due_date: today, due_time: 5 pm}, left: []}
 - say: "Wednesday at 9 in the morning"
   expect: {values: {due_date: Wednesday, due_time: 9 am}, left: []}
+# afternoon has its own offer since Oct 21 (issue #19: 3 pm, each person's own once they answer)
 - say: "Wednesday afternoon"
-  expect: {values: {due_date: Wednesday}, empty: [due_time]}
+  expect: {values: {due_date: Wednesday, due_time: 3 pm}, left: []}
 
 # ---------- parts of a unit as an amount (vocab/language.yaml fractions, Oct 15) ----------
 - say: "alert me every half hour"

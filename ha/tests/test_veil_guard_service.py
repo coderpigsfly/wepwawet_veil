@@ -42,17 +42,19 @@ async def say(hass, text):
 
 @pytest.fixture(autouse=True)
 def restore_async_handle():
-    original = intent.async_handle
+    from homeassistant.helpers import llm
+    original, call_tool = intent.async_handle, llm.APIInstance.async_call_tool
     yield
-    intent.async_handle = original
+    intent.async_handle, llm.APIInstance.async_call_tool = original, call_tool
 
 
-async def test_firewall_off_never_asks(hass, aioclient_mock):
-    calls = await setup(hass, aioclient_mock, ask=False)
+async def test_always_asks_even_when_the_summary_says_off(hass, aioclient_mock):
+    """1.2.0: no window where a new rule goes unchecked (#13): every command is asked about."""
+    calls = await setup(hass, aioclient_mock, ask=False, check={"allow": True})
     response = await say(hass, "turn on the kitchen light")
     assert response.response_type == intent.IntentResponseType.ACTION_DONE
     assert len(calls) == 1
-    assert checks(aioclient_mock) == []
+    assert len(checks(aioclient_mock)) == 1
 
 
 async def test_allowed_command_runs(hass, aioclient_mock):
@@ -126,6 +128,50 @@ async def test_no_answer_can_block(hass, aioclient_mock):
     response = await say(hass, "turn on the kitchen light")
     assert len(calls) == 0
     assert "can't check" in response.speech["plain"]["speech"]
+
+
+async def test_no_answer_never_works_a_lock(hass, aioclient_mock):
+    """1.2.0: with no answer, a lock (a cover, an alarm) is never worked, whatever on_no_answer says (#13)."""
+    await setup(hass, aioclient_mock, check=asyncio.TimeoutError())
+    lock_calls = async_mock_service(hass, "lock", "unlock")
+    response = await intent.async_handle(hass, "conversation", "HassTurnOff", {"name": {"value": "front door"}},
+                                         None, Context(), "en")
+    assert len(lock_calls) == 0
+    assert response.response_type == intent.IntentResponseType.ERROR
+
+
+async def test_a_command_that_cant_be_read_isnt_done(hass, aioclient_mock):
+    """1.2.0: values that can't be read can't be checked, so the command isn't done (#13)."""
+    calls = await setup(hass, aioclient_mock, check={"allow": True})
+    response = await intent.async_handle(hass, "conversation", "HassTurnOn", {"name": {"value": "Kitchen light"}},
+                                         None, Context(), "en", a_value_it_doesnt_know=1)
+    assert len(calls) == 0
+    assert response.response_type == intent.IntentResponseType.ERROR
+
+
+async def test_a_script_a_model_starts_is_asked_about(hass, aioclient_mock):
+    """1.2.0: a model's tool that starts a script doesn't pass through async_handle; it's asked about where
+    every tool call passes (llm.APIInstance.async_call_tool), and not started when refused (#10)."""
+    from homeassistant.helpers import llm
+    await setup(hass, aioclient_mock, check={"allow": False, "message": "Not that script."})
+    ran = []
+
+    class Script:
+        name = "script__open_garage"
+
+        async def async_call(self, hass_, tool_input, llm_context):
+            ran.append(tool_input)
+            return {"ok": True}
+    api = llm.APIInstance.__new__(llm.APIInstance)
+    api.tools = [Script()]
+    api.llm_context = type("Ctx", (), {"platform": "google_generative_ai_conversation", "device_id": None,
+                                        "language": "en", "assistant": "conversation"})()
+    api.api = type("A", (), {"hass": hass})()
+    result = await llm.APIInstance.async_call_tool(api, llm.ToolInput(tool_name="script__open_garage", tool_args={}))
+    assert ran == []
+    assert "Not that script." in str(getattr(result, "data", result))
+    body = checks(aioclient_mock)[0][2]
+    assert body["intent"] == "script" and "script.open_garage" in body["targets"] and body["domains"] == ["script"]
 
 
 async def test_read_only_commands_are_skipped(hass, aioclient_mock):

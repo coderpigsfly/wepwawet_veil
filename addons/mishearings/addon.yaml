@@ -1,0 +1,19 @@
+# addons/mishearings - Mishearings, an action add-on (issue #25, step 4): what speech-to-text heard, filed
+# under what was really said; the differences marked Use it are fixed in the words before anything is decided
+# (and in the words Home Assistant gets), so the request finds its way home.
+name: mishearings
+title: Mishearings
+version: 1.0.0
+kind: action               # it performs a function: it corrects the words, first on the way in
+about: Keeps what speech-to-text heard under what was really said, and fixes the ones you mark Use it before anything is decided.
+serves: on_platform
+serves_how: a misheard request is corrected before it's decided, so it finds its integration instead of going Off-Platform
+data: {kind: record}       # the household's own mishearings and swaps, kept until dropped
+path: inbound              # the first on the way in: the words, before any key word
+slots: [understand]
+provides: [swap, add, load, from_misses]
+may: [read, answer]
+on_error: skip
+budget_ms: 5
+pages:
+  - {id: mishearings, label: Mishearings, group: Watch, role: reviewer}

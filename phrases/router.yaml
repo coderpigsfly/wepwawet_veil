@@ -66,6 +66,95 @@ need_who:
     - "Who is it for?"
     - "For who?"
 
+# "my list" heard by a device, and the voice ID isn't sure who's asking (me: speaker on the people card)
+need_speaker:
+  any:
+    - "I can't tell who's speaking. Who's asking?"
+    - "Sorry, I can't tell who's speaking. Who is this?"
+
+# loose language (issue #19): what the person hasn't picked yet, offered; their answer is kept as theirs.
+# Two details at most. {time}: the house's offer ("6 am"), {part}: the part of the day said ("morning")
+# QUESTION: what was asked leaves its thing unsaid ("What does Mara have?"); {apps}: the apps' spoken names
+object_which:
+  any:
+    - "In reference to what: {apps}?"
+    - "What is it about: {apps}?"
+offer_time:
+  any:
+    - "Is {time} OK {part}, or do you prefer a different time?"
+    - "Would {time} work {part}?"
+offer_means:
+  any:
+    - "Do you want that reminder by voice, by alert, or both?"
+    - "Should I remind you by voice, by alert, or both?"
+offer_time_means:
+  any:
+    - "Is {time} OK {part}, and do you want it by voice, by alert, or both?"
+    - "Would {time} work {part}? And by voice, by alert, or both?"
+# a day said only as a span ({span}: "the weekend", "next month"): {day} is the person's own, else dealer's choice
+offer_day:
+  any:
+    - "Would {day} work {span}?"
+    - "Is {day} OK {span}, or do you prefer another day?"
+offer_day_time:
+  any:
+    - "Would {day} at {time} work {span}?"
+    - "Is {day} at {time} OK {span}?"
+# what she heard, said back before the next question ("Got it, Friday at 8 pm.")
+offer_heard:
+  any:
+    - "Got it, {heard}."
+    - "Okay, {heard}."
+# an add the app took, read back, but some of it wasn't kept ({missed}: "due date and reminders"): never "added" as if it all took
+add_not_kept:
+  any:
+    - "I added {name}, but {app} didn't keep its {missed}. Please check it on {app}'s page."
+# the add she was asking about, finished with her offers when a new request came first ({chore}, {when}: ", Tuesday at 9 am")
+offer_finished:
+  any:
+    - "First, I added {chore}{when}."
+# a reminder with no day or time ("remind me to call the vet"): her probes, after how it comes
+offer_when:
+  any:
+    - "What day and time should I remind you? Would {day} at {time} work?"
+    - "When should I remind you? Is {day} at {time} OK?"
+# an event's reminder: its day first, the event's own day offered ({day}; {span}: "the meeting")
+offer_event_day:
+  any:
+    - "What day shall I remind you about {span}? Is {day} OK?"
+# "remind me to ... on Sunday": the day to remind, or the day it's due? (the owner, Oct 21: the classic calendar problem)
+offer_which:
+  any:
+    - "Is {day} the day I should remind you, or the day it's due?"
+# her answer didn't say which: she asks for it another way
+offer_which_again:
+  any:
+    - "Sorry, I didn't follow. Could you put it another way? Should I remind you on {day}, or is that when it's due?"
+# a hard deadline, the last possible moment ({day}); a reminder before it offered ({lead}: "the day before at 9 AM")
+offer_before:
+  any:
+    - "{day} is the deadline. Do you want a reminder before then, {lead}?"
+    - "That's due by {day}. Should I remind you before then, {lead}?"
+offer_before_again:
+  any:
+    - "Sorry, I didn't follow. Could you say it another way? A yes, a no, or how long before {day}?"
+# an answer she can't use: she asks for it another way, then her question again
+ask_rephrase:
+  any:
+    - "Sorry, I didn't follow. Could you say that another way?"
+    - "I didn't quite get that. Could you put it another way?"
+# "... until Friday": the reminder comes after that day ({day}); the day after offered ({lead}: "Saturday at 9 am")
+offer_after:
+  any:
+    - "After {day}, then. Should I remind you {lead}?"
+# her offer refused: when, then
+offer_after_when:
+  any:
+    - "When after {day} should I remind you?"
+offer_day_means:
+  any:
+    - "Would {day} work {span}? And by voice, by alert, or both?"
+
 need_when:
   any:
     - "When?"
@@ -79,6 +168,11 @@ need:
 which_app:
   any:
     - "Is that for {apps}?"
+
+# her clarification (issue #25, the chaining protocol): the app that claimed it needs a day nobody could fill
+clarify_when:
+  any:
+    - "When is {about}?"
 
 # ---------- an action the router runs itself from the voice map (no app code for it) ----------
 # <action>_done in the app's own phrases file wins (create_project_done: "Made the project {name}.")
@@ -108,6 +202,11 @@ rule_ask:
 rule_no:
   any:
     - "Alright, I'll leave it."
+# A bare "okay" to her question (the mic cut the answer off): asked again, when it wasn't kept.
+# Ends on a question, so the mic opens again.
+rule_ask_again:
+  any:
+    - "I'm listening. What is it?"
 # Match: nothing scored at or above its Ask %
 # the collision hook (a list card's defined: the app's list of what should be, dump18): a thing only in
 # that list ({item}, its {usual} day), and one kept on another day than its usual one ({usual}, {other})
@@ -162,7 +261,7 @@ rule_who_hedge:
     - "I think it's {speaker}, but I'm still learning voices."
     - "It sounds like {speaker}, though I'm not certain yet."
 
-# ---------- brain fleas (the Brain fleas page; veil/fleas.py) ----------
+# ---------- brain fleas (the Brain fleas page; addons/brain_fleas/fleas.py) ----------
 # a voice add, change or forget from someone the page doesn't name, or Oread isn't sure of
 flea_not_allowed:
   any:
@@ -352,7 +451,7 @@ learn_save_failed:
     - "Something went wrong saving that, so it isn't recorded."
 
 # "That should have been ..." after recording: for a mishearing, what you really said (it files the
-# mishearing under it, Misses page); for the wrong part answering, a note (never acted on)
+# mishearing under it, Mishearings page); for the wrong part answering, a note (never acted on)
 learn_noted:
   any:
     - "Noted: that should have been {note}."
@@ -377,6 +476,15 @@ ask_around:
 heard_as:
   any:
     - "I think you meant \"{meant}\". Shall I?"
+# QUESTION (path C): the window's offer (addons/window), its own words so it's never mistaken for "I think I
+# heard..." (ask around) or the Off-Platform model's "I think you meant...": the corrected words, or after an
+# add the command, then the name as heard, in quotes (a chore's name is never corrected)
+window_offer:
+  any:
+    - "Did you mean \"{meant}\"? Shall I?"
+window_offer_split:
+  any:
+    - "Did you mean: {head}, \"{payload}\"? Shall I?"
 heard_as_no:
   any:
     - "Okay, I'll leave it."
@@ -439,10 +547,69 @@ never_by_voice:
     - "I can't {verb} things by voice. That's done on {app}'s own page."
     - "{app} doesn't let me {verb} by voice. Its own page can do that."
 
+# ---------- the trainer (#29; addons/trainer): a person's request walked through the house's routine ----------
+# her offer, announcing trainer mode (the device learning, not the person corrected); {thing}: chore
+trainer_offer:
+  any:
+    - "Trainer mode: I think you want to add a {thing}. Shall we do that together?"
+trainer_name:
+  any:
+    - "What shall we call it? Shall I call it \"{name}\"?"
+trainer_name_plain:
+  any:
+    - "What shall we call it?"
+trainer_date:
+  any:
+    - "What day should it be due?"
+trainer_time:
+  any:
+    - "What time?"
+trainer_assign:
+  any:
+    - "Do you want to assign it to someone?"
+trainer_assign_who:
+  any:
+    - "Who should it be for?"
+trainer_again:
+  any:
+    - "Sorry, I didn't catch that. {question}"
+# switched by voice: "Trainer mode", "Turn on trainer mode for Mara", "Turn off my trainer mode"
+trainer_who:
+  any:
+    - "Trainer mode for who?"
+trainer_who_again:
+  any:
+    - "I don't know that name. Who should it be?"
+trainer_state:
+  any:
+    - "Trainer mode is {state} for {person}. Would you like to turn it {other}?"
+trainer_confirm:
+  any:
+    - "Turn {turn} trainer mode for {person}? Say yes."
+trainer_already:
+  any:
+    - "Trainer mode is already {state} for {person}."
+trainer_now_on:
+  any:
+    - "Trainer mode is on for {person}: {topics}."
+trainer_now_off:
+  any:
+    - "Trainer mode is off for {person}."
+trainer_not_sure:
+  any:
+    - "I'm not sure who's asking, so I'll leave trainer mode as it is."
+trainer_not_allowed:
+  any:
+    - "Trainer mode for {person} can only be changed by {person}, or by someone who looks after my settings."
+
 # When the router may not call Gemini (security: outbound_allowed) or can't reach it
 gemini_unreachable:
   any:
     - "I can't reach my helpers outside the house right now."
+# When it reached them but their answer didn't come in time (Integrations, LiteLLM: timeout): Gemini slow
+gemini_slow:
+  any:
+    - "My helpers outside the house are slow right now."
 
 # ---------- which of an app's things you meant (veil/match.py; any app) ----------
 # Two of its things fit what was said equally: the persona asks which, each with its group (a chore's

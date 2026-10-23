@@ -1,0 +1,18 @@
+# addons/name_sparkle - Name Sparkle: the person's name said in her answer when the voice ID is sure who
+# spoke (issue #25, step 2). Who spoke is the core's; saying a name with it is this add-on's.
+name: name_sparkle
+title: Name Sparkle
+version: 1.0.0
+kind: dress
+about: Says the person's name in some of her answers (in front, or at the end), when the voice ID is sure who spoke, by each persona's rate and names.
+serves: comfort            # it doesn't keep a request on platform: it makes her personal
+data: {kind: record}       # what she calls each person: settings.yaml names_in_replies, each persona's file
+path: outbound           # Oread -> Wepwawet -> ... -> Home Assistant: her answer going out
+positions: [beginning, end]       # the name in front, or at the end, by chance
+slots: [dress]
+provides: [aliases]
+may: [read, answer]
+on_error: skip
+budget_ms: 5
+pages:
+  - {id: sparkle, label: Name Sparkle, group: Personality, role: administrator}

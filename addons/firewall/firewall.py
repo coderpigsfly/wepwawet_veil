@@ -1,4 +1,4 @@
-# veil/firewall.py - who may use what: rules by person, from Oread's "who spoke".
+# addons/firewall/firewall.py (the Firewall add-on's rules, issue #25) - who may use what: rules by person, from Oread's "who spoke".
 # With Oread off every voice is "unknown": rules for anyone or unknown apply, rules naming a person wait.
 #
 # Rules live in firewall.yaml (edited on the Firewall page). Each rule names people and
@@ -23,19 +23,75 @@
 # (ha/custom_components/veil_guard_service) asks the router first: check_command() below. So devices,
 # intents and domains rules cover every device command, wherever it was understood.
 
+import json
+
 from veil import util
 
-# what the Off-Platform model never works, whoever spoke, when firewall.yaml doesn't say (off_platform_never)
-OFF_PLATFORM_NEVER = ["lock", "alarm", "garage door"]
+# what the Off-Platform model never works, whoever spoke, when firewall.yaml doesn't say (off_platform_never),
+# by name and by kind of device (off_platform_never_domains: the front end's kinds, which a name can't hide)
+OFF_PLATFORM_NEVER = ["lock", "alarm", "garage"]
+OFF_PLATFORM_NEVER_DOMAINS = ["lock", "alarm_control_panel"]
+# commands that only read, never work a device: never stopped as working one (#11, "is the front door locked?")
+READ_ONLY = ["HassGetState", "HassGetCurrentTime", "HassGetCurrentDate", "HassGetWeather", "HassNevermind",
+             "GetLiveContext", "GetDateTime", "get_items"]
+# words that carry nothing when a rule's words are compared ("open UP the garage" is "open the garage", #12)
+FILLER = {"the", "a", "an", "up", "please", "my", "our", "your", "just", "can", "could", "would", "will", "you", "me"}
+
+
+def _fold(word):
+    """A word as a rule compares it: no apostrophe, and its plural folded ("lights", "kid's": light, kid)."""
+    w = word.replace("'", "")
+    if len(w) > 4 and w.endswith("es") and w[-3] in "sxz":
+        return w[:-2]
+    if len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+        return w[:-1]
+    return w
 
 
 def _words(text):
-    return " " + util.words(text) + " "
+    """The words as a rule compares them (#12): lowercase, apostrophes out, plurals folded, filler dropped."""
+    return " " + " ".join(_fold(w) for w in util.words(text).split() if w not in FILLER) + " "
 
 
 def _has(text, phrase):
     p = _words(phrase).strip()
     return bool(p) and (" " + p + " ") in _words(text)
+
+
+def _values(x):
+    """Every value in a tool call's arguments, as words: JSON read, not its escaped text (#12)."""
+    if isinstance(x, str):
+        try:
+            x = json.loads(x)
+        except ValueError:
+            return [x]
+    if isinstance(x, dict):
+        return [w for v in x.values() for w in _values(v)]
+    if isinstance(x, list):
+        return [w for v in x for w in _values(v)]
+    return [] if x is None else [str(x)]
+
+
+def _args(call):
+    """A tool call's arguments as a dict (read from JSON when they came as text), else {}."""
+    a = call.get("arguments")
+    if isinstance(a, str):
+        try:
+            a = json.loads(a)
+        except ValueError:
+            return {}
+    return a if isinstance(a, dict) else {}
+
+
+def call_text(call):
+    """A tool call as words: its name and its arguments' values ("HassTurnOff Front Door")."""
+    return " ".join([str(call.get("name") or "").replace("__", " ").replace("_", " ")] + _values(call.get("arguments")))
+
+
+def tool_kind(name):
+    """(its own name, read-only?) of a front end tool ("media_player__HassMediaPause" -> HassMediaPause)."""
+    own = str(name or "").split("__")[-1]
+    return own, own in READ_ONLY
 
 
 def unknown_devices(rules, names):
@@ -60,6 +116,10 @@ class Firewall:
         self.rules = [r for r in (spec.get("rules") or []) if isinstance(r, dict) and r.get("enabled", True)]
         # never worked by the Off-Platform model, whoever spoke: its tool calls naming these (dump16)
         self.off_platform_never = [str(w) for w in spec.get("off_platform_never", OFF_PLATFORM_NEVER) or []]
+        self.never_domains = {str(d).lower() for d in spec.get("off_platform_never_domains", OFF_PLATFORM_NEVER_DOMAINS) or []}
+        # scripts the Off-Platform model may start (#10): a script isn't a device command Veil Guard Service
+        # sees by its intent, so one not listed here is stopped
+        self.allow_scripts = {str(s).lower() for s in spec.get("allow_scripts") or []}
 
     # who a rule is about
 
@@ -86,7 +146,8 @@ class Firewall:
         if "anyone" not in people and not (people & names):
             return False
         only = [str(a).lower() for a in (rule.get("assistants") or [])]
-        return not only or (assistant or "").lower() in only
+        # a satellite that can't be mapped to an assistant could be any of them: its rules apply (#13)
+        return not only or (assistant or "").lower() in only or (assistant or "").lower() == "unknown device"
 
     # checks
 
@@ -139,23 +200,57 @@ class Firewall:
             if not self._applies(rule, names, assistant):
                 continue
             for call in tool_calls:
-                text = f"{call.get('name', '')} {call.get('arguments', '')}".replace("_", " ")
+                text = call_text(call)
                 for dv in rule.get("devices") or []:
                     if _has(text, dv):
                         return {"rule": rule, "why": f"the Off-Platform model tried to work the {dv} ({call.get('name')})"}
         return None
 
     def check_off_platform(self, tool_calls):
-        """A tool call of the Off-Platform model's naming one of off_platform_never (locks, doors, the
-        alarm): {rule, why} whoever spoke, or None. Home Assistant's own commands (said plainly) aren't these."""
-        if not self.off_platform_never:
-            return None
+        """A tool call of the Off-Platform model's that works one of off_platform_never (locks, doors, the
+        alarm), by its words or the kind of device it names, or a script not allowed: {rule, why} whoever
+        spoke, or None. One that only reads ("is the front door locked?") isn't stopped (#11). Home
+        Assistant's own commands (said plainly) aren't these; Veil Guard Service checks them by what they do."""
         for call in tool_calls or []:
-            text = f"{call.get('name', '')} {call.get('arguments', '')}".replace("_", " ")
+            own, reads = tool_kind(call.get("name"))
+            if str(call.get("name") or "").startswith("script__") and own.lower() not in self.allow_scripts:
+                return {"rule": {"name": "scripts", "message": ""}, "section": "off_platform_never",
+                        "why": f"the Off-Platform model tried to start a script that isn't allowed ({own}; firewall.yaml allow_scripts)"}
+            if reads:
+                continue
+            text = call_text(call)
             for w in self.off_platform_never:
                 if _has(text, w):
                     return {"rule": {"name": "off_platform_never", "message": ""}, "why": f"the Off-Platform model tried to work a {w} ({call.get('name')})",
                             "section": "off_platform_never"}
+            hit = {str(v).lower() for v in _values(_args(call).get("domain"))} & self.never_domains
+            if hit:
+                return {"rule": {"name": "off_platform_never", "message": ""}, "section": "off_platform_never",
+                        "why": f"the Off-Platform model tried to work a {sorted(hit)[0]} ({call.get('name')})"}
+        return None
+
+    def check_model_command(self, intent, targets=None, domains=None):
+        """A Home Assistant command a language model asked for (Veil Guard Service, platform not the
+        local agent), judged by what it does (#11): the kind of device it resolved to (a lock named
+        "Front Door") or off_platform_never's words in its targets; one that only reads goes on."""
+        if str(intent or "") in READ_ONLY:
+            return None
+        if "script" in {str(d).lower() for d in domains or []}:
+            # a script a model started (Veil Guard Service sees it since 1.2.0, #10): only those allowed
+            own = {str(t).lower().replace("script.", "") for t in targets or []}
+            if not own & self.allow_scripts:
+                return {"rule": {"name": "scripts", "message": ""}, "section": "off_platform_never",
+                        "why": f"a language model tried to start a script that isn't allowed ({', '.join(sorted(own)) or '?'}; firewall.yaml allow_scripts)"}
+            return None
+        doms = {str(d).lower() for d in domains or []} & self.never_domains
+        if doms:
+            return {"rule": {"name": "off_platform_never", "message": ""}, "section": "off_platform_never",
+                    "why": f"a language model tried to work a {sorted(doms)[0]} ({intent})"}
+        said = " ".join(str(t).replace("_", " ").replace(".", " ") for t in targets or [])
+        for w in self.off_platform_never:
+            if _has(said, w):
+                return {"rule": {"name": "off_platform_never", "message": ""}, "section": "off_platform_never",
+                        "why": f"a language model tried to work a {w} ({intent})"}
         return None
 
     def check_command(self, who, assistant, intent, targets=None, domains=None, text=None):
@@ -193,5 +288,6 @@ class Firewall:
         return None
 
     def has_command_rules(self):
-        """Is there anything for Veil Guard Service to ask about? (Off, or no rules: it needn't ask.)"""
-        return self.enabled and bool(self.rules)
+        """Is there anything for Veil Guard Service to ask about? Rules, or what no language model may work
+        whoever spoke (off_platform_never: always, so a command is never let through unasked, #13)."""
+        return (self.enabled and bool(self.rules)) or bool(self.off_platform_never or self.never_domains)

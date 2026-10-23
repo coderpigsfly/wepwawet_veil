@@ -40,7 +40,9 @@ at once.
 
 - **Answers at home when it's sure.** Topics are scored from public intent datasets (MASSIVE,
   CLINC150, SNIPS), never a hand-written regex, and each topic's service answers: a weather brain,
-  Donetick for chores. Follow-ups ("what about Sunday?"), the persona's own questions ("want to hear
+  Vikunja or Donetick for chores. One request can use several apps: "Will it rain Easter Sunday?"
+  asks the weather about the date the Liturgical calendar knows, and when the app can't answer yet
+  ("rain for the picnic"), the others fill in what's missing or she asks. Follow-ups ("what about Sunday?"), the persona's own questions ("want to hear
   the rest?"), adding a chore with its extras in a short conversation.
 - **Keeps junk out of the cloud.** False wakes, fragments, polite words and odd overheard speech are
   answered at home; a real question goes out.
@@ -59,6 +61,13 @@ at once.
   test tools as the command line), personality, integrations, settings, firewall and security.
 - **Security like Oread's:** accounts with roles, API tokens, an encrypted vault, address allow
   lists in and out, HTTPS, an audit log.
+- **Add-ons:** everything that isn't the router's own job (the Bank, brain fleas, mishearings, loose
+  language, flair, names, Roman numerals, the firewall) is an add-on you switch on or off; with one
+  off, the router works as it did without it.
+- **Loose language:** "remind me to buy palms on Sunday" asks whether Sunday is the reminder's day or
+  the day it's due; a deadline ("by April 15") offers a reminder before it.
+- **Slow data kept at home:** a calendar or on-this-day list is read from its app twice a year and kept
+  in its own small database, instead of a trip every hour.
 - **No model or dataset written into the code:** they're all in settings.yaml and tools/sources.yaml.
 - **A learning module that trains:** make an application smarter or more customized. The worked
   example uses voice identification, speech-to-text correction and text-to-speech injection.
@@ -69,7 +78,7 @@ at once.
 | --- | --- |
 | **Required** | Docker; Home Assistant, or another front end that speaks the OpenAI chat format |
 | **Optional** | An OpenAI-compatible model endpoint for what the house can't answer (LiteLLM in the tested setup) |
-| **Optional apps** | Oread (who spoke), Donetick (chores), the weather brain, and any app with an OpenAPI description |
+| **Optional apps** | Oread (who spoke), Vikunja or Donetick (chores), the weather brain, and any app with an OpenAPI description |
 
 ## Sample apps
 
@@ -80,6 +89,7 @@ Every app ships switched off; switch them on from the Integrations page.
 | [Liturgical Calendar API](https://litcal.johnromanodorazio.com) | "What feast is today?" | Nothing to install: it's on the internet. Permit it going out (Security page) |
 | [Wikipedia](https://en.wikipedia.org/wiki/Wikipedia:On_this_day), On this day | "What happened on this day?", "Who was born today?" | Nothing to install: it's on the internet. Permit it going out |
 | [The weather brain](https://github.com/coderpigsfly/weather_brain) | The weather, sunrise and sunset | Its own install |
+| [Vikunja](https://vikunja.io) | Chores, each person's own list and a shared one: add, list, check off, move, change the time, delete (always asked first) | Its own install and its API key; add it on Integrations (Add an app): its voice map and rules ship ready |
 | [Donetick](https://github.com/donetick/donetick) | Chores: add, list, check off, move, nag | Its own install, and its API key |
 | [Oread](https://github.com/coderpigsfly/oread) | Who spoke | Its own install |
 
@@ -120,6 +130,12 @@ house-router.
   notes on it in [docs/wepwawet-standard.md](docs/wepwawet-standard.md).
 - Datasets and books: their licenses are in NOTICE (MASSIVE CC BY 4.0, CLINC150 CC BY 3.0, SNIPS
   CC0; books public domain).
+
+## Versions
+
+Versions are year.month.release, the way Home Assistant numbers its own: 2026.10.0 is the first
+release in October 2026, 2026.10.1 the next. What changed in each is in [CHANGELOG.md](CHANGELOG.md).
+The Wepwawet standard keeps its own version number (version 2), which changes only when apps must change.
 
 ## Example implementation acknowledgements
 
