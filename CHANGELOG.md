@@ -4,6 +4,12 @@ Versions are year.month.release, the way Home Assistant numbers its own: 2026.10
 release in October 2026, 2026.10.1 the next, 2026.11.0 the first in November. Before October 2026
 they were 1.0.0, 1.0.1 and 1.0.2. The Wepwawet standard keeps its own version number (version 2).
 
+## 2026.10.1
+
+- **See it work:** the README links a short video of a request through Wepwawet
+  (`docs/media/littleassistant.mp4`): a tablet assistant asked about the weather, answered at home.
+- The tested setup lists Oread 2026.10.0.
+
 ## 2026.10.0
 
 The release that was planned as 1.1.0, numbered the new way.

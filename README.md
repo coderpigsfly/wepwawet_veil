@@ -26,6 +26,9 @@ voice device → Home Assistant → Wepwawet Veil (in the audio path, optional) 
              → Wepwawet Veil → answered at home, or Off-Platform (a cloud model) → back to the device
 ```
 
+**See it work:** [a request through Wepwawet](docs/media/littleassistant.mp4) (16 seconds): a tablet
+assistant hears its wake word and a question about the weather, and Wepwawet answers it at home.
+
 The router poses as an OpenAI-compatible model: Home Assistant's conversation agent points at it
 directly. What it can't answer at home goes Off-Platform to any OpenAI-compatible endpoint (in the
 tested setup, LiteLLM rotating free-tier Gemini models). With none set, it answers at home and
@@ -102,7 +105,7 @@ The [user's guide](docs/users-guide.md#the-sample-apps) has the steps for each.
 | [Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/) | firmware 25.10.0 |
 | A low-end EcoPad Android tablet running [Ava Pro](https://github.com/knoop7/Ava-Pro) | Android 10, Ava Pro 0.7.7 |
 | [LiteLLM](https://github.com/BerriAI/litellm), the Off-Platform hop | 1.104.2, rotating Gemini 3.x flash and flash-lite models |
-| [Oread](https://github.com/coderpigsfly/oread), who spoke | 1.0.1 |
+| [Oread](https://github.com/coderpigsfly/oread), who spoke | 2026.10.0 |
 | Server | Ubuntu 24.04, Docker, a Xeon VM without AVX2 |
 
 ## Get started
